@@ -87,9 +87,9 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
       if (data.success) {
         setVendors(data.vendors);
         setSelectedVendor((prev) => {
-          if (!prev) return data.vendors[0] ? { ...data.vendors[0] } : null;
+          if (!prev) return data.vendors[0] ? { ...data.vendors[0], menu: { ...data.vendors[0].menu } } : null;
           const match = data.vendors.find((v) => v.vendor_id === prev.vendor_id);
-          return match ? { ...match } : (data.vendors[0] ? { ...data.vendors[0] } : null);
+          return match ? { ...match, menu: { ...match.menu } } : (data.vendors[0] ? { ...data.vendors[0], menu: { ...data.vendors[0].menu } } : null);
         });
       }
     } catch (err) {
@@ -153,22 +153,50 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
   };
 
   const addToCart = (dish) => {
+    const availableStock = dish.daily_stock !== undefined && dish.daily_stock !== null ? Number(dish.daily_stock) : 20;
+
+    if (dish.is_available === false || dish.is_available === 0 || availableStock <= 0) {
+      alert(`'${dish.name}' is currently out of stock (0 portions remaining today).`);
+      return;
+    }
+
     setCart((prev) => {
       const existing = prev.find((item) => item.dish_id === dish.dish_id);
-      if (existing) {
-        if (existing.quantity >= 5) {
-          alert('Maximum limit reached: You can order up to 5 portions of this dish per order.');
-          return prev;
-        }
-        return prev.map((item) =>
-          item.dish_id === dish.dish_id ? { ...item, quantity: item.quantity + 1 } : item
-        );
+      const currentQty = existing ? existing.quantity : 0;
+
+      if (currentQty + 1 > availableStock) {
+        alert(`Cannot add more '${dish.name}': Only ${availableStock} portion${availableStock > 1 ? 's' : ''} available today.`);
+        return prev;
       }
-      return [...prev, { ...dish, quantity: 1 }];
+      if (currentQty >= 5) {
+        alert('Maximum order limit per dish is 5 items.');
+        return prev;
+      }
+      return existing
+        ? prev.map((item) => (item.dish_id === dish.dish_id ? { ...item, quantity: item.quantity + 1 } : item))
+        : [...prev, { ...dish, quantity: 1 }];
     });
   };
 
   const updateCartQuantity = (dish_id, newQty) => {
+    let availableStock = 20;
+    let dishName = 'Dish';
+
+    if (selectedVendor && selectedVendor.menu && selectedVendor.menu.categories) {
+      for (const cat of selectedVendor.menu.categories) {
+        const found = cat.dishes?.find((d) => d.dish_id === dish_id);
+        if (found) {
+          availableStock = found.daily_stock !== undefined && found.daily_stock !== null ? Number(found.daily_stock) : 20;
+          dishName = found.name;
+          break;
+        }
+      }
+    }
+
+    if (newQty > availableStock) {
+      alert(`Cannot increase quantity: Only ${availableStock} portion${availableStock > 1 ? 's' : ''} of '${dishName}' remaining today.`);
+      return;
+    }
     if (newQty > 5) {
       alert('Maximum limit reached: You can order up to 5 portions of this dish per order.');
       return;
@@ -202,12 +230,53 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
       return;
     }
     if (cart.length === 0) return;
+
+    // Validate cart items against real-time dish stock
+    if (selectedVendor && selectedVendor.menu && selectedVendor.menu.categories) {
+      const allDishes = selectedVendor.menu.categories.flatMap((c) => c.dishes || []);
+      for (const cartItem of cart) {
+        const d = allDishes.find((x) => x.dish_id === cartItem.dish_id);
+        if (d) {
+          const availStock = d.daily_stock !== undefined && d.daily_stock !== null ? Number(d.daily_stock) : 20;
+          if (d.is_available === false || d.is_available === 0 || availStock <= 0) {
+            alert(`Cannot proceed: '${d.name}' is out of stock (0 remaining). Please remove it from your cart.`);
+            return;
+          }
+          if (cartItem.quantity > availStock) {
+            alert(`Cannot proceed: Requested quantity (${cartItem.quantity}) for '${d.name}' exceeds available daily stock (${availStock} remaining). Please adjust your cart quantity.`);
+            return;
+          }
+        }
+      }
+    }
+
     setShowPaymentGatewayModal(true);
   };
 
   const handleExecutePaymentAndOrder = async (e) => {
     if (e) e.preventDefault();
     if (!selectedVendor) return;
+
+    // Re-verify stock before authorizing payment
+    if (selectedVendor.menu && selectedVendor.menu.categories) {
+      const allDishes = selectedVendor.menu.categories.flatMap((c) => c.dishes || []);
+      for (const cartItem of cart) {
+        const d = allDishes.find((x) => x.dish_id === cartItem.dish_id);
+        if (d) {
+          const availStock = d.daily_stock !== undefined && d.daily_stock !== null ? Number(d.daily_stock) : 20;
+          if (d.is_available === false || d.is_available === 0 || availStock <= 0) {
+            alert(`Cannot place order: '${d.name}' is out of stock (0 remaining).`);
+            setShowPaymentGatewayModal(false);
+            return;
+          }
+          if (cartItem.quantity > availStock) {
+            alert(`Cannot place order: Requested quantity (${cartItem.quantity}) for '${d.name}' exceeds available stock (${availStock} remaining).`);
+            setShowPaymentGatewayModal(false);
+            return;
+          }
+        }
+      }
+    }
 
     setIsProcessingPayment(true);
     setOrderStatusMsg('🔒 Authorizing 256-Bit SSL Payment & Securing Escrow...');
@@ -313,13 +382,15 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
         fetchMyOrders();
         fetchVendors();
       } else {
-        alert(`Order Placement Error: ${data.message || 'Item out of stock or insufficient inventory.'}`);
+        setShowPaymentGatewayModal(false);
+        alert(`Order Blocked: ${data.message || 'Item out of stock or insufficient inventory.'}`);
         setOrderStatusMsg(`❌ Order Failed: ${data.message}`);
         fetchVendors();
       }
     } catch (err) {
       console.error('Order placement execution error:', err);
       setIsProcessingPayment(false);
+      setShowPaymentGatewayModal(false);
       alert('Order Placement Error: Network connection issue. Please try again.');
     }
   };

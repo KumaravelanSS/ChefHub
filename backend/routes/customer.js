@@ -44,7 +44,7 @@ router.get('/vendors', async (req, res) => {
           name: d.name,
           category: d.category,
           price: Number(d.base_price),
-          daily_stock: d.daily_stock !== undefined && d.daily_stock !== null ? d.daily_stock : 20,
+          daily_stock: d.daily_stock !== undefined && d.daily_stock !== null ? Number(d.daily_stock) : 20,
           is_available: d.is_available === 1 || d.is_available === true,
           out_of_stock_reason: d.out_of_stock_reason || 'Daily portions fully exhausted (0 remaining)',
           description: meta.description || 'Handcrafted daily with fresh organic ingredients.',
