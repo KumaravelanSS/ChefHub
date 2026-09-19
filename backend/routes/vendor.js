@@ -441,4 +441,24 @@ router.get('/payouts', authenticateToken, requireRole('VENDOR'), async (req, res
   }
 });
 
+// Get Vendor Reviews
+router.get('/reviews', authenticateToken, requireRole('VENDOR'), async (req, res) => {
+  try {
+    const vendor_id = req.user.user_id;
+    const reviews = await MongoAdapter.getReviews({ vendor_id: Number(vendor_id) });
+    const formatted = [];
+    for (const r of reviews) {
+      const cust = await query('SELECT name FROM users WHERE user_id = ?', [r.customer_id]);
+      formatted.push({
+        ...r,
+        customer_name: cust.length > 0 ? cust[0].name : 'Customer'
+      });
+    }
+    return res.json({ success: true, reviews: formatted });
+  } catch (err) {
+    console.error('Fetch vendor reviews error:', err);
+    return res.status(500).json({ success: false, message: 'Failed to fetch vendor reviews.' });
+  }
+});
+
 module.exports = router;

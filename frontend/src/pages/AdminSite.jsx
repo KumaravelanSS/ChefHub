@@ -13,6 +13,8 @@ export default function AdminSite({ user, onLogin }) {
   const [adminDishes, setAdminDishes] = useState([]);
   const [showPasswordsMap, setShowPasswordsMap] = useState({});
   const [auditLogs, setAuditLogs] = useState([]);
+  const [adminReviews, setAdminReviews] = useState([]);
+  const [adminPayouts, setAdminPayouts] = useState([]);
 
   // Create User Form
   const [newUser, setNewUser] = useState({ name: '', email: '', password: '', role: 'CUSTOMER', phone: '' });
@@ -59,6 +61,14 @@ export default function AdminSite({ user, onLogin }) {
       const res = await fetch('/api/admin/dishes', { headers });
       const data = await res.json();
       if (data.success) setAdminDishes(data.dishes);
+    } else if (activeTab === 'payouts') {
+      const res = await fetch('/api/admin/payouts', { headers });
+      const data = await res.json();
+      if (data.success) setAdminPayouts(data.payouts);
+    } else if (activeTab === 'reviews') {
+      const res = await fetch('/api/admin/reviews', { headers });
+      const data = await res.json();
+      if (data.success) setAdminReviews(data.reviews);
     } else if (activeTab === 'audits') {
       const res = await fetch('/api/admin/audit-logs', { headers });
       const data = await res.json();
@@ -346,6 +356,24 @@ export default function AdminSite({ user, onLogin }) {
             </button>
 
             <button
+              onClick={() => setActiveTab('payouts')}
+              className={`flex items-center gap-2 px-3.5 py-2 rounded-lg transition-all ${activeTab === 'payouts' ? 'bg-rose-500 text-white shadow-md' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                }`}
+            >
+              <DollarSign className="w-3.5 h-3.5" />
+              Escrow Payout Ledger ({adminPayouts.length})
+            </button>
+
+            <button
+              onClick={() => setActiveTab('reviews')}
+              className={`flex items-center gap-2 px-3.5 py-2 rounded-lg transition-all ${activeTab === 'reviews' ? 'bg-rose-500 text-white shadow-md' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                }`}
+            >
+              <Tag className="w-3.5 h-3.5" />
+              Ratings & Reviews ({adminReviews.length})
+            </button>
+
+            <button
               onClick={() => setActiveTab('metrics')}
               className={`flex items-center gap-2 px-3.5 py-2 rounded-lg transition-all ${activeTab === 'metrics' ? 'bg-rose-500 text-white shadow-md' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
                 }`}
@@ -360,7 +388,7 @@ export default function AdminSite({ user, onLogin }) {
                 }`}
             >
               <Database className="w-3.5 h-3.5" />
-              MongoDB System Audits
+              MongoDB Audits
             </button>
 
             <button
@@ -719,6 +747,116 @@ export default function AdminSite({ user, onLogin }) {
               </div>
             </div>
 
+          </div>
+        )}
+
+        {/* Tab: Escrow Payout Ledger */}
+        {activeTab === 'payouts' && (
+          <div className="space-y-6">
+            <div className="glass-card rounded-2xl p-6 border border-slate-300 dark:border-slate-800 space-y-4">
+              <div className="flex justify-between items-center border-b border-slate-300 dark:border-slate-800 pb-3">
+                <div>
+                  <h2 className="text-xl font-bold text-slate-900 dark:text-white">🔒 Escrow Revenue & Payout Ledger</h2>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Automated Split: 85% Vendor Net • 10% Rider Delivery • 5% Platform Admin Commission</p>
+                </div>
+                <span className="px-3 py-1 rounded-full bg-emerald-500/10 text-emerald-500 text-xs font-bold border border-emerald-500/20">
+                  Real-time Escrow Sync
+                </span>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-slate-100 dark:bg-slate-900 text-slate-700 dark:text-slate-400 uppercase text-[10px] tracking-wider">
+                    <tr>
+                      <th className="p-3 rounded-l-xl">Payout ID</th>
+                      <th className="p-3">Order ID</th>
+                      <th className="p-3">Customer</th>
+                      <th className="p-3">Vendor (85%)</th>
+                      <th className="p-3">Rider (10%)</th>
+                      <th className="p-3">Platform Comm. (5%)</th>
+                      <th className="p-3">Gross Total</th>
+                      <th className="p-3 rounded-r-xl">Escrow Status</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-300 dark:divide-slate-800/60">
+                    {adminPayouts.map((p) => (
+                      <tr key={p.payout_id} className="hover:bg-slate-100 dark:hover:bg-slate-900/40">
+                        <td className="p-3 font-mono text-slate-500">#{p.payout_id}</td>
+                        <td className="p-3 font-mono font-bold text-slate-900 dark:text-white">#{p.order_id}</td>
+                        <td className="p-3 text-slate-700 dark:text-slate-300">{p.customer_name || 'Alex Customer'}</td>
+                        <td className="p-3 font-bold text-emerald-600 dark:text-emerald-400">
+                          ${Number(p.vendor_amount).toFixed(2)}
+                          <span className="block text-[10px] text-slate-400 font-normal">{p.vendor_name}</span>
+                        </td>
+                        <td className="p-3 font-bold text-sky-600 dark:text-sky-400">
+                          ${Number(p.rider_amount).toFixed(2)}
+                          <span className="block text-[10px] text-slate-400 font-normal">{p.rider_name || 'Rider Assigned'}</span>
+                        </td>
+                        <td className="p-3 font-bold text-rose-600 dark:text-rose-400">
+                          ${Number(p.platform_commission).toFixed(2)}
+                        </td>
+                        <td className="p-3 font-extrabold text-slate-900 dark:text-white">
+                          ${Number(p.total_amount || (Number(p.vendor_amount) + Number(p.rider_amount) + Number(p.platform_commission))).toFixed(2)}
+                        </td>
+                        <td className="p-3">
+                          <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${
+                            p.payout_status === 'PROCESSED' 
+                              ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20' 
+                              : 'bg-amber-500/10 text-amber-600 border-amber-500/20'
+                          }`}>
+                            {p.payout_status || 'SCHEDULED'}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Tab: Customer Ratings & Reviews */}
+        {activeTab === 'reviews' && (
+          <div className="space-y-6">
+            <div className="glass-card rounded-2xl p-6 border border-slate-300 dark:border-slate-800 space-y-4">
+              <div className="flex justify-between items-center border-b border-slate-300 dark:border-slate-800 pb-3">
+                <div>
+                  <h2 className="text-xl font-bold text-slate-900 dark:text-white">⭐ Customer Ratings & Feedback Audit</h2>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">MongoDB Review Analytics & NLP Sentiment Classification</p>
+                </div>
+                <span className="px-3 py-1 rounded-full bg-amber-500/10 text-amber-500 text-xs font-bold border border-amber-500/20">
+                  {adminReviews.length} Verified Reviews
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {adminReviews.map((r, i) => (
+                  <div key={r.review_id || i} className="p-4 rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 space-y-3">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <h4 className="font-bold text-slate-900 dark:text-white text-sm">{r.customer_name || 'Customer'}</h4>
+                        <p className="text-[11px] text-slate-500 dark:text-slate-400">Order #{r.order_id} • {r.vendor_name || 'Chef'}</p>
+                      </div>
+                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${
+                        r.sentiment_label === 'POSITIVE' ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20' : 'bg-rose-500/10 text-rose-500 border-rose-500/20'
+                      }`}>
+                        {r.sentiment_label || 'POSITIVE'}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-4 text-xs font-bold text-amber-500">
+                      <span>Chef: {'⭐'.repeat(r.vendor_rating || 5)}</span>
+                      <span>Rider: {'⭐'.repeat(r.rider_rating || 5)}</span>
+                    </div>
+
+                    <p className="text-xs text-slate-700 dark:text-slate-300 italic bg-slate-200/50 dark:bg-slate-800/50 p-2.5 rounded-lg border border-slate-300 dark:border-slate-700/50">
+                      "{r.comment || 'Great experience!'}"
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
         )}
 

@@ -294,4 +294,45 @@ router.get('/audit-logs', authenticateToken, requireRole('ADMIN'), async (req, r
   }
 });
 
+// Global Reviews Endpoint (from MongoDB)
+router.get('/reviews', authenticateToken, requireRole('ADMIN'), async (req, res) => {
+  try {
+    const reviews = await MongoAdapter.getReviews();
+    const formatted = [];
+    for (const r of reviews) {
+      const cust = await query('SELECT name FROM users WHERE user_id = ?', [r.customer_id]);
+      const vend = await query('SELECT name FROM users WHERE user_id = ?', [r.vendor_id]);
+      formatted.push({
+        ...r,
+        customer_name: cust.length > 0 ? cust[0].name : 'Customer',
+        vendor_name: vend.length > 0 ? vend[0].name : 'Vendor'
+      });
+    }
+    return res.json({ success: true, reviews: formatted });
+  } catch (err) {
+    console.error('Fetch admin reviews error:', err);
+    return res.status(500).json({ success: false, message: 'Failed to fetch global reviews.' });
+  }
+});
+
+// Global Payouts Ledger (Escrow Split Audit)
+router.get('/payouts', authenticateToken, requireRole('ADMIN'), async (req, res) => {
+  try {
+    const payouts = await query(`
+      SELECT p.*, o.total_amount, o.timestamp AS order_date,
+             uc.name AS customer_name, uv.name AS vendor_name, ur.name AS rider_name
+      FROM payouts p
+      JOIN orders o ON p.order_id = o.order_id
+      JOIN users uc ON o.customer_id = uc.user_id
+      JOIN users uv ON p.vendor_id = uv.user_id
+      LEFT JOIN users ur ON p.rider_id = ur.user_id
+      ORDER BY p.executed_at DESC
+    `);
+    return res.json({ success: true, payouts });
+  } catch (err) {
+    console.error('Fetch admin payouts error:', err);
+    return res.status(500).json({ success: false, message: 'Failed to fetch global payouts ledger.' });
+  }
+});
+
 module.exports = router;

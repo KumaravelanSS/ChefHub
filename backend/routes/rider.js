@@ -141,4 +141,24 @@ router.get('/earnings', authenticateToken, requireRole('RIDER'), async (req, res
   }
 });
 
+// Fetch Rider Reviews
+router.get('/reviews', authenticateToken, requireRole('RIDER'), async (req, res) => {
+  try {
+    const rider_id = req.user.user_id;
+    const reviews = await MongoAdapter.getReviews({ rider_id: Number(rider_id) });
+    const formatted = [];
+    for (const r of reviews) {
+      const cust = await query('SELECT name FROM users WHERE user_id = ?', [r.customer_id]);
+      formatted.push({
+        ...r,
+        customer_name: cust.length > 0 ? cust[0].name : 'Customer'
+      });
+    }
+    return res.json({ success: true, reviews: formatted });
+  } catch (err) {
+    console.error('Fetch rider reviews error:', err);
+    return res.status(500).json({ success: false, message: 'Failed to fetch rider reviews.' });
+  }
+});
+
 module.exports = router;

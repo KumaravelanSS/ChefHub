@@ -9,6 +9,7 @@ export default function RiderSite({ user, onLogin }) {
 
   const [jobs, setJobs] = useState([]);
   const [earnings, setEarnings] = useState({ total_earned: '0.00', payouts: [] });
+  const [riderReviews, setRiderReviews] = useState([]);
   const [shiftStatus, setShiftStatus] = useState('ONLINE');
   const [coords, setCoords] = useState({ lat: 12.9716, lng: 77.5946 });
 
@@ -16,6 +17,7 @@ export default function RiderSite({ user, onLogin }) {
     if (user && user.role === 'RIDER') {
       fetchJobs();
       fetchEarnings();
+      fetchReviews();
     }
   }, [user]);
 
@@ -40,6 +42,19 @@ export default function RiderSite({ user, onLogin }) {
       });
       const data = await res.json();
       if (data.success) setEarnings(data);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const fetchReviews = async () => {
+    try {
+      const token = localStorage.getItem('chefhub_token');
+      const res = await fetch('/api/rider/reviews', {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (data.success) setRiderReviews(data.reviews);
     } catch (err) {
       console.error(err);
     }
@@ -311,6 +326,28 @@ export default function RiderSite({ user, onLogin }) {
                     <p className="text-[10px] text-slate-500 dark:text-slate-400 font-semibold">{p.payout_status}</p>
                   </div>
                   <span className="font-extrabold text-sky-600 dark:text-sky-400">${Number(p.rider_amount).toFixed(2)}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Rider Customer Ratings & Feedback */}
+          <div className="glass-card rounded-2xl p-5 border border-slate-300 dark:border-slate-800 space-y-4">
+            <div className="flex justify-between items-center border-b border-slate-300 dark:border-slate-800 pb-3">
+              <h3 className="text-base font-bold text-slate-900 dark:text-white">⭐ Delivery Partner Ratings</h3>
+              <span className="text-xs font-bold text-amber-500">{riderReviews.length} Reviews</span>
+            </div>
+
+            <div className="space-y-3 max-h-60 overflow-y-auto pr-1 text-xs">
+              {riderReviews.map((r, i) => (
+                <div key={r.review_id || i} className="p-3 rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 space-y-1.5">
+                  <div className="flex justify-between items-center">
+                    <span className="font-bold text-slate-900 dark:text-white">{r.customer_name || 'Customer'}</span>
+                    <span className="text-amber-500 font-bold">{'⭐'.repeat(r.rider_rating || 5)}</span>
+                  </div>
+                  <p className="text-[11px] text-slate-600 dark:text-slate-300 italic bg-slate-200/50 dark:bg-slate-800/50 p-2 rounded-lg">
+                    "{r.comment || 'Prompt delivery!'}"
+                  </p>
                 </div>
               ))}
             </div>

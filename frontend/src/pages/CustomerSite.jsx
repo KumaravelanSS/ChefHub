@@ -86,12 +86,29 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
       const data = await res.json();
       if (data.success) {
         setVendors(data.vendors);
-        if (data.vendors.length > 0) setSelectedVendor(data.vendors[0]);
+        setSelectedVendor((prev) => {
+          if (!prev) return data.vendors[0] || null;
+          const match = data.vendors.find((v) => v.vendor_id === prev.vendor_id);
+          return match || data.vendors[0] || null;
+        });
       }
     } catch (err) {
       console.error(err);
     }
   };
+
+  useEffect(() => {
+    fetchVendors();
+    fetchMyOrders();
+
+    // Real-Time Stock Auto-Polling (3 Seconds for Zero-Reload Updates)
+    const stockPollInterval = setInterval(() => {
+      fetchVendors();
+      fetchMyOrders();
+    }, 3000);
+
+    return () => clearInterval(stockPollInterval);
+  }, []);
 
   const fetchMyOrders = async () => {
     try {

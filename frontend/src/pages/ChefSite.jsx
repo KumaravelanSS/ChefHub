@@ -24,6 +24,7 @@ export default function ChefSite({ user, onLogin, onLogout }) {
   const [inventory, setInventory] = useState([]);
   const [recipes, setRecipes] = useState([]);
   const [payouts, setPayouts] = useState({ total_earned: '0.00', payouts: [] });
+  const [chefReviews, setChefReviews] = useState([]);
 
   // Add Dish Form
   const [newDish, setNewDish] = useState({ name: '', category: 'Pasta', base_price: '', daily_stock: '20', description: '', image_url: '', is_available: true });
@@ -90,6 +91,10 @@ export default function ChefSite({ user, onLogin, onLogout }) {
       const res = await fetch('/api/vendor/payouts', { headers });
       const data = await res.json();
       if (data.success) setPayouts(data);
+    } else if (activeTab === 'reviews') {
+      const res = await fetch('/api/vendor/reviews', { headers });
+      const data = await res.json();
+      if (data.success) setChefReviews(data.reviews);
     }
   };
 
@@ -483,6 +488,16 @@ export default function ChefSite({ user, onLogin, onLogout }) {
           >
             <DollarSign className="w-3.5 h-3.5" />
             Payout Earnings
+          </button>
+
+          <button
+            onClick={() => setActiveTab('reviews')}
+            className={`flex items-center gap-2 px-3.5 py-2 rounded-xl transition-all ${
+              activeTab === 'reviews' ? 'bg-emerald-500 text-white shadow-md font-black' : 'text-slate-700 dark:text-slate-400 hover:text-emerald-600 dark:hover:text-white'
+            }`}
+          >
+            <Tag className="w-3.5 h-3.5" />
+            Customer Reviews ({chefReviews.length})
           </button>
         </div>
       </div>
@@ -1571,6 +1586,49 @@ export default function ChefSite({ user, onLogin, onLogout }) {
                   ))}
                 </tbody>
               </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Tab: Customer Reviews */}
+      {activeTab === 'reviews' && (
+        <div className="space-y-6">
+          <div className="glass-card rounded-2xl p-6 border border-slate-300 dark:border-slate-800 space-y-4">
+            <div className="flex justify-between items-center border-b border-slate-300 dark:border-slate-800 pb-3">
+              <div>
+                <h2 className="text-xl font-bold text-slate-900 dark:text-white">⭐ Kitchen Customer Ratings & Feedback</h2>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Real-time reviews and NLP sentiment scoring from verified customers</p>
+              </div>
+              <span className="px-3 py-1 rounded-full bg-emerald-500/10 text-emerald-500 text-xs font-bold border border-emerald-500/20">
+                {chefReviews.length} Verified Customer Reviews
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {chefReviews.map((r, i) => (
+                <div key={r.review_id || i} className="p-4 rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 space-y-3">
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <h4 className="font-bold text-slate-900 dark:text-white text-sm">{r.customer_name || 'Customer'}</h4>
+                      <p className="text-[11px] text-slate-500 dark:text-slate-400">Order #{r.order_id}</p>
+                    </div>
+                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${
+                      r.sentiment_label === 'POSITIVE' ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20' : 'bg-rose-500/10 text-rose-500 border-rose-500/20'
+                    }`}>
+                      {r.sentiment_label || 'POSITIVE'}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center gap-4 text-xs font-bold text-amber-500">
+                    <span>Chef Rating: {'⭐'.repeat(r.vendor_rating || 5)}</span>
+                  </div>
+
+                  <p className="text-xs text-slate-700 dark:text-slate-300 italic bg-slate-200/50 dark:bg-slate-800/50 p-2.5 rounded-lg border border-slate-300 dark:border-slate-700/50">
+                    "{r.comment || 'Delicious meal!'}"
+                  </p>
+                </div>
+              ))}
             </div>
           </div>
         </div>

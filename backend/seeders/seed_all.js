@@ -295,7 +295,54 @@ async function seedDatabase() {
     total_deliveries_completed: 56
   });
 
-  console.log('--- ChefHub Seeding Complete with High-Res Food Photos! ---');
+  // 7. Seed Initial Customer Ratings & Reviews
+  const sampleReviews = [
+    {
+      review_id: 101,
+      order_id: 1,
+      customer_id: customerAlex ? customerAlex.user_id : 5,
+      vendor_id: vendorMario ? vendorMario.user_id : 2,
+      rider_id: riderDavid ? riderDavid.user_id : 7,
+      vendor_rating: 5,
+      rider_rating: 5,
+      comment: 'Absolutely incredible Signature Truffle Tagliatelle! Delivered hot and fresh by David.',
+      sentiment_label: 'POSITIVE',
+      created_at: new Date(Date.now() - 3600000 * 2)
+    },
+    {
+      review_id: 102,
+      order_id: 2,
+      customer_id: customerAlex ? customerAlex.user_id : 5,
+      vendor_id: vendorPriya ? vendorPriya.user_id : 3,
+      rider_id: riderDavid ? riderDavid.user_id : 7,
+      vendor_rating: 5,
+      rider_rating: 4,
+      comment: 'Authentic royal dum biryani with perfect spice balance. Great packaging!',
+      sentiment_label: 'POSITIVE',
+      created_at: new Date(Date.now() - 3600000 * 24)
+    },
+    {
+      review_id: 103,
+      order_id: 3,
+      customer_id: customerAlex ? customerAlex.user_id : 5,
+      vendor_id: vendorKenji ? vendorKenji.user_id : 4,
+      rider_id: riderDavid ? riderDavid.user_id : 7,
+      vendor_rating: 4,
+      rider_rating: 5,
+      comment: 'Rich tonkotsu broth, very tasty ramen egg. Will order again!',
+      sentiment_label: 'POSITIVE',
+      created_at: new Date(Date.now() - 3600000 * 48)
+    }
+  ];
+
+  for (const r of sampleReviews) {
+    const existing = await MongoAdapter.getReviews({ vendor_id: r.vendor_id });
+    if (!existing || existing.length === 0) {
+      await MongoAdapter.createReview(r);
+    }
+  }
+
+  console.log('--- ChefHub Seeding Complete with High-Res Food Photos & Reviews! ---');
 }
 
 if (require.main === module) {
