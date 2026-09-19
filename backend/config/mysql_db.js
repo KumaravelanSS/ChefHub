@@ -1,26 +1,59 @@
-const sqlite3 = require('sqlite3').verbose();
-const mysql = require('mysql2/promise');
 const path = require('path');
 require('dotenv').config();
 
-let dbClient = null;
-const isSqlite = (process.env.DB_TYPE || 'sqlite') === 'sqlite';
+const dbType = process.env.DB_TYPE || (process.env.DATABASE_URL ? 'postgres' : 'sqlite');
+const isSqlite = dbType === 'sqlite';
+const isPostgres = dbType === 'postgres' || (process.env.DATABASE_URL && process.env.DATABASE_URL.startsWith('postgres'));
 
-const sqliteDbPath = path.resolve(__dirname, '..', process.env.DB_PATH || 'chefhub.sqlite');
-
+let pgPool = null;
+let mysqlPool = null;
 let sqliteDbInstance = null;
 
 function getSqliteDb() {
   if (!sqliteDbInstance) {
+    const sqlite3 = require('sqlite3').verbose();
+    const sqliteDbPath = path.resolve(__dirname, '..', process.env.DB_PATH || 'chefhub.sqlite');
     sqliteDbInstance = new sqlite3.Database(sqliteDbPath);
     sqliteDbInstance.run('PRAGMA foreign_keys = ON');
   }
   return sqliteDbInstance;
 }
 
+function getPgPool() {
+  if (!pgPool) {
+    const { Pool } = require('pg');
+    pgPool = new Pool({
+      connectionString: process.env.DATABASE_URL,
+      ssl: { rejectUnauthorized: false }
+    });
+  }
+  return pgPool;
+}
+
 // Unified query wrapper
 async function query(sql, params = []) {
-  if (isSqlite) {
+  if (isPostgres) {
+    const pool = getPgPool();
+    let paramIndex = 1;
+    let pgSql = sql.replace(/\?/g, () => `$${paramIndex++}`);
+    pgSql = pgSql.replace(/INTEGER PRIMARY KEY AUTOINCREMENT/gi, 'SERIAL PRIMARY KEY');
+    pgSql = pgSql.replace(/INTEGER PRIMARY KEY AUTO_INCREMENT/gi, 'SERIAL PRIMARY KEY');
+    pgSql = pgSql.replace(/DATETIME/gi, 'TIMESTAMP');
+
+    const isInsert = pgSql.trim().toUpperCase().startsWith('INSERT');
+    if (isInsert && !pgSql.toUpperCase().includes('RETURNING')) {
+      pgSql += ' RETURNING *';
+    }
+
+    const res = await pool.query(pgSql, params);
+    if (isInsert && res.rows.length > 0) {
+      const firstRow = res.rows[0];
+      const keys = Object.keys(firstRow);
+      const idKey = keys.find(k => k.endsWith('_id')) || keys[0];
+      return { insertId: firstRow[idKey], rows: res.rows, affectedRows: res.rowCount };
+    }
+    return res.rows;
+  } else if (isSqlite) {
     const db = getSqliteDb();
     return new Promise((resolve, reject) => {
       const trimmedSql = sql.trim();
@@ -39,8 +72,9 @@ async function query(sql, params = []) {
       }
     });
   } else {
-    if (!dbClient) {
-      dbClient = await mysql.createPool({
+    if (!mysqlPool) {
+      const mysql = require('mysql2/promise');
+      mysqlPool = mysql.createPool({
         host: process.env.MYSQL_HOST || 'localhost',
         user: process.env.MYSQL_USER || 'root',
         password: process.env.MYSQL_PASSWORD || '',
@@ -50,7 +84,7 @@ async function query(sql, params = []) {
         queueLimit: 0
       });
     }
-    const [results] = await dbClient.execute(sql, params);
+    const [results] = await mysqlPool.execute(sql, params);
     return results;
   }
 }
