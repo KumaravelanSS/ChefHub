@@ -90,7 +90,7 @@ async function query(sql, params = []) {
 }
 
 async function initRelationalDb() {
-  console.log(`[Relational Engine] Initializing storage mode: ${isSqlite ? 'SQLite' : 'MySQL'}`);
+  console.log(`[Relational Engine] Initializing storage mode: ${isSqlite ? 'SQLite' : isPostgres ? 'PostgreSQL (Supabase)' : 'MySQL'}`);
   
   // 1. Users Table
   await query(`
