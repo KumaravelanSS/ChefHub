@@ -7,6 +7,6 @@
     "backend": "cd backend && npm start",
     "frontend": "cd frontend && npm run dev",
     "seed": "cd backend && npm run seed",
-    "build": "cd frontend && npm run build"
+    "build": "cd frontend && npm install && npm run build && cd ../backend && npm install"
   }
 }
