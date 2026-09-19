@@ -22,14 +22,14 @@ const path = require('path');
 const fs = require('fs');
 
 // Static Frontend Serving (Serves ChefHub React UI)
+const publicPath = path.join(__dirname, 'public');
 const frontendDistPath = path.join(__dirname, '../frontend/dist');
-const altFrontendDistPath = path.join(__dirname, 'public');
 
 let staticPath = null;
-if (fs.existsSync(frontendDistPath)) {
+if (fs.existsSync(publicPath)) {
+  staticPath = publicPath;
+} else if (fs.existsSync(frontendDistPath)) {
   staticPath = frontendDistPath;
-} else if (fs.existsSync(altFrontendDistPath)) {
-  staticPath = altFrontendDistPath;
 }
 
 if (staticPath) {
