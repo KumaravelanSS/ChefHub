@@ -1,0 +1,12 @@
+{
+  "name": "chefhub-dbms-project",
+  "version": "1.0.0",
+  "description": "ChefHub DBMS Project Workspace",
+  "scripts": {
+    "start": "node backend/server.js",
+    "backend": "cd backend && npm start",
+    "frontend": "cd frontend && npm run dev",
+    "seed": "cd backend && npm run seed",
+    "build": "cd frontend && npm run build"
+  }
+}
