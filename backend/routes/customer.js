@@ -142,7 +142,7 @@ router.post('/orders', authenticateToken, requireRole('CUSTOMER'), async (req, r
       `, [order_id, item.dish_id, item.quantity, item.price_at_purchase, item.subtotal]);
 
       // Deduct daily portion stock
-      await query('UPDATE dishes SET daily_stock = MAX(0, daily_stock - ?) WHERE dish_id = ?', [item.quantity, item.dish_id]);
+      await query('UPDATE dishes SET daily_stock = GREATEST(0, daily_stock - ?) WHERE dish_id = ?', [item.quantity, item.dish_id]);
 
       // Auto mark out of stock if portion stock hits 0
       const checkStock = await query('SELECT daily_stock FROM dishes WHERE dish_id = ?', [item.dish_id]);
@@ -191,7 +191,7 @@ router.post('/orders', authenticateToken, requireRole('CUSTOMER'), async (req, r
     });
   } catch (err) {
     console.error('Create order error:', err);
-    return res.status(500).json({ success: false, message: 'Failed to place order.' });
+    return res.status(500).json({ success: false, message: err.message || 'Failed to place order.' });
   }
 });
 
