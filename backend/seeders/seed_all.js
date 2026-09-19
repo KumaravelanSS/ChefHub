@@ -29,7 +29,7 @@ async function seedDatabase() {
     const existing = await query('SELECT user_id FROM users WHERE LOWER(email) = LOWER(?)', [u.email]);
     if (existing.length === 0) {
       await query(
-        'INSERT INTO users (name, email, password_hash, plain_password, role, phone, status) VALUES (?, ?, ?, ?, ?, ?, "ACTIVE")',
+        "INSERT INTO users (name, email, password_hash, plain_password, role, phone, status) VALUES (?, ?, ?, ?, ?, ?, 'ACTIVE')",
         [u.name, u.email, u.password, u.plain_password, u.role, u.phone]
       );
     } else {
