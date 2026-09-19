@@ -18,6 +18,43 @@ const PORT = process.env.PORT || 5000;
 app.use(cors());
 app.use(express.json());
 
+// Root Landing Page
+app.get('/', (req, res) => {
+  res.send(`
+    <!DOCTYPE html>
+    <html lang="en">
+      <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>ChefHub Backend Server</title>
+        <style>
+          body { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; background: #0f172a; color: #f8fafc; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; padding: 1rem; box-sizing: border-box; }
+          .card { background: #1e293b; padding: 2.5rem; border-radius: 1.25rem; box-shadow: 0 20px 40px rgba(0,0,0,0.4); text-align: center; max-width: 520px; width: 100%; border: 1px solid #334155; }
+          h1 { color: #38bdf8; margin-top: 0; margin-bottom: 0.5rem; font-size: 1.8rem; letter-spacing: -0.5px; }
+          p { color: #94a3b8; font-size: 0.95rem; line-height: 1.6; margin-bottom: 1.25rem; }
+          .badge { display: inline-flex; align-items: center; gap: 0.5rem; background: rgba(16, 185, 129, 0.15); color: #34d399; padding: 0.5rem 1.25rem; border-radius: 9999px; font-weight: 600; font-size: 0.85rem; border: 1px solid rgba(16, 185, 129, 0.3); }
+          .dot { width: 8px; height: 8px; background: #34d399; border-radius: 50%; box-shadow: 0 0 10px #34d399; }
+          .endpoints { text-align: left; margin-top: 1.75rem; background: #0f172a; padding: 1.25rem; border-radius: 0.75rem; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 0.85rem; color: #cbd5e1; border: 1px solid #1e293b; }
+          .endpoints strong { color: #f1f5f9; display: block; margin-bottom: 0.5rem; font-family: system-ui; }
+          a { color: #38bdf8; text-decoration: none; font-weight: 500; }
+          a:hover { text-decoration: underline; }
+        </style>
+      </head>
+      <body>
+        <div class="card">
+          <h1>🍳 ChefHub Backend API</h1>
+          <p>Cloud Microservice powered by Node.js, Express, and Supabase PostgreSQL Database.</p>
+          <div class="badge"><span class="dot"></span> SERVER ONLINE & CONNECTED</div>
+          <div class="endpoints">
+            <strong>🌐 Public API Health Check:</strong>
+            - <a href="/api/health" target="_blank">GET /api/health</a>
+          </div>
+        </div>
+      </body>
+    </html>
+  `);
+});
+
 // API Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/customer', customerRoutes);
