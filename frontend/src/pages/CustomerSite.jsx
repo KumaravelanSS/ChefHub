@@ -1160,7 +1160,7 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
               <div className="md:col-span-5 p-4 rounded-2xl bg-slate-100 dark:bg-slate-900/80 border border-slate-300 dark:border-slate-800 space-y-4">
                 <div className="border-b border-slate-300 dark:border-slate-800 pb-2.5">
                   <h4 className="font-extrabold text-slate-900 dark:text-white text-xs uppercase tracking-wider">Order Summary</h4>
-                  <p className="text-xs text-orange-600 dark:text-orange-400 font-bold truncate mt-0.5">{selectedVendor.name || selectedVendor.business_name}</p>
+                  <p className="text-xs text-orange-600 dark:text-orange-400 font-bold truncate mt-0.5">{selectedVendor?.name || selectedVendor?.business_name || 'Chef Kitchen'}</p>
                 </div>
 
                 <div className="space-y-2 max-h-48 overflow-y-auto pr-1 text-xs">

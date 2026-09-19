@@ -8,7 +8,7 @@ const InventoryEngine = {
     try {
       const { MongoAdapter } = require('../config/mongo_db');
       
-      let dishQuery = 'SELECT dish_id, vendor_id FROM dishes';
+      let dishQuery = 'SELECT dish_id, vendor_id, daily_stock FROM dishes';
       const params = [];
       if (vendor_id) {
         dishQuery += ' WHERE vendor_id = ?';
@@ -25,22 +25,34 @@ const InventoryEngine = {
           WHERE dr.dish_id = ?
         `, [d.dish_id]);
 
-        let isAvailable = true;
+        let hasIngredientShortage = false;
         if (recipes && recipes.length > 0) {
           for (const r of recipes) {
             if (Number(r.stock_quantity) < Number(r.quantity_required)) {
-              isAvailable = false;
+              hasIngredientShortage = true;
               break;
             }
           }
         }
 
-        const availVal = isAvailable ? 1 : 0;
-        if (!isAvailable) {
-          await query("UPDATE dishes SET is_available = 0, out_of_stock_reason = 'Raw ingredient shortage (Required ingredients depleted in stock)' WHERE dish_id = ?", [d.dish_id]);
-        } else {
-          await query("UPDATE dishes SET is_available = 1 WHERE dish_id = ?", [d.dish_id]);
+        const isPortionDepleted = d.daily_stock !== null && d.daily_stock !== undefined && Number(d.daily_stock) <= 0;
+
+        let isAvailable = true;
+        let reason = null;
+
+        if (isPortionDepleted) {
+          isAvailable = false;
+          reason = 'Daily portions fully exhausted (0 remaining)';
+        } else if (hasIngredientShortage) {
+          isAvailable = false;
+          reason = 'Raw ingredient shortage (Required ingredients depleted in stock)';
         }
+
+        const availVal = isAvailable ? 1 : 0;
+        await query(
+          'UPDATE dishes SET is_available = ?, out_of_stock_reason = ? WHERE dish_id = ?',
+          [availVal, reason, d.dish_id]
+        );
 
         // Sync MongoDB vendor menu document
         const mongoMenu = await MongoAdapter.findVendorMenu(d.vendor_id);

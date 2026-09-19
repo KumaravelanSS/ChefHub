@@ -42,6 +42,13 @@ export default function AdminSite({ user, onLogin }) {
   useEffect(() => {
     if (user && user.role === 'ADMIN') {
       fetchData();
+
+      // Real-Time Auto-Polling (3 Seconds for Zero-Reload Updates)
+      const adminPoll = setInterval(() => {
+        fetchData();
+      }, 3000);
+
+      return () => clearInterval(adminPoll);
     }
   }, [user, activeTab]);
 
