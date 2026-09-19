@@ -55,46 +55,51 @@ export default function ChefSite({ user, onLogin, onLogout }) {
 
   const fetchData = async () => {
     const token = localStorage.getItem('chefhub_token');
+    if (!token) return;
     const headers = { Authorization: `Bearer ${token}` };
 
-    if (activeTab === 'dishes') {
-      const res = await fetch('/api/vendor/dishes', { headers });
-      const data = await res.json();
-      if (data.success) {
-        setDishes(data.dishes);
-        if (data.dishes.length > 0 && !newRecipe.dish_id) setNewRecipe(prev => ({ ...prev, dish_id: data.dishes[0].dish_id }));
-      }
-    } else if (activeTab === 'orders') {
-      const res = await fetch('/api/vendor/orders', { headers });
-      const data = await res.json();
-      if (data.success) setOrders(data.orders);
-    } else if (activeTab === 'inventory') {
-      const res = await fetch('/api/vendor/inventory', { headers });
-      const data = await res.json();
-      if (data.success) {
-        setInventory(data.inventory);
-        if (data.inventory.length > 0 && !newRecipe.ingredient_id) setNewRecipe(prev => ({ ...prev, ingredient_id: data.inventory[0].ingredient_id }));
-      }
-    } else if (activeTab === 'recipes') {
-      const resDishes = await fetch('/api/vendor/dishes', { headers });
+    try {
+      // Parallel fetch dishes, orders, and inventory so portion & ingredient stock updates in real-time
+      const [resDishes, resOrders, resInv] = await Promise.all([
+        fetch('/api/vendor/dishes', { headers }),
+        fetch('/api/vendor/orders', { headers }),
+        fetch('/api/vendor/inventory', { headers })
+      ]);
+
       const dataDishes = await resDishes.json();
-      if (dataDishes.success) setDishes(dataDishes.dishes);
+      if (dataDishes.success) {
+        setDishes(dataDishes.dishes);
+        if (dataDishes.dishes.length > 0 && !newRecipe.dish_id) {
+          setNewRecipe(prev => ({ ...prev, dish_id: dataDishes.dishes[0].dish_id }));
+        }
+      }
 
-      const resInv = await fetch('/api/vendor/inventory', { headers });
+      const dataOrders = await resOrders.json();
+      if (dataOrders.success) setOrders(dataOrders.orders);
+
       const dataInv = await resInv.json();
-      if (dataInv.success) setInventory(dataInv.inventory);
+      if (dataInv.success) {
+        setInventory(dataInv.inventory);
+        if (dataInv.inventory.length > 0 && !newRecipe.ingredient_id) {
+          setNewRecipe(prev => ({ ...prev, ingredient_id: dataInv.inventory[0].ingredient_id }));
+        }
+      }
 
-      const res = await fetch('/api/vendor/recipes', { headers });
-      const data = await res.json();
-      if (data.success) setRecipes(data.recipes);
-    } else if (activeTab === 'payouts') {
-      const res = await fetch('/api/vendor/payouts', { headers });
-      const data = await res.json();
-      if (data.success) setPayouts(data);
-    } else if (activeTab === 'reviews') {
-      const res = await fetch('/api/vendor/reviews', { headers });
-      const data = await res.json();
-      if (data.success) setChefReviews(data.reviews);
+      if (activeTab === 'recipes') {
+        const res = await fetch('/api/vendor/recipes', { headers });
+        const data = await res.json();
+        if (data.success) setRecipes(data.recipes);
+      } else if (activeTab === 'payouts') {
+        const res = await fetch('/api/vendor/payouts', { headers });
+        const data = await res.json();
+        if (data.success) setPayouts(data);
+      } else if (activeTab === 'reviews') {
+        const res = await fetch('/api/vendor/reviews', { headers });
+        const data = await res.json();
+        if (data.success) setChefReviews(data.reviews);
+      }
+    } catch (err) {
+      console.error('Chef fetchData error:', err);
     }
   };
 

@@ -54,32 +54,41 @@ export default function AdminSite({ user, onLogin }) {
 
   const fetchData = async () => {
     const token = localStorage.getItem('chefhub_token');
+    if (!token) return;
     const headers = { Authorization: `Bearer ${token}` };
 
-    if (activeTab === 'metrics') {
-      const res = await fetch('/api/admin/metrics', { headers });
-      const data = await res.json();
-      if (data.success) setMetrics(data.metrics);
-    } else if (activeTab === 'users') {
-      const res = await fetch('/api/admin/users', { headers });
-      const data = await res.json();
-      if (data.success) setUsers(data.users);
-    } else if (activeTab === 'dishes') {
-      const res = await fetch('/api/admin/dishes', { headers });
-      const data = await res.json();
-      if (data.success) setAdminDishes(data.dishes);
-    } else if (activeTab === 'payouts') {
-      const res = await fetch('/api/admin/payouts', { headers });
-      const data = await res.json();
-      if (data.success) setAdminPayouts(data.payouts);
-    } else if (activeTab === 'reviews') {
-      const res = await fetch('/api/admin/reviews', { headers });
-      const data = await res.json();
-      if (data.success) setAdminReviews(data.reviews);
-    } else if (activeTab === 'audits') {
-      const res = await fetch('/api/admin/audit-logs', { headers });
-      const data = await res.json();
-      if (data.success) setAuditLogs(data.logs);
+    try {
+      // Parallel fetch global dishes and metrics for dynamic real-time stock updates
+      const [resDishes, resMetrics] = await Promise.all([
+        fetch('/api/admin/dishes', { headers }),
+        fetch('/api/admin/metrics', { headers })
+      ]);
+
+      const dataDishes = await resDishes.json();
+      if (dataDishes.success) setAdminDishes(dataDishes.dishes);
+
+      const dataMetrics = await resMetrics.json();
+      if (dataMetrics.success) setMetrics(dataMetrics.metrics);
+
+      if (activeTab === 'users') {
+        const res = await fetch('/api/admin/users', { headers });
+        const data = await res.json();
+        if (data.success) setUsers(data.users);
+      } else if (activeTab === 'payouts') {
+        const res = await fetch('/api/admin/payouts', { headers });
+        const data = await res.json();
+        if (data.success) setAdminPayouts(data.payouts);
+      } else if (activeTab === 'reviews') {
+        const res = await fetch('/api/admin/reviews', { headers });
+        const data = await res.json();
+        if (data.success) setAdminReviews(data.reviews);
+      } else if (activeTab === 'audits') {
+        const res = await fetch('/api/admin/audit-logs', { headers });
+        const data = await res.json();
+        if (data.success) setAuditLogs(data.logs);
+      }
+    } catch (err) {
+      console.error('Admin fetchData error:', err);
     }
   };
 

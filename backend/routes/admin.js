@@ -4,6 +4,7 @@ const bcrypt = require('bcryptjs');
 const { query } = require('../config/mysql_db');
 const { MongoAdapter } = require('../config/mongo_db');
 const { authenticateToken, requireRole } = require('../middleware/auth_rbac');
+const InventoryEngine = require('../services/inventory_engine');
 
 // Global Users Management
 router.get('/users', authenticateToken, requireRole('ADMIN'), async (req, res) => {
@@ -166,6 +167,7 @@ router.patch('/users/:id/status', authenticateToken, requireRole('ADMIN'), async
 // Admin Global Dish Inventory Management & Out-of-Stock Reason Controls
 router.get('/dishes', authenticateToken, requireRole('ADMIN'), async (req, res) => {
   try {
+    await InventoryEngine.autoSyncDishAvailability();
     const dishes = await query(`
       SELECT d.*, u.name AS vendor_name, u.email AS vendor_email
       FROM dishes d

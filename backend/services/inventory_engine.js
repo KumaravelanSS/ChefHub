@@ -8,7 +8,7 @@ const InventoryEngine = {
     try {
       const { MongoAdapter } = require('../config/mongo_db');
       
-      let dishQuery = 'SELECT dish_id, vendor_id, daily_stock FROM dishes';
+      let dishQuery = 'SELECT dish_id, vendor_id, daily_stock, is_available, out_of_stock_reason FROM dishes';
       const params = [];
       if (vendor_id) {
         dishQuery += ' WHERE vendor_id = ?';
@@ -46,6 +46,9 @@ const InventoryEngine = {
         } else if (hasIngredientShortage) {
           isAvailable = false;
           reason = 'Raw ingredient shortage (Required ingredients depleted in stock)';
+        } else if (d.is_available === 0 && d.out_of_stock_reason && !d.out_of_stock_reason.includes('Daily portions') && !d.out_of_stock_reason.includes('Raw ingredient')) {
+          isAvailable = false;
+          reason = d.out_of_stock_reason;
         }
 
         const availVal = isAvailable ? 1 : 0;
