@@ -621,15 +621,20 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
                       </div>
                     </div>
 
-                    <div className="flex items-center justify-between text-[11px] pt-2.5 border-t border-slate-300 dark:border-slate-800/60 font-semibold">
-                      <span className="text-amber-600 dark:text-amber-400 flex items-center gap-1">⭐ 4.9 (120+)</span>
-                      <span className={`font-extrabold flex items-center gap-1 ${
-                        v.is_currently_open === false ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400'
-                      }`}>
-                        <span className={`w-2 h-2 rounded-full ${v.is_currently_open === false ? 'bg-rose-500' : 'bg-emerald-400 animate-ping'}`} />
-                        {v.is_currently_open === false ? 'Offline' : 'Open Now'}
-                      </span>
-                    </div>
+                    {(() => {
+                      const isClosed = v.is_currently_open === false || v.menu?.is_currently_open === false;
+                      return (
+                        <div className="flex items-center justify-between text-[11px] pt-2.5 border-t border-slate-300 dark:border-slate-800/60 font-semibold">
+                          <span className="text-amber-600 dark:text-amber-400 flex items-center gap-1">⭐ 4.9 (120+)</span>
+                          <span className={`font-extrabold flex items-center gap-1 ${
+                            isClosed ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400'
+                          }`}>
+                            <span className={`w-2 h-2 rounded-full ${isClosed ? 'bg-rose-500' : 'bg-emerald-400 animate-ping'}`} />
+                            {isClosed ? 'Offline' : 'Open Now'}
+                          </span>
+                        </div>
+                      );
+                    })()}
                   </button>
                 );
               })}

@@ -8,22 +8,38 @@ const PayoutService = require('../services/payout_service');
 
 function checkIsVendorOpen(mongoMenu) {
   if (!mongoMenu) return { isOpen: true };
-  if (mongoMenu.is_open === false) {
-    return { isOpen: false, reason: 'Chef has manually closed the kitchen for today (Offline).' };
+
+  const todayDate = new Date().toISOString().split('T')[0];
+
+  // Next-Day Auto Reset: If closed on a previous date, auto re-open for the new day
+  if (mongoMenu.last_closed_date && mongoMenu.last_closed_date !== todayDate) {
+    mongoMenu.is_open = true;
+    mongoMenu.closed_reason = null;
+    mongoMenu.last_closed_date = null;
+    MongoAdapter.findOrSeedVendorMenus([mongoMenu]).catch(err => console.error(err));
+    return { isOpen: true };
   }
+
+  if (mongoMenu.is_open === false) {
+    return {
+      isOpen: false,
+      reason: mongoMenu.closed_reason || 'Chef has manually closed the kitchen for today (Offline).'
+    };
+  }
+
   if (mongoMenu.open_time && mongoMenu.close_time) {
     const now = new Date();
     const currentMinutes = now.getHours() * 60 + now.getMinutes();
 
-    const [openH, openM] = mongoMenu.open_time.split(':').map(Number);
-    const [closeH, closeM] = mongoMenu.close_time.split(':').map(Number);
+    const [openH, openM] = (mongoMenu.open_time || '11:00').split(':').map(Number);
+    const [closeH, closeM] = (mongoMenu.close_time || '22:00').split(':').map(Number);
 
     const openMinutes = (openH || 0) * 60 + (openM || 0);
     const closeMinutes = (closeH || 0) * 60 + (closeM || 0);
 
     if (closeMinutes > openMinutes) {
       if (currentMinutes < openMinutes || currentMinutes > closeMinutes) {
-        return { isOpen: false, reason: `Kitchen is closed outside operating hours (${mongoMenu.operating_hours || '11:00 AM - 10:00 PM'}).` };
+        return { isOpen: false, reason: `Kitchen is currently closed outside operating hours (${mongoMenu.operating_hours || '11:00 AM - 10:00 PM'}). Please come back during operating hours!` };
       }
     }
   }

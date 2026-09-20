@@ -45,12 +45,18 @@ export default function ChefSite({ user, onLogin, onLogout }) {
 
   const [storeProfile, setStoreProfile] = useState({
     is_open: true,
+    closed_reason: '',
     operating_hours: '11:00 AM - 10:00 PM',
     open_time: '11:00',
     close_time: '22:00',
     chef_bio: ''
   });
   const [showHoursModal, setShowHoursModal] = useState(false);
+  const [showCloseReasonModal, setShowCloseReasonModal] = useState(false);
+  const [selectedPresetReason, setSelectedPresetReason] = useState('Chef has manually closed the kitchen for today (Offline).');
+  const [customReasonInput, setCustomReasonInput] = useState('');
+  const [autoReopenedNotice, setAutoReopenedNotice] = useState(false);
+
   const [hoursForm, setHoursForm] = useState({
     operating_hours: '11:00 AM - 10:00 PM',
     open_time: '11:00',
@@ -85,6 +91,9 @@ export default function ChefSite({ user, onLogin, onLogout }) {
       const dataProf = await resProf.json();
       if (dataProf.success && dataProf.profile) {
         setStoreProfile(dataProf.profile);
+        if (dataProf.profile.auto_reopened) {
+          setAutoReopenedNotice(true);
+        }
         setHoursForm({
           operating_hours: dataProf.profile.operating_hours || '11:00 AM - 10:00 PM',
           open_time: dataProf.profile.open_time || '11:00',
@@ -130,16 +139,34 @@ export default function ChefSite({ user, onLogin, onLogout }) {
     }
   };
 
-  const toggleKitchenStatus = async () => {
+  const handleInitiateKitchenToggle = () => {
+    if (storeProfile.is_open) {
+      setShowCloseReasonModal(true);
+    } else {
+      executeToggleStatus(true, null);
+    }
+  };
+
+  const handleConfirmCloseKitchen = (e) => {
+    e.preventDefault();
+    const finalReason = selectedPresetReason === 'CUSTOM'
+      ? (customReasonInput.trim() || 'Chef has manually closed the kitchen for today (Offline).')
+      : selectedPresetReason;
+    setShowCloseReasonModal(false);
+    executeToggleStatus(false, finalReason);
+  };
+
+  const executeToggleStatus = async (targetIsOpen, closedReason) => {
     try {
       const token = localStorage.getItem('chefhub_token');
       const res = await fetch('/api/vendor/toggle-status', {
         method: 'PATCH',
-        headers: { Authorization: `Bearer ${token}` }
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ is_open: targetIsOpen, closed_reason: closedReason })
       });
       const data = await res.json();
       if (data.success) {
-        setStoreProfile(prev => ({ ...prev, is_open: data.is_open }));
+        setStoreProfile(data.profile || { is_open: data.is_open, closed_reason: data.closed_reason });
         fetchData();
       }
     } catch (err) {
@@ -506,7 +533,7 @@ export default function ChefSite({ user, onLogin, onLogout }) {
 
             {/* Live Store Open / Closed Status Toggle Button */}
             <button
-              onClick={toggleKitchenStatus}
+              onClick={handleInitiateKitchenToggle}
               className={`px-3 py-1 rounded-full text-xs font-black flex items-center gap-1.5 transition-all shadow-md cursor-pointer ${
                 storeProfile.is_open
                   ? 'bg-emerald-500 hover:bg-emerald-600 text-white shadow-emerald-500/20'
@@ -527,6 +554,23 @@ export default function ChefSite({ user, onLogin, onLogout }) {
               Hours: {storeProfile.operating_hours || '11:00 AM - 10:00 PM'}
             </button>
           </div>
+
+          {!storeProfile.is_open && storeProfile.closed_reason && (
+            <div className="mt-2.5 p-2.5 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-600 dark:text-rose-400 text-xs font-bold flex items-center gap-2">
+              <Ban className="w-4 h-4 shrink-0" />
+              <span>Current Closure Reason: "{storeProfile.closed_reason}"</span>
+            </div>
+          )}
+
+          {autoReopenedNotice && (
+            <div className="mt-2.5 p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-xs font-bold flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-emerald-500 shrink-0" />
+                <span>🌅 New day detected! Kitchen automatically re-opened for orders today.</span>
+              </div>
+              <button onClick={() => setAutoReopenedNotice(false)} className="text-xs text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-0.5">✕</button>
+            </div>
+          )}
 
           <h1 className="text-3xl font-black text-slate-900 dark:text-white mt-1">{user.name}</h1>
           <p className="text-xs text-slate-600 dark:text-slate-400">Manage dish menu, real-time stock availability, ingredient inventory, and kitchen orders</p>
@@ -1805,6 +1849,88 @@ export default function ChefSite({ user, onLogin, onLogout }) {
                   className="w-1/2 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-black shadow-lg shadow-emerald-500/20"
                 >
                   Save Timings
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Dynamic Store Closure Reason Modal */}
+      {showCloseReasonModal && (
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fade-in">
+          <div className="glass-card rounded-3xl p-6 border border-slate-300 dark:border-slate-800 w-full max-w-md space-y-4 shadow-2xl bg-white dark:bg-slate-900">
+            <div className="flex justify-between items-center border-b border-slate-300 dark:border-slate-800 pb-3">
+              <div className="flex items-center gap-2 text-rose-500">
+                <Ban className="w-5 h-5" />
+                <h3 className="font-extrabold text-slate-900 dark:text-white">Close Kitchen & Set Reason</h3>
+              </div>
+              <button
+                onClick={() => setShowCloseReasonModal(false)}
+                className="p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleConfirmCloseKitchen} className="space-y-4 text-xs">
+              <p className="text-slate-600 dark:text-slate-400">Select or type a closure reason to display to customers on the marketplace while your kitchen is offline:</p>
+
+              <div className="space-y-2">
+                {[
+                  'Chef has manually closed the kitchen for today (Offline).',
+                  'Sold out of ingredients & portions for today.',
+                  'Kitchen maintenance / Private catering event in progress.',
+                  'Taking a personal day.',
+                  'CUSTOM'
+                ].map((reasonOption) => (
+                  <label
+                    key={reasonOption}
+                    className={`flex items-center gap-2.5 p-3 rounded-xl border cursor-pointer transition-all ${
+                      selectedPresetReason === reasonOption
+                        ? 'bg-rose-500/10 border-rose-500/50 text-rose-600 dark:text-rose-400 font-bold'
+                        : 'bg-slate-100 dark:bg-slate-800/60 border-slate-300 dark:border-slate-800 text-slate-700 dark:text-slate-300'
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="closureReason"
+                      checked={selectedPresetReason === reasonOption}
+                      onChange={() => setSelectedPresetReason(reasonOption)}
+                      className="accent-rose-500"
+                    />
+                    <span>{reasonOption === 'CUSTOM' ? 'Type custom reason...' : reasonOption}</span>
+                  </label>
+                ))}
+              </div>
+
+              {selectedPresetReason === 'CUSTOM' && (
+                <div className="pt-1">
+                  <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">Custom Reason Message</label>
+                  <input
+                    type="text"
+                    value={customReasonInput}
+                    onChange={(e) => setCustomReasonInput(e.target.value)}
+                    placeholder="e.g., Closed early for private wedding catering event."
+                    className="w-full px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white"
+                    required={selectedPresetReason === 'CUSTOM'}
+                  />
+                </div>
+              )}
+
+              <div className="flex gap-2 pt-3 border-t border-slate-300 dark:border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setShowCloseReasonModal(false)}
+                  className="w-1/2 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 font-bold hover:bg-slate-100 dark:hover:bg-slate-800"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="w-1/2 py-2.5 rounded-xl bg-rose-500 hover:bg-rose-600 text-white font-black shadow-lg shadow-rose-500/20"
+                >
+                  Confirm Close Kitchen
                 </button>
               </div>
             </form>

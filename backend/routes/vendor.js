@@ -465,15 +465,30 @@ router.get('/reviews', authenticateToken, requireRole('VENDOR'), async (req, res
 router.get('/profile', authenticateToken, requireRole('VENDOR'), async (req, res) => {
   try {
     const vendor_id = req.user.user_id;
-    const mongoMenu = await MongoAdapter.findVendorMenu(vendor_id);
+    const mongoMenu = await MongoAdapter.findVendorMenu(vendor_id) || { vendor_id, categories: [] };
+
+    const todayDate = new Date().toISOString().split('T')[0];
+    let autoReopened = false;
+
+    // Next-Day Auto Reset: If closed on a previous date, auto re-open when chef logs in on the new day
+    if (mongoMenu.last_closed_date && mongoMenu.last_closed_date !== todayDate) {
+      mongoMenu.is_open = true;
+      mongoMenu.closed_reason = null;
+      mongoMenu.last_closed_date = null;
+      autoReopened = true;
+      await MongoAdapter.findOrSeedVendorMenus([mongoMenu]);
+    }
+
     const profile = {
       vendor_id,
       business_name: mongoMenu?.business_name || req.user.name,
       is_open: mongoMenu?.is_open !== undefined ? mongoMenu.is_open : true,
+      closed_reason: mongoMenu?.closed_reason || null,
       operating_hours: mongoMenu?.operating_hours || '11:00 AM - 10:00 PM',
       open_time: mongoMenu?.open_time || '11:00',
       close_time: mongoMenu?.close_time || '22:00',
-      chef_bio: mongoMenu?.chef_bio || 'Michelin-trained artisanal independent chef.'
+      chef_bio: mongoMenu?.chef_bio || 'Michelin-trained artisanal independent chef.',
+      auto_reopened: autoReopened
     };
     return res.json({ success: true, profile });
   } catch (err) {
@@ -482,33 +497,50 @@ router.get('/profile', authenticateToken, requireRole('VENDOR'), async (req, res
   }
 });
 
-// Toggle Vendor Kitchen Open/Closed Status
+// Toggle Vendor Kitchen Open/Closed Status with Custom Reason
 router.patch('/toggle-status', authenticateToken, requireRole('VENDOR'), async (req, res) => {
   try {
     const vendor_id = req.user.user_id;
+    const { is_open, closed_reason } = req.body;
     const mongoMenu = await MongoAdapter.findVendorMenu(vendor_id) || { vendor_id, categories: [] };
-    const currentOpen = mongoMenu.is_open !== undefined ? mongoMenu.is_open : true;
-    mongoMenu.is_open = !currentOpen;
+    
+    const targetState = is_open !== undefined ? Boolean(is_open) : !(mongoMenu.is_open !== undefined ? mongoMenu.is_open : true);
+    mongoMenu.is_open = targetState;
+
+    if (!targetState) {
+      mongoMenu.closed_reason = closed_reason || 'Chef has manually closed the kitchen for today (Offline).';
+      mongoMenu.last_closed_date = new Date().toISOString().split('T')[0];
+    } else {
+      mongoMenu.closed_reason = null;
+      mongoMenu.last_closed_date = null;
+    }
 
     await MongoAdapter.findOrSeedVendorMenus([mongoMenu]);
-    return res.json({ success: true, is_open: mongoMenu.is_open, message: `Kitchen is now ${mongoMenu.is_open ? 'OPEN (Accepting Orders)' : 'CLOSED (Offline)'}.` });
+    return res.json({
+      success: true,
+      is_open: mongoMenu.is_open,
+      closed_reason: mongoMenu.closed_reason,
+      profile: mongoMenu,
+      message: `Kitchen is now ${mongoMenu.is_open ? 'OPEN (Accepting Orders)' : 'CLOSED (Offline)'}.`
+    });
   } catch (err) {
     console.error('Toggle kitchen status error:', err);
     return res.status(500).json({ success: false, message: 'Failed to toggle kitchen status.' });
   }
 });
 
-// Update Vendor Operating Hours & Bio
+// Update Vendor Operating Hours, Closed Reason & Bio
 router.put('/hours', authenticateToken, requireRole('VENDOR'), async (req, res) => {
   try {
     const vendor_id = req.user.user_id;
-    const { operating_hours, open_time, close_time, chef_bio } = req.body;
+    const { operating_hours, open_time, close_time, chef_bio, closed_reason } = req.body;
     const mongoMenu = await MongoAdapter.findVendorMenu(vendor_id) || { vendor_id, categories: [] };
 
     if (operating_hours !== undefined) mongoMenu.operating_hours = operating_hours;
     if (open_time !== undefined) mongoMenu.open_time = open_time;
     if (close_time !== undefined) mongoMenu.close_time = close_time;
     if (chef_bio !== undefined) mongoMenu.chef_bio = chef_bio;
+    if (closed_reason !== undefined) mongoMenu.closed_reason = closed_reason;
 
     await MongoAdapter.findOrSeedVendorMenus([mongoMenu]);
     return res.json({ success: true, message: 'Store timings and profile updated successfully!', profile: mongoMenu });
