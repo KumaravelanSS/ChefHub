@@ -36,6 +36,8 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
   const [myOrders, setMyOrders] = useState([]);
   const [activeTrackingOrder, setActiveTrackingOrder] = useState(null);
   const [reviewOrder, setReviewOrder] = useState(null);
+  const [cancelModalOrder, setCancelModalOrder] = useState(null);
+  const [isCancellingOrder, setIsCancellingOrder] = useState(false);
   
   // Payment Gateway & Order Confirmation Page States
   const [showPaymentGatewayModal, setShowPaymentGatewayModal] = useState(false);
@@ -406,22 +408,29 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
     }
   };
 
-  const cancelOrder = async (order_id) => {
-    if (!confirm(`Are you sure you want to cancel Order #${order_id}?`)) return;
+  const executeOrderCancellation = async (order_id) => {
+    setIsCancellingOrder(true);
     try {
-      const token = localStorage.getItem('chefhub_token');
+      let token = localStorage.getItem('chefhub_token');
       const res = await fetch(`/api/customer/orders/${order_id}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` }
       });
       const data = await res.json();
+      setIsCancellingOrder(false);
+      setCancelModalOrder(null);
       if (data.success) {
+        alert(`Order #${order_id} successfully cancelled!\n\nThe payment amount will be refunded within 2-7 working days to the same payment method.`);
         fetchMyOrders();
+        fetchVendors();
       } else {
-        alert(data.message);
+        alert(data.message || 'Failed to cancel order.');
       }
     } catch (err) {
-      alert('Failed to cancel order.');
+      console.error('Cancel order error:', err);
+      setIsCancellingOrder(false);
+      setCancelModalOrder(null);
+      alert('Failed to process cancellation. Please try again.');
     }
   };
 
@@ -1021,9 +1030,9 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
                         <Receipt className="w-3 h-3" /> Receipt
                       </button>
 
-                      {['PLACED', 'PREPARING'].includes(o.status) && (
+                      {o.status === 'PLACED' && (
                         <button
-                          onClick={() => cancelOrder(o.order_id)}
+                          onClick={() => setCancelModalOrder(o)}
                           className="px-2.5 py-1.5 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 dark:text-rose-400 font-bold text-[11px] border border-rose-500/20 transition-all flex items-center gap-1"
                         >
                           <Ban className="w-3 h-3" /> Cancel
@@ -1182,6 +1191,67 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
                 Submit Feedback
               </button>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Cancellation Confirmation Modal */}
+      {cancelModalOrder && (
+        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 animate-fade-in">
+          <div className="glass-card rounded-3xl p-6 border border-slate-300 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-900 dark:text-white max-w-md w-full space-y-5 shadow-2xl">
+            <div className="flex justify-between items-center border-b border-slate-300 dark:border-slate-800 pb-3">
+              <h3 className="font-extrabold text-slate-900 dark:text-white text-base flex items-center gap-2">
+                <Ban className="w-5 h-5 text-rose-500" />
+                <span>Cancel Order #{cancelModalOrder.order_id}</span>
+              </h3>
+              <button onClick={() => setCancelModalOrder(null)} className="text-slate-400 hover:text-slate-600 dark:hover:text-white p-1">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-4 text-center py-2">
+              <div className="w-14 h-14 rounded-full bg-rose-500/10 border border-rose-500/20 text-rose-500 mx-auto flex items-center justify-center">
+                <AlertCircle className="w-7 h-7" />
+              </div>
+
+              <div className="space-y-1">
+                <h4 className="text-base font-black text-slate-900 dark:text-white">
+                  Do you want to cancel the order?
+                </h4>
+                <p className="text-xs text-slate-600 dark:text-slate-400">
+                  Order Total: <strong className="text-slate-900 dark:text-white">${Number(cancelModalOrder.total_amount).toFixed(2)}</strong> ({cancelModalOrder.vendor_name})
+                </p>
+              </div>
+
+              <div className="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-left space-y-1">
+                <div className="flex items-center gap-1.5 text-amber-600 dark:text-amber-400 font-extrabold text-xs">
+                  <RefreshCw className="w-4 h-4 animate-spin-slow" />
+                  <span>Refund Policy Notice</span>
+                </div>
+                <p className="text-[11px] text-slate-600 dark:text-slate-300 leading-relaxed font-medium">
+                  The payment amount of <strong className="text-amber-500">${Number(cancelModalOrder.total_amount).toFixed(2)}</strong> will be refunded within <strong>2-7 working days</strong> to the same payment method.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setCancelModalOrder(null)}
+                disabled={isCancellingOrder}
+                className="flex-1 py-3 rounded-xl bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-extrabold text-xs transition-all"
+              >
+                No, Keep Order
+              </button>
+              <button
+                type="button"
+                onClick={() => executeOrderCancellation(cancelModalOrder.order_id)}
+                disabled={isCancellingOrder}
+                className="flex-1 py-3 rounded-xl bg-gradient-to-r from-rose-500 to-red-600 hover:from-rose-600 hover:to-red-700 text-white font-extrabold text-xs shadow-lg shadow-rose-500/25 transition-all flex items-center justify-center gap-1.5"
+              >
+                {isCancellingOrder ? 'Cancelling...' : 'Yes, Cancel Order'}
+              </button>
+            </div>
           </div>
         </div>
       )}

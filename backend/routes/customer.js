@@ -265,8 +265,11 @@ router.delete('/orders/:id', authenticateToken, requireRole('CUSTOMER'), async (
       return res.status(404).json({ success: false, message: 'Order not found.' });
     }
 
-    if (['OUT_FOR_DELIVERY', 'DELIVERED'].includes(targetOrder[0].status)) {
-      return res.status(400).json({ success: false, message: 'Cannot cancel an order that is out for delivery or delivered.' });
+    if (targetOrder[0].status !== 'PLACED') {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Cannot cancel order once the chef has accepted and started cooking.' 
+      });
     }
 
     await query("UPDATE orders SET status = 'CANCELLED', escrow_status = 'REFUNDED' WHERE order_id = ?", [order_id]);
@@ -274,11 +277,14 @@ router.delete('/orders/:id', authenticateToken, requireRole('CUSTOMER'), async (
     await MongoAdapter.pushTrackingLog(order_id, {
       event: 'ORDER_CANCELLED',
       timestamp: new Date(),
-      location_note: 'Order cancelled by customer. Escrow funds refunded.',
+      location_note: 'Order cancelled by customer. Refund initiated (2-7 working days).',
       actor_role: 'CUSTOMER'
     });
 
-    return res.json({ success: true, message: `Order #${order_id} has been cancelled and refunded.` });
+    return res.json({ 
+      success: true, 
+      message: `Order #${order_id} has been cancelled! The payment amount will be refunded within 2-7 working days to the same payment method.` 
+    });
   } catch (err) {
     console.error('Cancel order error:', err);
     return res.status(500).json({ success: false, message: 'Failed to cancel order.' });
