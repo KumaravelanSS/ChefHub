@@ -176,6 +176,9 @@ const MongoAdapter = {
       }
     }
   },
+  async createReview(reviewObj) {
+    return await this.upsertReview(reviewObj);
+  },
   async getReviewForOrder(order_id) {
     if (isMongoConnected) return await ReviewAnalytics.findOne({ order_id: Number(order_id) });
     return memoryDocs.reviews_analytics.find(r => Number(r.order_id) === Number(order_id)) || null;

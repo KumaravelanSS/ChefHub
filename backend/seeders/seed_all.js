@@ -338,7 +338,7 @@ async function seedDatabase() {
   for (const r of sampleReviews) {
     const existing = await MongoAdapter.getReviews({ vendor_id: r.vendor_id });
     if (!existing || existing.length === 0) {
-      await MongoAdapter.createReview(r);
+      await MongoAdapter.upsertReview(r);
     }
   }
 
