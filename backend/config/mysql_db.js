@@ -140,6 +140,18 @@ async function initRelationalDb() {
     // Column already exists
   }
 
+  try {
+    await query(`ALTER TABLE dishes ADD COLUMN description TEXT`);
+  } catch (err) {
+    // Column already exists
+  }
+
+  try {
+    await query(`ALTER TABLE dishes ADD COLUMN image_url VARCHAR(500)`);
+  } catch (err) {
+    // Column already exists
+  }
+
   // 3. Inventory Table
   await query(`
     CREATE TABLE IF NOT EXISTS inventory (

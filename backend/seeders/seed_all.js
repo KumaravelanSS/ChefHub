@@ -158,6 +158,17 @@ async function seedDatabase() {
     'Pan-Seared Pork Gyoza (6 pcs)': 'https://images.unsplash.com/photo-1496116218417-1a781b1c416c?auto=format&fit=crop&w=600&q=80'
   };
 
+  // Sync relational dishes table image_url and description
+  for (const dish of allDishes) {
+    if (imageMap[dish.name]) {
+      await query('UPDATE dishes SET image_url = COALESCE(image_url, ?), description = COALESCE(description, ?) WHERE dish_id = ?', [
+        imageMap[dish.name],
+        'Handcrafted daily with organic ingredients.',
+        dish.dish_id
+      ]);
+    }
+  }
+
   // 5. Seed MongoDB Menus with Food Hero Images
   const marioDishes = allDishes.filter(d => d.vendor_id === vendorMario.user_id);
   const priyaDishes = allDishes.filter(d => d.vendor_id === vendorPriya.user_id);

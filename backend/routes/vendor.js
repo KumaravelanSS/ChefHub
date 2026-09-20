@@ -117,9 +117,18 @@ router.post('/dishes', authenticateToken, requireRole('VENDOR'), async (req, res
 
     // 1. Insert into MySQL `dishes`
     const result = await query(`
-      INSERT INTO dishes (vendor_id, name, category, base_price, daily_stock, is_available)
-      VALUES (?, ?, ?, ?, ?, ?)
-    `, [vendor_id, name, category, Number(base_price), stockVal, availVal]);
+      INSERT INTO dishes (vendor_id, name, category, base_price, daily_stock, is_available, description, image_url)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `, [
+      vendor_id,
+      name,
+      category,
+      Number(base_price),
+      stockVal,
+      availVal,
+      description || 'Handcrafted fresh dish',
+      image_url || 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&w=600&q=80'
+    ]);
 
     const dish_id = result.insertId;
 
@@ -180,9 +189,22 @@ router.put('/dishes/:id', authenticateToken, requireRole('VENDOR'), async (req, 
           base_price = COALESCE(?, base_price),
           daily_stock = COALESCE(?, daily_stock),
           is_available = ?,
-          out_of_stock_reason = ?
+          out_of_stock_reason = ?,
+          description = COALESCE(?, description),
+          image_url = COALESCE(?, image_url)
       WHERE dish_id = ? AND vendor_id = ?
-    `, [name, category, base_price !== undefined ? Number(base_price) : null, daily_stock !== undefined ? Number(daily_stock) : null, availVal, defaultReason, dish_id, vendor_id]);
+    `, [
+      name || null,
+      category || null,
+      base_price !== undefined ? Number(base_price) : null,
+      daily_stock !== undefined ? Number(daily_stock) : null,
+      availVal,
+      defaultReason,
+      description !== undefined ? description : null,
+      image_url !== undefined && image_url !== null ? image_url : null,
+      dish_id,
+      vendor_id
+    ]);
 
     // 2. Update MongoDB `vendors_menus`
     let mongoMenu = await MongoAdapter.findVendorMenu(vendor_id);

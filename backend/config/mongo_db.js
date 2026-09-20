@@ -119,7 +119,17 @@ const MongoAdapter = {
         await VendorMenu.findOneAndUpdate({ vendor_id: item.vendor_id }, item, { upsert: true });
       }
     } else {
-      memoryDocs.vendors_menus = seedData;
+      if (!Array.isArray(memoryDocs.vendors_menus)) {
+        memoryDocs.vendors_menus = [];
+      }
+      for (const item of seedData) {
+        const idx = memoryDocs.vendors_menus.findIndex(v => Number(v.vendor_id) === Number(item.vendor_id));
+        if (idx >= 0) {
+          memoryDocs.vendors_menus[idx] = item;
+        } else {
+          memoryDocs.vendors_menus.push(item);
+        }
+      }
     }
   },
   async upsertRider(rider_id, data) {
