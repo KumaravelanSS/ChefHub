@@ -86,11 +86,11 @@ router.get('/dishes', authenticateToken, requireRole('VENDOR'), async (req, res)
     }
 
     const formattedDishes = dishes.map(d => {
-      const meta = mongoDishMetaMap[d.dish_id] || mongoDishMetaMap[d.name.toLowerCase()] || {};
+      const meta = mongoDishMetaMap[d.dish_id] || mongoDishMetaMap[d.name?.toLowerCase()] || {};
       return {
         ...d,
-        description: meta.description !== undefined ? meta.description : (d.description || 'Handcrafted fresh dish'),
-        image_url: meta.image_url || d.image_url || 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&w=600&q=80',
+        description: d.description || meta.description || 'Handcrafted fresh dish',
+        image_url: d.image_url || meta.image_url || 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&w=600&q=80',
         dietary_tags: meta.dietary_tags || ['Fresh']
       };
     });

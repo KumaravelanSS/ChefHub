@@ -78,7 +78,7 @@ router.get('/vendors', async (req, res) => {
           categoryMap[catName] = [];
         }
 
-        const meta = mongoDishMetaMap[d.dish_id] || mongoDishMetaMap[d.name.toLowerCase()] || {};
+        const meta = mongoDishMetaMap[d.dish_id] || mongoDishMetaMap[d.name?.toLowerCase()] || {};
         categoryMap[catName].push({
           dish_id: d.dish_id,
           name: d.name,
@@ -87,8 +87,8 @@ router.get('/vendors', async (req, res) => {
           daily_stock: d.daily_stock !== undefined && d.daily_stock !== null ? Number(d.daily_stock) : 20,
           is_available: d.is_available === 1 || d.is_available === true,
           out_of_stock_reason: d.out_of_stock_reason || 'Daily portions fully exhausted (0 remaining)',
-          description: meta.description || 'Handcrafted daily with fresh organic ingredients.',
-          image_url: meta.image_url || 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&w=600&q=80',
+          description: d.description || meta.description || 'Handcrafted daily with fresh organic ingredients.',
+          image_url: d.image_url || meta.image_url || 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&w=600&q=80',
           dietary_tags: meta.dietary_tags || ['Fresh']
         });
       }

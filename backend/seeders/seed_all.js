@@ -188,9 +188,9 @@ async function seedDatabase() {
           dishes: marioDishes.filter(d => d.category === 'Fresh Pastas').map(d => ({
             dish_id: d.dish_id,
             name: d.name,
-            description: 'Handcrafted daily with organic semolina flour and 24-month aged Parmigiano Reggiano.',
+            description: d.description || 'Handcrafted daily with organic semolina flour and 24-month aged Parmigiano Reggiano.',
             price: Number(d.base_price),
-            image_url: imageMap[d.name] || 'https://images.unsplash.com/photo-1551183053-bf91a1d81141?auto=format&fit=crop&w=600&q=80',
+            image_url: d.image_url || imageMap[d.name] || 'https://images.unsplash.com/photo-1551183053-bf91a1d81141?auto=format&fit=crop&w=600&q=80',
             dietary_tags: ['Chef Special', 'Fresh']
           }))
         },
@@ -199,9 +199,9 @@ async function seedDatabase() {
           dishes: marioDishes.filter(d => d.category === 'Pizzas & Starters').map(d => ({
             dish_id: d.dish_id,
             name: d.name,
-            description: 'Wood-fired oven dough topped with fresh burrata and extra virgin olive oil.',
+            description: d.description || 'Wood-fired oven dough topped with fresh burrata and extra virgin olive oil.',
             price: Number(d.base_price),
-            image_url: imageMap[d.name] || 'https://images.unsplash.com/photo-1513104890138-7c749659a591?auto=format&fit=crop&w=600&q=80',
+            image_url: d.image_url || imageMap[d.name] || 'https://images.unsplash.com/photo-1513104890138-7c749659a591?auto=format&fit=crop&w=600&q=80',
             dietary_tags: ['Artisanal']
           }))
         },
@@ -210,9 +210,9 @@ async function seedDatabase() {
           dishes: marioDishes.filter(d => d.category === 'Desserts & Drinks').map(d => ({
             dish_id: d.dish_id,
             name: d.name,
-            description: 'Classic mascarpone espresso coffee dessert.',
+            description: d.description || 'Classic mascarpone espresso coffee dessert.',
             price: Number(d.base_price),
-            image_url: imageMap[d.name] || 'https://images.unsplash.com/photo-1571877227200-a0d98ea607e9?auto=format&fit=crop&w=600&q=80',
+            image_url: d.image_url || imageMap[d.name] || 'https://images.unsplash.com/photo-1571877227200-a0d98ea607e9?auto=format&fit=crop&w=600&q=80',
             dietary_tags: ['Sweet']
           }))
         }
@@ -231,9 +231,9 @@ async function seedDatabase() {
           dishes: priyaDishes.filter(d => d.category === 'Royal Curries').map(d => ({
             dish_id: d.dish_id,
             name: d.name,
-            description: 'Simmered overnight in cashew and tomato reduction with aromatic whole spices.',
+            description: d.description || 'Simmered overnight in cashew and tomato reduction with aromatic whole spices.',
             price: Number(d.base_price),
-            image_url: imageMap[d.name] || 'https://images.unsplash.com/photo-1585937421612-70a008356fbe?auto=format&fit=crop&w=600&q=80',
+            image_url: d.image_url || imageMap[d.name] || 'https://images.unsplash.com/photo-1585937421612-70a008356fbe?auto=format&fit=crop&w=600&q=80',
             dietary_tags: ['Authentic']
           }))
         },
@@ -242,9 +242,9 @@ async function seedDatabase() {
           dishes: priyaDishes.filter(d => d.category === 'Biryanis & Breads').map(d => ({
             dish_id: d.dish_id,
             name: d.name,
-            description: 'Long-grain saffron Basmati rice cooked under sealed dum pressure.',
+            description: d.description || 'Long-grain saffron Basmati rice cooked under sealed dum pressure.',
             price: Number(d.base_price),
-            image_url: imageMap[d.name] || 'https://images.unsplash.com/photo-1563379091339-03b21ab4a4f8?auto=format&fit=crop&w=600&q=80',
+            image_url: d.image_url || imageMap[d.name] || 'https://images.unsplash.com/photo-1563379091339-03b21ab4a4f8?auto=format&fit=crop&w=600&q=80',
             dietary_tags: ['Chef Special']
           }))
         },
@@ -253,9 +253,9 @@ async function seedDatabase() {
           dishes: priyaDishes.filter(d => d.category === 'Desserts & Drinks').map(d => ({
             dish_id: d.dish_id,
             name: d.name,
-            description: 'Refreshing Alphonso mango yogurt beverage.',
+            description: d.description || 'Refreshing Alphonso mango yogurt beverage.',
             price: Number(d.base_price),
-            image_url: imageMap[d.name] || 'https://images.unsplash.com/photo-1553530666-ba11a7da3888?auto=format&fit=crop&w=600&q=80',
+            image_url: d.image_url || imageMap[d.name] || 'https://images.unsplash.com/photo-1553530666-ba11a7da3888?auto=format&fit=crop&w=600&q=80',
             dietary_tags: ['Chilled']
           }))
         }
@@ -274,9 +274,9 @@ async function seedDatabase() {
           dishes: kenjiDishes.filter(d => d.category === 'Ramen & Bowls').map(d => ({
             dish_id: d.dish_id,
             name: d.name,
-            description: 'Served with ajitsuke tamago egg, bamboo shoots, and nori seaweed.',
+            description: d.description || 'Served with ajitsuke tamago egg, bamboo shoots, and nori seaweed.',
             price: Number(d.base_price),
-            image_url: imageMap[d.name] || 'https://images.unsplash.com/photo-1569718212165-3a8278d5f624?auto=format&fit=crop&w=600&q=80',
+            image_url: d.image_url || imageMap[d.name] || 'https://images.unsplash.com/photo-1569718212165-3a8278d5f624?auto=format&fit=crop&w=600&q=80',
             dietary_tags: ['Japanese']
           }))
         },
@@ -285,9 +285,9 @@ async function seedDatabase() {
           dishes: kenjiDishes.filter(d => d.category === 'Sides & Appetizers').map(d => ({
             dish_id: d.dish_id,
             name: d.name,
-            description: 'Pan-seared crispy dumplings served with ponzu dipping sauce.',
+            description: d.description || 'Pan-seared crispy dumplings served with ponzu dipping sauce.',
             price: Number(d.base_price),
-            image_url: imageMap[d.name] || 'https://images.unsplash.com/photo-1496116218417-1a781b1c416c?auto=format&fit=crop&w=600&q=80',
+            image_url: d.image_url || imageMap[d.name] || 'https://images.unsplash.com/photo-1496116218417-1a781b1c416c?auto=format&fit=crop&w=600&q=80',
             dietary_tags: ['Appetizer']
           }))
         }
