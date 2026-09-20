@@ -461,4 +461,61 @@ router.get('/reviews', authenticateToken, requireRole('VENDOR'), async (req, res
   }
 });
 
+// Get Vendor Store Profile & Status
+router.get('/profile', authenticateToken, requireRole('VENDOR'), async (req, res) => {
+  try {
+    const vendor_id = req.user.user_id;
+    const mongoMenu = await MongoAdapter.findVendorMenu(vendor_id);
+    const profile = {
+      vendor_id,
+      business_name: mongoMenu?.business_name || req.user.name,
+      is_open: mongoMenu?.is_open !== undefined ? mongoMenu.is_open : true,
+      operating_hours: mongoMenu?.operating_hours || '11:00 AM - 10:00 PM',
+      open_time: mongoMenu?.open_time || '11:00',
+      close_time: mongoMenu?.close_time || '22:00',
+      chef_bio: mongoMenu?.chef_bio || 'Michelin-trained artisanal independent chef.'
+    };
+    return res.json({ success: true, profile });
+  } catch (err) {
+    console.error('Fetch profile error:', err);
+    return res.status(500).json({ success: false, message: 'Failed to fetch store profile.' });
+  }
+});
+
+// Toggle Vendor Kitchen Open/Closed Status
+router.patch('/toggle-status', authenticateToken, requireRole('VENDOR'), async (req, res) => {
+  try {
+    const vendor_id = req.user.user_id;
+    const mongoMenu = await MongoAdapter.findVendorMenu(vendor_id) || { vendor_id, categories: [] };
+    const currentOpen = mongoMenu.is_open !== undefined ? mongoMenu.is_open : true;
+    mongoMenu.is_open = !currentOpen;
+
+    await MongoAdapter.findOrSeedVendorMenus([mongoMenu]);
+    return res.json({ success: true, is_open: mongoMenu.is_open, message: `Kitchen is now ${mongoMenu.is_open ? 'OPEN (Accepting Orders)' : 'CLOSED (Offline)'}.` });
+  } catch (err) {
+    console.error('Toggle kitchen status error:', err);
+    return res.status(500).json({ success: false, message: 'Failed to toggle kitchen status.' });
+  }
+});
+
+// Update Vendor Operating Hours & Bio
+router.put('/hours', authenticateToken, requireRole('VENDOR'), async (req, res) => {
+  try {
+    const vendor_id = req.user.user_id;
+    const { operating_hours, open_time, close_time, chef_bio } = req.body;
+    const mongoMenu = await MongoAdapter.findVendorMenu(vendor_id) || { vendor_id, categories: [] };
+
+    if (operating_hours !== undefined) mongoMenu.operating_hours = operating_hours;
+    if (open_time !== undefined) mongoMenu.open_time = open_time;
+    if (close_time !== undefined) mongoMenu.close_time = close_time;
+    if (chef_bio !== undefined) mongoMenu.chef_bio = chef_bio;
+
+    await MongoAdapter.findOrSeedVendorMenus([mongoMenu]);
+    return res.json({ success: true, message: 'Store timings and profile updated successfully!', profile: mongoMenu });
+  } catch (err) {
+    console.error('Update hours error:', err);
+    return res.status(500).json({ success: false, message: 'Failed to update operating hours.' });
+  }
+});
+
 module.exports = router;

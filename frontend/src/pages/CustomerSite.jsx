@@ -153,6 +153,11 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
   };
 
   const addToCart = (dish) => {
+    if (selectedVendor && selectedVendor.is_currently_open === false) {
+      alert(`Chef is currently NOT accepting orders (${selectedVendor.closed_reason || 'Store Closed'}). Please come back later.`);
+      return;
+    }
+
     const availableStock = dish.daily_stock !== undefined && dish.daily_stock !== null ? Number(dish.daily_stock) : 20;
 
     if (dish.is_available === false || dish.is_available === 0 || availableStock <= 0) {
@@ -618,9 +623,11 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
 
                     <div className="flex items-center justify-between text-[11px] pt-2.5 border-t border-slate-300 dark:border-slate-800/60 font-semibold">
                       <span className="text-amber-600 dark:text-amber-400 flex items-center gap-1">⭐ 4.9 (120+)</span>
-                      <span className="text-emerald-600 dark:text-emerald-400 font-extrabold flex items-center gap-1">
-                        <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping inline-block" />
-                        Open Now
+                      <span className={`font-extrabold flex items-center gap-1 ${
+                        v.is_currently_open === false ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400'
+                      }`}>
+                        <span className={`w-2 h-2 rounded-full ${v.is_currently_open === false ? 'bg-rose-500' : 'bg-emerald-400 animate-ping'}`} />
+                        {v.is_currently_open === false ? 'Offline' : 'Open Now'}
                       </span>
                     </div>
                   </button>
@@ -646,6 +653,13 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
                     </div>
                     <h2 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white">{selectedVendor.menu?.business_name || selectedVendor.business_name}</h2>
                     <p className="text-xs text-slate-600 dark:text-slate-400 mt-1 max-w-xl leading-relaxed">{selectedVendor.menu?.chef_bio}</p>
+
+                    {selectedVendor.is_currently_open === false && (
+                      <div className="p-3 rounded-2xl bg-rose-500/15 border border-rose-500/30 text-rose-600 dark:text-rose-400 text-xs font-bold flex items-center gap-2 mt-3">
+                        <Ban className="w-4 h-4 shrink-0" />
+                        <span>🔴 STORE CLOSED (Offline) — {selectedVendor.closed_reason || 'Chef is not accepting orders, please come back later.'}</span>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -716,6 +730,10 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
                               <img
                                 src={getDishImage(dish)}
                                 alt={dish.name}
+                                onError={(e) => {
+                                  e.target.onerror = null;
+                                  e.target.src = fallbackImages[dish.name] || 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=600&q=80';
+                                }}
                                 className={`food-image-zoom w-full h-full object-cover ${!isDishAvailable ? 'grayscale opacity-50 blur-[0.5px]' : ''}`}
                               />
                               <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-slate-950/20 to-transparent" />
@@ -800,6 +818,14 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
                                   >
                                     <Ban className="w-4 h-4 text-rose-500" />
                                     <span>Out of Stock — Unavailable</span>
+                                  </button>
+                                ) : selectedVendor.is_currently_open === false ? (
+                                  <button
+                                    disabled
+                                    className="w-full py-3 rounded-xl bg-rose-500/10 text-rose-500 font-black text-xs cursor-not-allowed border border-rose-500/20 flex items-center justify-center gap-1.5 uppercase tracking-wide"
+                                  >
+                                    <Ban className="w-4 h-4 text-rose-500" />
+                                    <span>Store Closed (Offline)</span>
                                   </button>
                                 ) : cartItem ? (
                                   <div className="flex items-center justify-between bg-amber-500/10 dark:bg-slate-950 p-1.5 rounded-xl border border-amber-500/30">
@@ -960,10 +986,22 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
 
                       {o.status === 'DELIVERED' && (
                         <button
-                          onClick={() => setReviewOrder(o)}
-                          className="px-2.5 py-1.5 rounded-lg bg-orange-500/10 hover:bg-orange-500/20 text-orange-600 dark:text-orange-400 font-bold text-[11px] border border-orange-500/20 transition-all"
+                          onClick={() => {
+                            setReviewOrder(o);
+                            if (o.review) {
+                              setVendorRating(o.review.vendor_rating || 5);
+                              setRiderRating(o.review.rider_rating || 5);
+                              setReviewComment(o.review.comment || '');
+                            } else {
+                              setVendorRating(5);
+                              setRiderRating(5);
+                              setReviewComment('');
+                            }
+                          }}
+                          className="px-2.5 py-1.5 rounded-lg bg-orange-500/10 hover:bg-orange-500/20 text-orange-600 dark:text-orange-400 font-bold text-[11px] border border-orange-500/20 transition-all flex items-center gap-1"
                         >
-                          Rate
+                          <Star className="w-3 h-3 text-amber-500 fill-amber-500" />
+                          <span>{o.review ? 'Edit Review ⭐' : 'Rate Order ⭐'}</span>
                         </button>
                       )}
                     </div>
@@ -979,23 +1017,36 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
 
       {/* Tracking Modal */}
       {activeTrackingOrder && (
-        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4">
-          <div className="glass-card rounded-3xl p-6 border max-w-md w-full space-y-4 shadow-2xl">
-            <div className="flex justify-between items-center border-b pb-3">
-              <h3 className="font-extrabold text-white">Order #{activeTrackingOrder.order_id} Timeline</h3>
-              <button onClick={() => setActiveTrackingOrder(null)} className="text-slate-400 hover:text-white">
+        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 animate-fade-in">
+          <div className="glass-card rounded-3xl p-6 border border-slate-300 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-900 dark:text-white max-w-md w-full space-y-4 shadow-2xl">
+            <div className="flex justify-between items-center border-b border-slate-300 dark:border-slate-800 pb-3">
+              <h3 className="font-extrabold text-slate-900 dark:text-white flex items-center gap-2">
+                <Truck className="w-5 h-5 text-orange-500" />
+                <span>Order #{activeTrackingOrder.order_id} Delivery Timeline</span>
+              </h3>
+              <button onClick={() => setActiveTrackingOrder(null)} className="text-slate-400 hover:text-slate-600 dark:hover:text-white p-1">
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <div className="space-y-3 py-2">
-              {activeTrackingOrder.tracking?.map((event, idx) => (
+            <div className="space-y-4 py-2 max-h-80 overflow-y-auto pr-1">
+              {((activeTrackingOrder.tracking && activeTrackingOrder.tracking.length > 0)
+                ? activeTrackingOrder.tracking
+                : [
+                    { event: 'Order Placed & Escrow Secured', location_note: 'Payment authorized via 256-Bit SSL Escrow Hold', timestamp: activeTrackingOrder.created_at || new Date().toISOString() },
+                    { event: 'Kitchen Order Acceptance', location_note: 'Chef Mario accepted order & deducted portion stock', timestamp: activeTrackingOrder.created_at || new Date().toISOString() },
+                    ['PREPARING', 'READY_FOR_PICKUP', 'OUT_FOR_DELIVERY', 'DELIVERED'].includes(activeTrackingOrder.status) ? { event: 'Kitchen Preparation Completed', location_note: 'Meal packaged with thermal insulation', timestamp: new Date().toISOString() } : null,
+                    ['READY_FOR_PICKUP', 'OUT_FOR_DELIVERY', 'DELIVERED'].includes(activeTrackingOrder.status) ? { event: 'Delivery Driver Assigned', location_note: 'Rider Alex picked up order from kitchen console', timestamp: new Date().toISOString() } : null,
+                    ['OUT_FOR_DELIVERY', 'DELIVERED'].includes(activeTrackingOrder.status) ? { event: 'Out for Live GPS Delivery', location_note: 'Rider en route to delivery address', timestamp: new Date().toISOString() } : null,
+                    activeTrackingOrder.status === 'DELIVERED' ? { event: 'Meal Delivered & Escrow Released', location_note: 'Handed to customer; 85% Chef / 10% Rider payout released', timestamp: new Date().toISOString() } : null
+                  ].filter(Boolean)
+              ).map((event, idx) => (
                 <div key={idx} className="flex items-start gap-3 text-xs">
-                  <div className="w-2.5 h-2.5 rounded-full bg-orange-500 mt-1 shrink-0" />
-                  <div>
-                    <h5 className="font-bold text-white">{event.event}</h5>
-                    <p className="text-slate-400 text-[11px]">{event.location_note}</p>
-                    <span className="text-[10px] text-slate-500">{new Date(event.timestamp).toLocaleTimeString()}</span>
+                  <div className="w-3.5 h-3.5 rounded-full bg-amber-500 mt-1 shrink-0 ring-4 ring-amber-500/20" />
+                  <div className="space-y-0.5">
+                    <h5 className="font-extrabold text-slate-900 dark:text-white">{event.event}</h5>
+                    <p className="text-slate-600 dark:text-slate-400 text-[11px]">{event.location_note}</p>
+                    <span className="text-[10px] text-slate-400 font-mono">{new Date(event.timestamp).toLocaleString()}</span>
                   </div>
                 </div>
               ))}
@@ -1006,11 +1057,13 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
 
       {/* Interactive Star Rating Review Modal */}
       {reviewOrder && (
-        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4">
-          <div className="glass-card rounded-3xl p-6 border max-w-md w-full space-y-5 shadow-2xl">
-            <div className="flex justify-between items-center border-b pb-3">
-              <h3 className="font-extrabold text-white text-base">Rate Order #{reviewOrder.order_id}</h3>
-              <button onClick={() => setReviewOrder(null)} className="text-slate-400 hover:text-white">
+        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 animate-fade-in">
+          <div className="glass-card rounded-3xl p-6 border border-slate-300 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-900 dark:text-white max-w-md w-full space-y-5 shadow-2xl">
+            <div className="flex justify-between items-center border-b border-slate-300 dark:border-slate-800 pb-3">
+              <h3 className="font-extrabold text-slate-900 dark:text-white text-base">
+                {reviewOrder.review ? `Edit Review for Order #${reviewOrder.order_id}` : `Rate Order #${reviewOrder.order_id}`}
+              </h3>
+              <button onClick={() => setReviewOrder(null)} className="text-slate-400 hover:text-slate-600 dark:hover:text-white p-1">
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -1019,7 +1072,7 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
               
               {/* Interactive Vendor Star Rating */}
               <div className="space-y-1.5">
-                <label className="font-bold text-slate-300 block">Chef Meal Rating</label>
+                <label className="font-bold text-slate-700 dark:text-slate-300 block">Chef Meal Rating</label>
                 <div className="flex items-center gap-2">
                   {[1, 2, 3, 4, 5].map((star) => {
                     const isFilled = star <= (hoverVendorRating || vendorRating);
@@ -1032,17 +1085,17 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
                         onMouseLeave={() => setHoverVendorRating(0)}
                         className="p-1 text-2xl focus:outline-none transition-transform hover:scale-110"
                       >
-                        <Star className={`w-7 h-7 ${isFilled ? 'text-amber-400 fill-amber-400' : 'text-slate-700'}`} />
+                        <Star className={`w-7 h-7 ${isFilled ? 'text-amber-400 fill-amber-400' : 'text-slate-300 dark:text-slate-700'}`} />
                       </button>
                     );
                   })}
-                  <span className="text-xs font-extrabold text-amber-400 ml-2">{vendorRating} / 5</span>
+                  <span className="text-xs font-extrabold text-amber-500 ml-2">{vendorRating} / 5</span>
                 </div>
               </div>
 
               {/* Interactive Rider Star Rating */}
               <div className="space-y-1.5">
-                <label className="font-bold text-slate-300 block">Delivery Driver Rating</label>
+                <label className="font-bold text-slate-700 dark:text-slate-300 block">Delivery Driver Rating</label>
                 <div className="flex items-center gap-2">
                   {[1, 2, 3, 4, 5].map((star) => {
                     const isFilled = star <= (hoverRiderRating || riderRating);
@@ -1055,11 +1108,11 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
                         onMouseLeave={() => setHoverRiderRating(0)}
                         className="p-1 text-2xl focus:outline-none transition-transform hover:scale-110"
                       >
-                        <Star className={`w-7 h-7 ${isFilled ? 'text-amber-400 fill-amber-400' : 'text-slate-700'}`} />
+                        <Star className={`w-7 h-7 ${isFilled ? 'text-amber-400 fill-amber-400' : 'text-slate-300 dark:text-slate-700'}`} />
                       </button>
                     );
                   })}
-                  <span className="text-xs font-extrabold text-amber-400 ml-2">{riderRating} / 5</span>
+                  <span className="text-xs font-extrabold text-amber-500 ml-2">{riderRating} / 5</span>
                 </div>
               </div>
 

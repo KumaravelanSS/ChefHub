@@ -6,8 +6,39 @@ export default function Navbar({ currentUser, onLogout, theme, onToggleTheme }) 
   const navigate = useNavigate();
   const location = useLocation();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [confirmModal, setConfirmModal] = useState({ open: false, action: null, title: '', message: '' });
 
   const isActive = (path) => location.pathname === path;
+  const isCustomerPage = location.pathname === '/' || location.pathname === '/customer/login';
+
+  const handleSwitchPortalClick = (e) => {
+    e.preventDefault();
+    setConfirmModal({
+      open: true,
+      action: 'SWITCH',
+      title: 'Switch Portal?',
+      message: 'Are you sure you want to switch portals and return to the Launchpad hub?'
+    });
+  };
+
+  const handleLogoutClick = () => {
+    setConfirmModal({
+      open: true,
+      action: 'LOGOUT',
+      title: 'Confirm Logout',
+      message: 'Are you sure you want to log out of your current session?'
+    });
+  };
+
+  const confirmAction = () => {
+    const action = confirmModal.action;
+    setConfirmModal({ open: false, action: null, title: '', message: '' });
+    if (action === 'SWITCH') {
+      navigate('/portals');
+    } else if (action === 'LOGOUT') {
+      onLogout();
+    }
+  };
 
   // Helper to format role title
   const getRoleBadge = (role) => {
@@ -71,7 +102,7 @@ export default function Navbar({ currentUser, onLogout, theme, onToggleTheme }) 
             <Link
               to="/"
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-extrabold transition-all ${
-                isActive('/') || isActive('/customer/login') 
+                isCustomerPage 
                   ? 'bg-orange-500 text-white shadow-md shadow-orange-500/20 font-black' 
                   : 'text-slate-700 dark:text-slate-200 hover:text-amber-600 dark:hover:text-amber-400 hover:bg-amber-500/10'
               }`}
@@ -118,14 +149,14 @@ export default function Navbar({ currentUser, onLogout, theme, onToggleTheme }) 
           </div>
         ) : (
           /* Switch Portal Quick Link for logged-in users */
-          <Link
-            to="/portals"
+          <button
+            onClick={handleSwitchPortalClick}
             className="hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-900 hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-800 dark:text-slate-200 text-xs font-extrabold border border-slate-300 dark:border-slate-800 transition-all"
             title="Switch Portal / View Launchpad"
           >
             <ArrowRightLeft className="w-3.5 h-3.5 text-orange-500" />
             <span>Switch Portal</span>
-          </Link>
+          </button>
         )}
 
         {/* Top Right Controls */}
@@ -155,7 +186,7 @@ export default function Navbar({ currentUser, onLogout, theme, onToggleTheme }) 
               
               {/* Logout Button */}
               <button
-                onClick={onLogout}
+                onClick={handleLogoutClick}
                 className="p-2 sm:px-3 sm:py-1.5 rounded-xl bg-slate-100 dark:bg-slate-900 hover:bg-rose-500 hover:text-white text-slate-800 dark:text-slate-200 text-xs font-bold border border-slate-300 dark:border-slate-800 hover:border-rose-600 transition-all shadow-sm flex items-center gap-1"
                 title="Log out of session"
               >
@@ -203,7 +234,7 @@ export default function Navbar({ currentUser, onLogout, theme, onToggleTheme }) 
               <button
                 onClick={() => {
                   setMobileMenuOpen(false);
-                  onLogout();
+                  handleLogoutClick();
                 }}
                 className="px-2.5 py-1 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 font-bold text-xs border border-rose-500/20"
               >
@@ -213,23 +244,56 @@ export default function Navbar({ currentUser, onLogout, theme, onToggleTheme }) 
           )}
 
           <div className="grid grid-cols-2 gap-2 text-xs font-bold">
-            <Link
-              to="/portals"
-              onClick={() => setMobileMenuOpen(false)}
-              className="flex items-center gap-2 p-2.5 rounded-xl bg-slate-900 text-slate-300 border border-slate-800"
+            <button
+              onClick={(e) => {
+                setMobileMenuOpen(false);
+                handleSwitchPortalClick(e);
+              }}
+              className="flex items-center gap-2 p-2.5 rounded-xl bg-slate-900 text-slate-300 border border-slate-800 text-left"
             >
               <LayoutGrid className="w-4 h-4 text-orange-400" />
               Portals Launchpad
-            </Link>
+            </button>
 
-            <Link
-              to="/"
-              onClick={() => setMobileMenuOpen(false)}
-              className="flex items-center gap-2 p-2.5 rounded-xl bg-slate-900 text-slate-300 border border-slate-800"
-            >
-              <ShoppingBag className="w-4 h-4 text-amber-400" />
-              Customer Site
-            </Link>
+            {!isCustomerPage && (
+              <Link
+                to="/"
+                onClick={() => setMobileMenuOpen(false)}
+                className="flex items-center gap-2 p-2.5 rounded-xl bg-slate-900 text-slate-300 border border-slate-800"
+              >
+                <ShoppingBag className="w-4 h-4 text-amber-400" />
+                Customer Site
+              </Link>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Switch Portal / Logout Confirmation Modal */}
+      {confirmModal.open && (
+        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="glass-card bg-white dark:bg-slate-900 rounded-3xl p-6 border border-slate-300 dark:border-slate-800 max-w-sm w-full space-y-4 shadow-2xl text-center">
+            <div className="w-12 h-12 rounded-2xl bg-orange-500/10 text-orange-500 font-bold flex items-center justify-center mx-auto text-xl border border-orange-500/20">
+              <ArrowRightLeft className="w-6 h-6" />
+            </div>
+            <div className="space-y-1">
+              <h3 className="text-base font-extrabold text-slate-900 dark:text-white">{confirmModal.title}</h3>
+              <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">{confirmModal.message}</p>
+            </div>
+            <div className="grid grid-cols-2 gap-3 pt-2">
+              <button
+                onClick={() => setConfirmModal({ open: false, action: null, title: '', message: '' })}
+                className="py-2.5 rounded-xl bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-bold text-xs transition-all"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmAction}
+                className="py-2.5 rounded-xl bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-slate-950 font-black text-xs transition-all shadow-md shadow-orange-500/20"
+              >
+                Yes, Continue
+              </button>
+            </div>
           </div>
         </div>
       )}

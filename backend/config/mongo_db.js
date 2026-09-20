@@ -158,13 +158,27 @@ const MongoAdapter = {
     if (isMongoConnected) return await OrderTrackingLog.findOne({ order_id });
     return memoryDocs.order_tracking_logs.find(l => l.order_id === Number(order_id)) || null;
   },
-  async createReview(reviewObj) {
+  async upsertReview(reviewObj) {
     if (isMongoConnected) {
-      return await ReviewAnalytics.create(reviewObj);
+      return await ReviewAnalytics.findOneAndUpdate(
+        { order_id: Number(reviewObj.order_id) },
+        reviewObj,
+        { upsert: true, new: true }
+      );
     } else {
-      memoryDocs.reviews_analytics.push(reviewObj);
-      return reviewObj;
+      const idx = memoryDocs.reviews_analytics.findIndex(r => Number(r.order_id) === Number(reviewObj.order_id));
+      if (idx >= 0) {
+        memoryDocs.reviews_analytics[idx] = { ...memoryDocs.reviews_analytics[idx], ...reviewObj };
+        return memoryDocs.reviews_analytics[idx];
+      } else {
+        memoryDocs.reviews_analytics.push(reviewObj);
+        return reviewObj;
+      }
     }
+  },
+  async getReviewForOrder(order_id) {
+    if (isMongoConnected) return await ReviewAnalytics.findOne({ order_id: Number(order_id) });
+    return memoryDocs.reviews_analytics.find(r => Number(r.order_id) === Number(order_id)) || null;
   },
   async getReviews(filter = {}) {
     if (isMongoConnected) return await ReviewAnalytics.find(filter);

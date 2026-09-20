@@ -43,6 +43,21 @@ export default function ChefSite({ user, onLogin, onLogout }) {
   const [editingRecipe, setEditingRecipe] = useState(null);
   const [editRecipeForm, setEditRecipeForm] = useState({ recipe_id: '', dish_name: '', ingredient_name: '', quantity_required: '', unit: '' });
 
+  const [storeProfile, setStoreProfile] = useState({
+    is_open: true,
+    operating_hours: '11:00 AM - 10:00 PM',
+    open_time: '11:00',
+    close_time: '22:00',
+    chef_bio: ''
+  });
+  const [showHoursModal, setShowHoursModal] = useState(false);
+  const [hoursForm, setHoursForm] = useState({
+    operating_hours: '11:00 AM - 10:00 PM',
+    open_time: '11:00',
+    close_time: '22:00',
+    chef_bio: ''
+  });
+
   useEffect(() => {
     if (user && user.role === 'VENDOR') {
       fetchData();
@@ -59,12 +74,24 @@ export default function ChefSite({ user, onLogin, onLogout }) {
     const headers = { Authorization: `Bearer ${token}` };
 
     try {
-      // Parallel fetch dishes, orders, and inventory so portion & ingredient stock updates in real-time
-      const [resDishes, resOrders, resInv] = await Promise.all([
+      // Parallel fetch store profile, dishes, orders, and inventory so portion & ingredient stock updates in real-time
+      const [resProf, resDishes, resOrders, resInv] = await Promise.all([
+        fetch('/api/vendor/profile', { headers }),
         fetch('/api/vendor/dishes', { headers }),
         fetch('/api/vendor/orders', { headers }),
         fetch('/api/vendor/inventory', { headers })
       ]);
+
+      const dataProf = await resProf.json();
+      if (dataProf.success && dataProf.profile) {
+        setStoreProfile(dataProf.profile);
+        setHoursForm({
+          operating_hours: dataProf.profile.operating_hours || '11:00 AM - 10:00 PM',
+          open_time: dataProf.profile.open_time || '11:00',
+          close_time: dataProf.profile.close_time || '22:00',
+          chef_bio: dataProf.profile.chef_bio || ''
+        });
+      }
 
       const dataDishes = await resDishes.json();
       if (dataDishes.success) {
@@ -100,6 +127,44 @@ export default function ChefSite({ user, onLogin, onLogout }) {
       }
     } catch (err) {
       console.error('Chef fetchData error:', err);
+    }
+  };
+
+  const toggleKitchenStatus = async () => {
+    try {
+      const token = localStorage.getItem('chefhub_token');
+      const res = await fetch('/api/vendor/toggle-status', {
+        method: 'PATCH',
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (data.success) {
+        setStoreProfile(prev => ({ ...prev, is_open: data.is_open }));
+        fetchData();
+      }
+    } catch (err) {
+      alert('Failed to update kitchen status.');
+    }
+  };
+
+  const handleSaveHours = async (e) => {
+    e.preventDefault();
+    try {
+      const token = localStorage.getItem('chefhub_token');
+      const res = await fetch('/api/vendor/hours', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify(hoursForm)
+      });
+      const data = await res.json();
+      if (data.success) {
+        setShowHoursModal(false);
+        fetchData();
+      } else {
+        alert(data.message);
+      }
+    } catch (err) {
+      alert('Failed to save store timings.');
     }
   };
 
@@ -434,11 +499,35 @@ export default function ChefSite({ user, onLogin, onLogout }) {
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-300 dark:border-slate-800/80 pb-6">
         <div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-xs font-bold uppercase flex items-center gap-1">
               <ChefHat className="w-3.5 h-3.5" /> Kitchen Management
             </span>
+
+            {/* Live Store Open / Closed Status Toggle Button */}
+            <button
+              onClick={toggleKitchenStatus}
+              className={`px-3 py-1 rounded-full text-xs font-black flex items-center gap-1.5 transition-all shadow-md cursor-pointer ${
+                storeProfile.is_open
+                  ? 'bg-emerald-500 hover:bg-emerald-600 text-white shadow-emerald-500/20'
+                  : 'bg-rose-500 hover:bg-rose-600 text-white shadow-rose-500/20'
+              }`}
+              title="Click to toggle whether your kitchen is open to accept orders"
+            >
+              <span className={`w-2 h-2 rounded-full ${storeProfile.is_open ? 'bg-white animate-pulse' : 'bg-rose-200'}`}></span>
+              {storeProfile.is_open ? 'STORE OPEN (Accepting Orders)' : 'STORE CLOSED (Offline)'}
+            </button>
+
+            {/* Operating Hours Settings Button */}
+            <button
+              onClick={() => setShowHoursModal(true)}
+              className="px-3 py-1 rounded-full text-xs font-bold bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-300 dark:hover:bg-slate-700 transition-colors flex items-center gap-1.5 border border-slate-300 dark:border-slate-700"
+            >
+              <Clock className="w-3.5 h-3.5 text-amber-500" />
+              Hours: {storeProfile.operating_hours || '11:00 AM - 10:00 PM'}
+            </button>
           </div>
+
           <h1 className="text-3xl font-black text-slate-900 dark:text-white mt-1">{user.name}</h1>
           <p className="text-xs text-slate-600 dark:text-slate-400">Manage dish menu, real-time stock availability, ingredient inventory, and kitchen orders</p>
         </div>
@@ -1635,6 +1724,90 @@ export default function ChefSite({ user, onLogin, onLogout }) {
                 </div>
               ))}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Operating Hours Modal */}
+      {showHoursModal && (
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fade-in">
+          <div className="glass-card rounded-3xl p-6 border border-slate-300 dark:border-slate-800 w-full max-w-md space-y-4 shadow-2xl bg-white dark:bg-slate-900">
+            <div className="flex justify-between items-center border-b border-slate-300 dark:border-slate-800 pb-3">
+              <div className="flex items-center gap-2">
+                <Clock className="w-5 h-5 text-amber-500" />
+                <h3 className="font-extrabold text-slate-900 dark:text-white">Operating Hours & Store Profile</h3>
+              </div>
+              <button
+                onClick={() => setShowHoursModal(false)}
+                className="p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveHours} className="space-y-4 text-xs">
+              <div>
+                <label className="font-bold text-slate-700 dark:text-slate-300">Display Operating Hours Text</label>
+                <input
+                  type="text"
+                  value={hoursForm.operating_hours}
+                  onChange={(e) => setHoursForm({ ...hoursForm, operating_hours: e.target.value })}
+                  placeholder="e.g. 11:00 AM - 10:00 PM"
+                  className="w-full mt-1 px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white"
+                  required
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="font-bold text-slate-700 dark:text-slate-300">Opening Time (24h)</label>
+                  <input
+                    type="time"
+                    value={hoursForm.open_time}
+                    onChange={(e) => setHoursForm({ ...hoursForm, open_time: e.target.value })}
+                    className="w-full mt-1 px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="font-bold text-slate-700 dark:text-slate-300">Closing Time (24h)</label>
+                  <input
+                    type="time"
+                    value={hoursForm.close_time}
+                    onChange={(e) => setHoursForm({ ...hoursForm, close_time: e.target.value })}
+                    className="w-full mt-1 px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white"
+                    required
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="font-bold text-slate-700 dark:text-slate-300">Kitchen Bio & Announcement</label>
+                <textarea
+                  value={hoursForm.chef_bio}
+                  onChange={(e) => setHoursForm({ ...hoursForm, chef_bio: e.target.value })}
+                  rows={2}
+                  placeholder="e.g. Specializing in artisanal hand-rolled pasta and wood-fired gourmet specialties."
+                  className="w-full mt-1 px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white"
+                />
+              </div>
+
+              <div className="flex gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowHoursModal(false)}
+                  className="w-1/2 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 font-bold hover:bg-slate-100 dark:hover:bg-slate-800"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="w-1/2 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-black shadow-lg shadow-emerald-500/20"
+                >
+                  Save Timings
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

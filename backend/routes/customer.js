@@ -6,6 +6,30 @@ const { authenticateToken, requireRole } = require('../middleware/auth_rbac');
 const InventoryEngine = require('../services/inventory_engine');
 const PayoutService = require('../services/payout_service');
 
+function checkIsVendorOpen(mongoMenu) {
+  if (!mongoMenu) return { isOpen: true };
+  if (mongoMenu.is_open === false) {
+    return { isOpen: false, reason: 'Chef has manually closed the kitchen for today (Offline).' };
+  }
+  if (mongoMenu.open_time && mongoMenu.close_time) {
+    const now = new Date();
+    const currentMinutes = now.getHours() * 60 + now.getMinutes();
+
+    const [openH, openM] = mongoMenu.open_time.split(':').map(Number);
+    const [closeH, closeM] = mongoMenu.close_time.split(':').map(Number);
+
+    const openMinutes = (openH || 0) * 60 + (openM || 0);
+    const closeMinutes = (closeH || 0) * 60 + (closeM || 0);
+
+    if (closeMinutes > openMinutes) {
+      if (currentMinutes < openMinutes || currentMinutes > closeMinutes) {
+        return { isOpen: false, reason: `Kitchen is closed outside operating hours (${mongoMenu.operating_hours || '11:00 AM - 10:00 PM'}).` };
+      }
+    }
+  }
+  return { isOpen: true };
+}
+
 // Public Browse Vendors & Menus
 router.get('/vendors', async (req, res) => {
   try {
@@ -58,6 +82,8 @@ router.get('/vendors', async (req, res) => {
         dishes: categoryMap[catName]
       }));
 
+      const storeStatus = checkIsVendorOpen(mongoMenu);
+
       result.push({
         ...v,
         menu: {
@@ -66,6 +92,11 @@ router.get('/vendors', async (req, res) => {
           chef_bio: mongoMenu?.chef_bio || 'Michelin-trained artisanal independent chef.',
           hero_image_url: mongoMenu?.hero_image_url || 'https://images.unsplash.com/photo-1551183053-bf91a1d81141?auto=format&fit=crop&w=800&q=80',
           operating_hours: mongoMenu?.operating_hours || '11:00 AM - 10:00 PM',
+          open_time: mongoMenu?.open_time || '11:00',
+          close_time: mongoMenu?.close_time || '22:00',
+          is_open: mongoMenu?.is_open !== undefined ? mongoMenu.is_open : true,
+          is_currently_open: storeStatus.isOpen,
+          closed_reason: storeStatus.reason || null,
           categories
         }
       });
@@ -86,6 +117,18 @@ router.post('/orders', authenticateToken, requireRole('CUSTOMER'), async (req, r
 
     if (!vendor_id || !items || !Array.isArray(items) || items.length === 0) {
       return res.status(400).json({ success: false, message: 'Vendor ID and non-empty items array are required.' });
+    }
+
+    // Check store open status before placing order
+    const mongoMenu = await MongoAdapter.findVendorMenu(vendor_id);
+    if (mongoMenu) {
+      const storeStatus = checkIsVendorOpen(mongoMenu);
+      if (!storeStatus.isOpen) {
+        return res.status(400).json({
+          success: false,
+          message: `Order Blocked: ${storeStatus.reason} Chef is not accepting orders right now. Please come back later!`
+        });
+      }
     }
 
     // Enforce max quantity limit of 5 per item
@@ -111,7 +154,7 @@ router.post('/orders', authenticateToken, requireRole('CUSTOMER'), async (req, r
       }
       const dish = dishes[0];
 
-      if (dish.is_available === 0 || (dish.daily_stock !== null && dish.daily_stock < item.quantity)) {
+      if (dish.is_available === 0 || (dish.daily_stock !== null && Number(dish.daily_stock) < Number(item.quantity))) {
         return res.status(400).json({ success: false, message: `'${dish.name}' is out of stock or does not have enough portions left today (${dish.daily_stock || 0} remaining).` });
       }
 
@@ -126,7 +169,7 @@ router.post('/orders', authenticateToken, requireRole('CUSTOMER'), async (req, r
       });
     }
 
-    // 2. Insert into MySQL `orders`
+    // 2. Insert into MySQL/PostgreSQL `orders`
     const orderRes = await query(`
       INSERT INTO orders (customer_id, vendor_id, total_amount, escrow_status, payment_status, status)
       VALUES (?, ?, ?, 'HOLDING', 'PAID', 'PLACED')
@@ -134,7 +177,7 @@ router.post('/orders', authenticateToken, requireRole('CUSTOMER'), async (req, r
 
     const order_id = orderRes.insertId;
 
-    // 3. Insert into MySQL `order_items` & Deduct Daily Dish Stock
+    // 3. Insert into MySQL/PostgreSQL `order_items` & Deduct Daily Dish Stock
     for (const item of itemsProcessed) {
       await query(`
         INSERT INTO order_items (order_id, dish_id, quantity, price_at_purchase, subtotal)
@@ -146,7 +189,7 @@ router.post('/orders', authenticateToken, requireRole('CUSTOMER'), async (req, r
 
       // Auto mark out of stock if portion stock hits 0
       const checkStock = await query('SELECT daily_stock FROM dishes WHERE dish_id = ?', [item.dish_id]);
-      if (checkStock.length > 0 && checkStock[0].daily_stock <= 0) {
+      if (checkStock.length > 0 && Number(checkStock[0].daily_stock) <= 0) {
         await query("UPDATE dishes SET is_available = 0, out_of_stock_reason = 'Daily portions fully exhausted (0 remaining)' WHERE dish_id = ?", [item.dish_id]);
 
         const mongoMenu = await MongoAdapter.findVendorMenu(vendor_id);
@@ -162,10 +205,10 @@ router.post('/orders', authenticateToken, requireRole('CUSTOMER'), async (req, r
       }
     }
 
-    // 4. Perform Atomic Relational Inventory Auto-Deduction in MySQL
+    // 4. Perform Atomic Relational Inventory Auto-Deduction in MySQL/PostgreSQL
     const stockDeductions = await InventoryEngine.deductOrderStock(items);
 
-    // 5. Create Escrow Payout Record in MySQL
+    // 5. Create Escrow Payout Record in MySQL/PostgreSQL
     const payout = await PayoutService.createOrderPayout(order_id, vendor_id, null, totalAmount);
 
     // 6. Push Tracking Log to MongoDB
@@ -215,7 +258,7 @@ router.delete('/orders/:id', authenticateToken, requireRole('CUSTOMER'), async (
     await MongoAdapter.pushTrackingLog(order_id, {
       event: 'ORDER_CANCELLED',
       timestamp: new Date(),
-      location_note: 'Order cancelled by customer. Escrow refunded.',
+      location_note: 'Order cancelled by customer. Escrow funds refunded.',
       actor_role: 'CUSTOMER'
     });
 
@@ -246,11 +289,34 @@ router.get('/my-orders', authenticateToken, requireRole('CUSTOMER'), async (req,
         WHERE oi.order_id = ?
       `, [o.order_id]);
 
-      const tracking = await MongoAdapter.getTrackingLog(o.order_id);
+      const trackingObj = await MongoAdapter.getTrackingLog(o.order_id);
+      let timeline = trackingObj && trackingObj.timeline && trackingObj.timeline.length > 0 ? trackingObj.timeline : [];
+
+      if (timeline.length === 0) {
+        timeline = [
+          { event: 'ORDER_PLACED', location_note: 'Order submitted and escrow payment secured', timestamp: o.timestamp || new Date(), actor_role: 'CUSTOMER' }
+        ];
+        if (['PREPARING', 'READY', 'OUT_FOR_DELIVERY', 'DELIVERED'].includes(o.status)) {
+          timeline.push({ event: 'KITCHEN_PREPARING', location_note: 'Chef started preparing your meal', timestamp: new Date(new Date(o.timestamp).getTime() + 2 * 60000), actor_role: 'VENDOR' });
+        }
+        if (['READY', 'OUT_FOR_DELIVERY', 'DELIVERED'].includes(o.status)) {
+          timeline.push({ event: 'KITCHEN_READY', location_note: 'Meal packed & waiting for delivery pickup', timestamp: new Date(new Date(o.timestamp).getTime() + 10 * 60000), actor_role: 'VENDOR' });
+        }
+        if (['OUT_FOR_DELIVERY', 'DELIVERED'].includes(o.status)) {
+          timeline.push({ event: 'RIDER_ACCEPTED', location_note: 'Courier picked up order and is en route', timestamp: new Date(new Date(o.timestamp).getTime() + 15 * 60000), actor_role: 'RIDER' });
+        }
+        if (o.status === 'DELIVERED') {
+          timeline.push({ event: 'DELIVERED', location_note: 'Order delivered successfully to your doorstep', timestamp: new Date(new Date(o.timestamp).getTime() + 25 * 60000), actor_role: 'RIDER' });
+        }
+      }
+
+      const review = await MongoAdapter.getReviewForOrder(o.order_id);
+
       result.push({
         ...o,
         items,
-        tracking: tracking ? tracking.timeline : []
+        tracking: timeline,
+        review: review || null
       });
     }
 
@@ -261,7 +327,7 @@ router.get('/my-orders', authenticateToken, requireRole('CUSTOMER'), async (req,
   }
 });
 
-// Submit Customer Review
+// Submit/Upsert Customer Review (One Review Per Order)
 router.post('/reviews', authenticateToken, requireRole('CUSTOMER'), async (req, res) => {
   try {
     const { order_id, vendor_id, rider_id, vendor_rating, rider_rating, comment } = req.body;
@@ -269,7 +335,7 @@ router.post('/reviews', authenticateToken, requireRole('CUSTOMER'), async (req, 
     const avgRating = ((Number(vendor_rating) || 5) + (Number(rider_rating) || 5)) / 2;
     const sentiment_label = avgRating >= 4 ? 'POSITIVE' : avgRating >= 2.5 ? 'NEUTRAL' : 'NEGATIVE';
 
-    const review = await MongoAdapter.createReview({
+    const review = await MongoAdapter.upsertReview({
       review_id: Date.now(),
       order_id: Number(order_id),
       customer_id: req.user.user_id,
@@ -277,15 +343,15 @@ router.post('/reviews', authenticateToken, requireRole('CUSTOMER'), async (req, 
       rider_id: rider_id ? Number(rider_id) : null,
       vendor_rating: Number(vendor_rating),
       rider_rating: Number(rider_rating),
-      comment,
+      comment: comment || '',
       sentiment_label,
-      created_at: new Date()
+      updated_at: new Date()
     });
 
-    return res.json({ success: true, message: 'Review submitted successfully!', review });
+    return res.json({ success: true, message: 'Review saved successfully!', review });
   } catch (err) {
     console.error('Submit review error:', err);
-    return res.status(500).json({ success: false, message: 'Failed to submit review.' });
+    return res.status(500).json({ success: false, message: 'Failed to save review.' });
   }
 });
 
