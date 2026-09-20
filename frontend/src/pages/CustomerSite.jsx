@@ -153,8 +153,14 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
   };
 
   const addToCart = (dish) => {
-    if (selectedVendor && selectedVendor.is_currently_open === false) {
-      alert(`Chef is currently NOT accepting orders (${selectedVendor.closed_reason || 'Store Closed'}). Please come back later.`);
+    const isVendorOpen = selectedVendor &&
+      selectedVendor.is_open !== false &&
+      selectedVendor.is_currently_open !== false &&
+      selectedVendor.menu?.is_open !== false &&
+      selectedVendor.menu?.is_currently_open !== false;
+
+    if (!isVendorOpen) {
+      alert(`Chef is currently NOT accepting orders (${selectedVendor?.closed_reason || selectedVendor?.menu?.closed_reason || 'Store Closed'}). Please come back later.`);
       return;
     }
 
@@ -642,247 +648,282 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
           </div>
 
           {/* Active Chef Banner & Menu */}
-          {selectedVendor && (
-            <div className="space-y-6 sm:space-y-8">
-              
-              {/* Hero Chef Storefront Banner */}
-              <div className="glass-card rounded-3xl p-5 sm:p-8 border space-y-4 relative overflow-hidden bg-gradient-to-br from-amber-500/10 via-orange-500/15 to-amber-500/10 dark:from-slate-900 dark:via-slate-900/90 dark:to-slate-950 border-amber-500/30 dark:border-slate-800">
-                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 relative z-10">
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-[10px] font-extrabold uppercase">
-                        {selectedVendor.menu?.operating_hours || '11:00 AM - 10:00 PM'}
-                      </span>
-                      <span className="text-xs text-amber-600 dark:text-amber-400 font-bold flex items-center gap-1">⭐ 4.9 Ratings</span>
-                      <span className="text-xs text-slate-600 dark:text-slate-400">⏱️ 15-25 min avg prep</span>
-                    </div>
-                    <h2 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white">{selectedVendor.menu?.business_name || selectedVendor.business_name}</h2>
-                    <p className="text-xs text-slate-600 dark:text-slate-400 mt-1 max-w-xl leading-relaxed">{selectedVendor.menu?.chef_bio}</p>
+          {selectedVendor && (() => {
+            const isCurrentVendorOpen = selectedVendor.is_open !== false &&
+              selectedVendor.is_currently_open !== false &&
+              selectedVendor.menu?.is_open !== false &&
+              selectedVendor.menu?.is_currently_open !== false;
 
-                    {selectedVendor.is_currently_open === false && (
-                      <div className="p-3 rounded-2xl bg-rose-500/15 border border-rose-500/30 text-rose-600 dark:text-rose-400 text-xs font-bold flex items-center gap-2 mt-3">
-                        <Ban className="w-4 h-4 shrink-0" />
-                        <span>🔴 STORE CLOSED (Offline) — {selectedVendor.closed_reason || 'Chef is not accepting orders, please come back later.'}</span>
+            return (
+              <div className="space-y-6 sm:space-y-8">
+                
+                {/* Hero Chef Storefront Banner */}
+                <div className="glass-card rounded-3xl p-5 sm:p-8 border space-y-4 relative overflow-hidden bg-gradient-to-br from-amber-500/10 via-orange-500/15 to-amber-500/10 dark:from-slate-900 dark:via-slate-900/90 dark:to-slate-950 border-amber-500/30 dark:border-slate-800">
+                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 relative z-10">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-[10px] font-extrabold uppercase">
+                          {selectedVendor.menu?.operating_hours || '11:00 AM - 10:00 PM'}
+                        </span>
+                        <span className="text-xs text-amber-600 dark:text-amber-400 font-bold flex items-center gap-1">⭐ 4.9 Ratings</span>
+                        <span className="text-xs text-slate-600 dark:text-slate-400">⏱️ 15-25 min avg prep</span>
                       </div>
-                    )}
+                      <h2 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white">{selectedVendor.menu?.business_name || selectedVendor.business_name}</h2>
+                      <p className="text-xs text-slate-600 dark:text-slate-400 mt-1 max-w-xl leading-relaxed">{selectedVendor.menu?.chef_bio}</p>
+
+                      {!isCurrentVendorOpen && (
+                        <div className="p-3 rounded-2xl bg-rose-500/15 border border-rose-500/30 text-rose-600 dark:text-rose-400 text-xs font-bold flex items-center gap-2 mt-3">
+                          <Ban className="w-4 h-4 shrink-0 text-rose-500" />
+                          <span>🔴 STORE CLOSED (Offline) — {selectedVendor.closed_reason || selectedVendor.menu?.closed_reason || 'Chef is not accepting orders right now, please come back later.'}</span>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
-              </div>
 
-              {/* Menu Categories & Ultra-Unique Food Cards */}
-              {selectedVendor.menu?.categories?.map((cat, idx) => {
-                // Filter dishes by search query & diet
-                const filteredDishes = (cat.dishes || []).filter((dish) => {
-                  const matchSearch =
-                    !searchQuery ||
-                    dish.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                    (dish.description && dish.description.toLowerCase().includes(searchQuery.toLowerCase()));
-
-                  if (!matchSearch) return false;
-
-                  if (selectedDiet === 'VEGAN') {
-                    return dish.dietary_tags?.some((t) => t.toLowerCase().includes('sweet') || t.toLowerCase().includes('veg'));
-                  }
-                  if (selectedDiet === 'SPICY') {
-                    return dish.name.toLowerCase().includes('curry') || dish.name.toLowerCase().includes('tikka') || dish.name.toLowerCase().includes('ramen');
-                  }
-                  if (selectedDiet === 'FAVORITES') {
-                    return favorites.has(dish.dish_id);
-                  }
-                  return true;
-                });
-
-                if (filteredDishes.length === 0) return null;
-
-                return (
-                  <div key={idx} className="space-y-4 pt-2">
-                    
-                    {/* Category Header with Gradient Edge Divider */}
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between">
-                        <h3 className="text-base sm:text-lg font-black text-slate-900 dark:text-white flex items-center gap-2">
-                          <Flame className="w-5 h-5 text-orange-500" />
-                          <span>{cat.category_name}</span>
-                        </h3>
-                        <span className="text-xs font-bold text-slate-600 dark:text-slate-400">{filteredDishes.length} items available</span>
-                      </div>
-                      {/* Vibrant Gradient Section Edge Divider */}
-                      <div className="gradient-divider w-full rounded-full" />
+                {!isCurrentVendorOpen && (
+                  <div className="p-6 sm:p-8 rounded-3xl bg-slate-950/90 border border-rose-500/40 text-center space-y-3 shadow-2xl backdrop-blur-md my-4">
+                    <div className="w-14 h-14 rounded-2xl bg-rose-500/10 text-rose-500 border border-rose-500/20 flex items-center justify-center mx-auto shadow-lg shadow-rose-500/20">
+                      <Ban className="w-7 h-7" />
                     </div>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
-                      {[...filteredDishes].sort((a, b) => {
-                        const availA = a.is_available !== false && a.is_available !== 0 && (a.daily_stock === undefined || Number(a.daily_stock) > 0);
-                        const availB = b.is_available !== false && b.is_available !== 0 && (b.daily_stock === undefined || Number(b.daily_stock) > 0);
-                        if (availA === availB) return 0;
-                        return availA ? -1 : 1; // Available items first, out-of-stock items at the bottom!
-                      }).map((dish) => {
-                        const cartItem = cart.find((item) => item.dish_id === dish.dish_id);
-                        const isFav = favorites.has(dish.dish_id);
-                        const isDishAvailable = dish.is_available !== false && dish.is_available !== 0 && (dish.daily_stock === undefined || Number(dish.daily_stock) > 0);
-
-                        return (
-                          <div
-                            key={dish.dish_id}
-                            className={`dish-card glass-card rounded-3xl overflow-hidden border flex flex-col justify-between group shadow-xl transition-all ${
-                              !isDishAvailable
-                                ? 'opacity-55 grayscale bg-slate-100 dark:bg-slate-900/30 border-slate-300 dark:border-slate-800/60'
-                                : 'bg-white dark:bg-slate-900/60 border-slate-300 dark:border-slate-800/80 hover:border-amber-500/50 hover:shadow-2xl'
-                            }`}
-                          >
-                            {/* Food Image Header with Hero Zoom & Badges */}
-                            <div className="relative h-44 sm:h-48 w-full overflow-hidden bg-slate-200 dark:bg-slate-950">
-                              <img
-                                src={getDishImage(dish)}
-                                alt={dish.name}
-                                onError={(e) => {
-                                  e.target.onerror = null;
-                                  e.target.src = fallbackImages[dish.name] || 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=600&q=80';
-                                }}
-                                className={`food-image-zoom w-full h-full object-cover ${!isDishAvailable ? 'grayscale opacity-50 blur-[0.5px]' : ''}`}
-                              />
-                              <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-slate-950/20 to-transparent" />
-                              
-                              {/* Prominent OUT OF STOCK Overlay Banner */}
-                              {!isDishAvailable && (
-                                <div className="absolute inset-0 bg-slate-950/70 backdrop-blur-[1px] flex flex-col items-center justify-center p-3 text-center z-10">
-                                  <span className="px-3.5 py-1.5 rounded-full bg-rose-600/90 text-white font-black text-xs uppercase tracking-wider border border-rose-400/50 shadow-2xl flex items-center gap-1.5">
-                                    <Ban className="w-4 h-4" /> OUT OF STOCK
-                                  </span>
-                                  <span className="text-[10px] text-rose-200 mt-1.5 font-extrabold bg-slate-950/80 px-2.5 py-0.5 rounded-md border border-rose-500/30">
-                                    {dish.out_of_stock_reason || 'Daily portions fully exhausted (0 remaining)'}
-                                  </span>
-                                </div>
-                              )}
-
-                              {/* Floating Price Pill */}
-                              <div className="absolute top-3 right-3 px-3 py-1 rounded-full bg-slate-950/85 backdrop-blur-md border border-amber-500/40 text-amber-400 font-black text-xs shadow-xl glow-badge flex items-center gap-1 z-20">
-                                <span>${Number(dish.price).toFixed(2)}</span>
-                              </div>
-
-                              {/* Real-time Stock Availability Status Badge */}
-                              <div className="absolute top-3 left-3 flex items-center gap-1.5 z-20">
-                                <span className={`px-2.5 py-1 rounded-full backdrop-blur-md border text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 ${
-                                  isDishAvailable
-                                    ? 'bg-slate-950/85 border-emerald-500/40 text-emerald-400'
-                                    : 'bg-rose-950/90 border-rose-500/60 text-rose-300'
-                                }`}>
-                                  <span className={`w-2 h-2 rounded-full ${isDishAvailable ? 'bg-emerald-400 animate-pulse' : 'bg-rose-500'}`} />
-                                  {isDishAvailable ? `In Stock (${dish.daily_stock !== undefined ? dish.daily_stock : 20} left)` : 'Out of Stock (0 left)'}
-                                </span>
-                              </div>
-
-                              {/* Favorite Heart Toggle */}
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  toggleFavorite(dish.dish_id);
-                                }}
-                                className={`absolute bottom-3 right-3 p-2 rounded-full backdrop-blur-md transition-all shadow-md z-20 ${
-                                  isFav
-                                    ? 'bg-rose-500 text-white shadow-rose-500/40 scale-110'
-                                    : 'bg-slate-950/70 text-slate-400 hover:text-rose-400 border border-slate-700/50'
-                                }`}
-                              >
-                                <Heart className={`w-4 h-4 ${isFav ? 'fill-current' : ''}`} />
-                              </button>
-                            </div>
-
-                            {/* Dish Content Body */}
-                            <div className="p-4 sm:p-5 space-y-3 flex-1 flex flex-col justify-between">
-                              <div className="space-y-1.5">
-                                <div className="flex items-center justify-between gap-2">
-                                  <h4 className="text-base font-extrabold text-slate-900 dark:text-white group-hover:text-amber-500 transition-colors leading-snug">
-                                    {dish.name}
-                                  </h4>
-                                </div>
-                                <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed line-clamp-2">
-                                  {dish.description}
-                                </p>
-                                
-                                {dish.dietary_tags && (
-                                  <div className="flex flex-wrap gap-1.5 pt-1.5">
-                                    {dish.dietary_tags.map((tag, tIdx) => (
-                                      <span
-                                        key={tIdx}
-                                        className="px-2.5 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/20 text-[10px] font-bold text-amber-600 dark:text-amber-300"
-                                      >
-                                        {tag}
-                                      </span>
-                                    ))}
-                                  </div>
-                                )}
-                              </div>
-
-                              {/* Action Footer: Add to Cart or Quantity Controls */}
-                              <div className="pt-3 border-t border-slate-300 dark:border-slate-800/60">
-                                {!isDishAvailable ? (
-                                  <button
-                                    disabled
-                                    className="w-full py-3 rounded-xl bg-slate-200 dark:bg-slate-800 text-slate-400 dark:text-slate-500 font-black text-xs cursor-not-allowed border border-slate-300 dark:border-slate-700 flex items-center justify-center gap-1.5 opacity-80 uppercase tracking-wide"
-                                  >
-                                    <Ban className="w-4 h-4 text-rose-500" />
-                                    <span>Out of Stock — Unavailable</span>
-                                  </button>
-                                ) : selectedVendor.is_currently_open === false ? (
-                                  <button
-                                    disabled
-                                    className="w-full py-3 rounded-xl bg-rose-500/10 text-rose-500 font-black text-xs cursor-not-allowed border border-rose-500/20 flex items-center justify-center gap-1.5 uppercase tracking-wide"
-                                  >
-                                    <Ban className="w-4 h-4 text-rose-500" />
-                                    <span>Store Closed (Offline)</span>
-                                  </button>
-                                ) : cartItem ? (
-                                  <div className="flex items-center justify-between bg-amber-500/10 dark:bg-slate-950 p-1.5 rounded-xl border border-amber-500/30">
-                                    <button
-                                      onClick={() => updateCartQuantity(dish.dish_id, cartItem.quantity - 1)}
-                                      className="w-8 h-8 rounded-lg bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-800 dark:text-white font-black text-sm flex items-center justify-center transition-all"
-                                    >
-                                      -
-                                    </button>
-                                    <span className="text-xs font-black text-amber-600 dark:text-amber-400">
-                                      {cartItem.quantity} in Cart (${(dish.price * cartItem.quantity).toFixed(2)})
-                                    </span>
-                                    <button
-                                      onClick={() => addToCart(dish)}
-                                      className="w-8 h-8 rounded-lg bg-amber-500 hover:bg-amber-600 text-white font-black text-sm flex items-center justify-center transition-all shadow-md shadow-amber-500/30"
-                                    >
-                                      +
-                                    </button>
-                                  </div>
-                                ) : (
-                                  <button
-                                    onClick={() => handleAddToCartWithFeedback(dish)}
-                                    className={`w-full py-3 rounded-xl font-extrabold text-xs transition-all flex items-center justify-center gap-2 shadow-lg ${
-                                      addedFeedback[dish.dish_id]
-                                        ? 'bg-emerald-500 text-white shadow-emerald-500/30'
-                                        : 'bg-gradient-to-r from-orange-500 via-amber-500 to-orange-600 hover:from-orange-600 hover:to-amber-600 text-white shadow-orange-500/20 hover:shadow-orange-500/40'
-                                    }`}
-                                  >
-                                    {addedFeedback[dish.dish_id] ? (
-                                      <>
-                                        <CheckCircle2 className="w-4 h-4 text-white" />
-                                        <span>✓ Added to Order!</span>
-                                      </>
-                                    ) : (
-                                      <>
-                                        <ShoppingBag className="w-4 h-4 text-white" />
-                                        <span>+ Add to Order</span>
-                                      </>
-                                    )}
-                                  </button>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-                        );
-                      })}
+                    <div>
+                      <span className="px-3.5 py-1.5 rounded-full bg-rose-500/20 text-rose-400 text-xs font-black uppercase tracking-wider border border-rose-500/40 inline-flex items-center gap-1.5">
+                        <Ban className="w-3.5 h-3.5" /> 🔴 KITCHEN OFFLINE / STORE CLOSED
+                      </span>
+                      <h3 className="text-xl font-black text-white mt-2">
+                        {selectedVendor.closed_reason || selectedVendor.menu?.closed_reason || 'Chef is not accepting orders right now. Please come back later!'}
+                      </h3>
+                      <p className="text-xs text-slate-400 max-w-md mx-auto mt-1 leading-relaxed">
+                        This chef is currently offline. All dish ordering buttons are disabled to prevent accidental orders.
+                      </p>
                     </div>
                   </div>
-                );
-              })}
-            </div>
-          )}
+                )}
+
+                {/* Menu Categories & Ultra-Unique Food Cards */}
+                {selectedVendor.menu?.categories?.map((cat, idx) => {
+                  // Filter dishes by search query & diet
+                  const filteredDishes = (cat.dishes || []).filter((dish) => {
+                    const matchSearch =
+                      !searchQuery ||
+                      dish.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                      (dish.description && dish.description.toLowerCase().includes(searchQuery.toLowerCase()));
+
+                    if (!matchSearch) return false;
+
+                    if (selectedDiet === 'VEGAN') {
+                      return dish.dietary_tags?.some((t) => t.toLowerCase().includes('sweet') || t.toLowerCase().includes('veg'));
+                    }
+                    if (selectedDiet === 'SPICY') {
+                      return dish.name.toLowerCase().includes('curry') || dish.name.toLowerCase().includes('tikka') || dish.name.toLowerCase().includes('ramen');
+                    }
+                    if (selectedDiet === 'FAVORITES') {
+                      return favorites.has(dish.dish_id);
+                    }
+                    return true;
+                  });
+
+                  if (filteredDishes.length === 0) return null;
+
+                  return (
+                    <div key={idx} className="space-y-4 pt-2">
+                      
+                      {/* Category Header with Gradient Edge Divider */}
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <h3 className="text-base sm:text-lg font-black text-slate-900 dark:text-white flex items-center gap-2">
+                            <Flame className="w-5 h-5 text-orange-500" />
+                            <span>{cat.category_name}</span>
+                          </h3>
+                          <span className="text-xs font-bold text-slate-600 dark:text-slate-400">{filteredDishes.length} items available</span>
+                        </div>
+                        {/* Vibrant Gradient Section Edge Divider */}
+                        <div className="gradient-divider w-full rounded-full" />
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
+                        {[...filteredDishes].sort((a, b) => {
+                          const availA = a.is_available !== false && a.is_available !== 0 && (a.daily_stock === undefined || Number(a.daily_stock) > 0);
+                          const availB = b.is_available !== false && b.is_available !== 0 && (b.daily_stock === undefined || Number(b.daily_stock) > 0);
+                          if (availA === availB) return 0;
+                          return availA ? -1 : 1;
+                        }).map((dish) => {
+                          const cartItem = cart.find((item) => item.dish_id === dish.dish_id);
+                          const isFav = favorites.has(dish.dish_id);
+                          const isDishAvailable = dish.is_available !== false && dish.is_available !== 0 && (dish.daily_stock === undefined || Number(dish.daily_stock) > 0);
+
+                          return (
+                            <div
+                              key={dish.dish_id}
+                              className={`dish-card glass-card rounded-3xl overflow-hidden border flex flex-col justify-between group shadow-xl transition-all ${
+                                !isCurrentVendorOpen
+                                  ? 'opacity-40 grayscale bg-slate-900/90 border-rose-500/30 select-none'
+                                  : !isDishAvailable
+                                  ? 'opacity-55 grayscale bg-slate-100 dark:bg-slate-900/30 border-slate-300 dark:border-slate-800/60'
+                                  : 'bg-white dark:bg-slate-900/60 border-slate-300 dark:border-slate-800/80 hover:border-amber-500/50 hover:shadow-2xl'
+                              }`}
+                            >
+                              {/* Food Image Header with Hero Zoom & Badges */}
+                              <div className="relative h-44 sm:h-48 w-full overflow-hidden bg-slate-200 dark:bg-slate-950">
+                                <img
+                                  src={getDishImage(dish)}
+                                  alt={dish.name}
+                                  onError={(e) => {
+                                    e.target.onerror = null;
+                                    e.target.src = fallbackImages[dish.name] || 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=600&q=80';
+                                  }}
+                                  className={`food-image-zoom w-full h-full object-cover ${!isCurrentVendorOpen || !isDishAvailable ? 'grayscale opacity-50 blur-[0.5px]' : ''}`}
+                                />
+                                <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-slate-950/20 to-transparent" />
+                                
+                                {!isCurrentVendorOpen ? (
+                                  <div className="absolute inset-0 bg-slate-950/85 backdrop-blur-[2px] flex flex-col items-center justify-center p-3 text-center z-20">
+                                    <span className="px-3.5 py-1.5 rounded-full bg-rose-600/90 text-white font-black text-xs uppercase tracking-wider border border-rose-400/50 shadow-2xl flex items-center gap-1.5">
+                                      <Ban className="w-4 h-4" /> KITCHEN OFFLINE
+                                    </span>
+                                  </div>
+                                ) : !isDishAvailable && (
+                                  <div className="absolute inset-0 bg-slate-950/70 backdrop-blur-[1px] flex flex-col items-center justify-center p-3 text-center z-10">
+                                    <span className="px-3.5 py-1.5 rounded-full bg-rose-600/90 text-white font-black text-xs uppercase tracking-wider border border-rose-400/50 shadow-2xl flex items-center gap-1.5">
+                                      <Ban className="w-4 h-4" /> OUT OF STOCK
+                                    </span>
+                                    <span className="text-[10px] text-rose-200 mt-1.5 font-extrabold bg-slate-950/80 px-2.5 py-0.5 rounded-md border border-rose-500/30">
+                                      {dish.out_of_stock_reason || 'Daily portions fully exhausted (0 remaining)'}
+                                    </span>
+                                  </div>
+                                )}
+
+                                {/* Floating Price Pill */}
+                                <div className="absolute top-3 right-3 px-3 py-1 rounded-full bg-slate-950/85 backdrop-blur-md border border-amber-500/40 text-amber-400 font-black text-xs shadow-xl glow-badge flex items-center gap-1 z-20">
+                                  <span>${Number(dish.price).toFixed(2)}</span>
+                                </div>
+
+                                {/* Real-time Stock Availability Status Badge */}
+                                <div className="absolute top-3 left-3 flex items-center gap-1.5 z-20">
+                                  <span className={`px-2.5 py-1 rounded-full backdrop-blur-md border text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 ${
+                                    !isCurrentVendorOpen
+                                      ? 'bg-rose-950/90 border-rose-500/60 text-rose-300'
+                                      : isDishAvailable
+                                      ? 'bg-slate-950/85 border-emerald-500/40 text-emerald-400'
+                                      : 'bg-rose-950/90 border-rose-500/60 text-rose-300'
+                                  }`}>
+                                    <span className={`w-2 h-2 rounded-full ${isCurrentVendorOpen && isDishAvailable ? 'bg-emerald-400 animate-pulse' : 'bg-rose-500'}`} />
+                                    {!isCurrentVendorOpen ? 'Store Closed' : isDishAvailable ? `In Stock (${dish.daily_stock !== undefined ? dish.daily_stock : 20} left)` : 'Out of Stock (0 left)'}
+                                  </span>
+                                </div>
+
+                                {/* Favorite Heart Toggle */}
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    toggleFavorite(dish.dish_id);
+                                  }}
+                                  className={`absolute bottom-3 right-3 p-2 rounded-full backdrop-blur-md transition-all shadow-md z-20 ${
+                                    isFav
+                                      ? 'bg-rose-500 text-white shadow-rose-500/40 scale-110'
+                                      : 'bg-slate-950/70 text-slate-400 hover:text-rose-400 border border-slate-700/50'
+                                  }`}
+                                >
+                                  <Heart className={`w-4 h-4 ${isFav ? 'fill-current' : ''}`} />
+                                </button>
+                              </div>
+
+                              {/* Dish Content Body */}
+                              <div className="p-4 sm:p-5 space-y-3 flex-1 flex flex-col justify-between">
+                                <div className="space-y-1.5">
+                                  <div className="flex items-center justify-between gap-2">
+                                    <h4 className="text-base font-extrabold text-slate-900 dark:text-white group-hover:text-amber-500 transition-colors leading-snug">
+                                      {dish.name}
+                                    </h4>
+                                  </div>
+                                  <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed line-clamp-2">
+                                    {dish.description}
+                                  </p>
+                                  
+                                  {dish.dietary_tags && (
+                                    <div className="flex flex-wrap gap-1.5 pt-1.5">
+                                      {dish.dietary_tags.map((tag, tIdx) => (
+                                        <span
+                                          key={tIdx}
+                                          className="px-2.5 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/20 text-[10px] font-bold text-amber-600 dark:text-amber-300"
+                                        >
+                                          {tag}
+                                        </span>
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
+
+                                {/* Action Footer: Add to Cart or Quantity Controls */}
+                                <div className="pt-3 border-t border-slate-300 dark:border-slate-800/60">
+                                  {!isCurrentVendorOpen ? (
+                                    <button
+                                      disabled
+                                      className="w-full py-3.5 rounded-xl bg-rose-500/10 text-rose-500 dark:text-rose-400 font-black text-xs cursor-not-allowed border border-rose-500/30 flex items-center justify-center gap-1.5 uppercase tracking-wide"
+                                    >
+                                      <Ban className="w-4 h-4 text-rose-500 shrink-0" />
+                                      <span>Chef Offline — Cannot Add</span>
+                                    </button>
+                                  ) : !isDishAvailable ? (
+                                    <button
+                                      disabled
+                                      className="w-full py-3 rounded-xl bg-slate-200 dark:bg-slate-800 text-slate-400 dark:text-slate-500 font-black text-xs cursor-not-allowed border border-slate-300 dark:border-slate-700 flex items-center justify-center gap-1.5 opacity-80 uppercase tracking-wide"
+                                    >
+                                      <Ban className="w-4 h-4 text-rose-500" />
+                                      <span>Out of Stock — Unavailable</span>
+                                    </button>
+                                  ) : cartItem ? (
+                                    <div className="flex items-center justify-between bg-amber-500/10 dark:bg-slate-950 p-1.5 rounded-xl border border-amber-500/30">
+                                      <button
+                                        onClick={() => updateCartQuantity(dish.dish_id, cartItem.quantity - 1)}
+                                        className="w-8 h-8 rounded-lg bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-800 dark:text-white font-black text-sm flex items-center justify-center transition-all"
+                                      >
+                                        -
+                                      </button>
+                                      <span className="text-xs font-black text-amber-600 dark:text-amber-400">
+                                        {cartItem.quantity} in Cart (${(dish.price * cartItem.quantity).toFixed(2)})
+                                      </span>
+                                      <button
+                                        onClick={() => addToCart(dish)}
+                                        className="w-8 h-8 rounded-lg bg-amber-500 hover:bg-amber-600 text-white font-black text-sm flex items-center justify-center transition-all shadow-md shadow-amber-500/30"
+                                      >
+                                        +
+                                      </button>
+                                    </div>
+                                  ) : (
+                                    <button
+                                      onClick={() => handleAddToCartWithFeedback(dish)}
+                                      className={`w-full py-3 rounded-xl font-extrabold text-xs transition-all flex items-center justify-center gap-2 shadow-lg ${
+                                        addedFeedback[dish.dish_id]
+                                          ? 'bg-emerald-500 text-white shadow-emerald-500/30'
+                                          : 'bg-gradient-to-r from-orange-500 via-amber-500 to-orange-600 hover:from-orange-600 hover:to-amber-600 text-white shadow-orange-500/20 hover:shadow-orange-500/40'
+                                      }`}
+                                    >
+                                      {addedFeedback[dish.dish_id] ? (
+                                        <>
+                                          <CheckCircle2 className="w-4 h-4 text-white" />
+                                          <span>✓ Added to Order!</span>
+                                        </>
+                                      ) : (
+                                        <>
+                                          <ShoppingBag className="w-4 h-4 text-white" />
+                                          <span>+ Add to Order</span>
+                                        </>
+                                      )}
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })()}
 
         </div>
 
