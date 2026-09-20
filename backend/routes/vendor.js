@@ -73,7 +73,29 @@ router.get('/dishes', authenticateToken, requireRole('VENDOR'), async (req, res)
     const vendor_id = req.user.user_id;
     await InventoryEngine.autoSyncDishAvailability(vendor_id);
     const dishes = await query('SELECT * FROM dishes WHERE vendor_id = ? ORDER BY dish_id DESC', [vendor_id]);
-    return res.json({ success: true, dishes });
+
+    const mongoMenu = await MongoAdapter.findVendorMenu(vendor_id);
+    const mongoDishMetaMap = {};
+    if (mongoMenu && mongoMenu.categories) {
+      for (const cat of mongoMenu.categories) {
+        for (const d of cat.dishes || []) {
+          if (d.dish_id) mongoDishMetaMap[d.dish_id] = d;
+          if (d.name) mongoDishMetaMap[d.name.toLowerCase()] = d;
+        }
+      }
+    }
+
+    const formattedDishes = dishes.map(d => {
+      const meta = mongoDishMetaMap[d.dish_id] || mongoDishMetaMap[d.name.toLowerCase()] || {};
+      return {
+        ...d,
+        description: meta.description !== undefined ? meta.description : (d.description || 'Handcrafted fresh dish'),
+        image_url: meta.image_url || d.image_url || 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&w=600&q=80',
+        dietary_tags: meta.dietary_tags || ['Fresh']
+      };
+    });
+
+    return res.json({ success: true, dishes: formattedDishes });
   } catch (err) {
     console.error('Fetch dishes error:', err);
     return res.status(500).json({ success: false, message: 'Failed to fetch dishes.' });
@@ -116,6 +138,7 @@ router.post('/dishes', authenticateToken, requireRole('VENDOR'), async (req, res
     let catObj = mongoMenu.categories?.find(c => c.category_name.toLowerCase() === category.toLowerCase());
     if (!catObj) {
       catObj = { category_name: category, dishes: [] };
+      if (!mongoMenu.categories) mongoMenu.categories = [];
       mongoMenu.categories.push(catObj);
     }
 
@@ -162,23 +185,55 @@ router.put('/dishes/:id', authenticateToken, requireRole('VENDOR'), async (req, 
     `, [name, category, base_price !== undefined ? Number(base_price) : null, daily_stock !== undefined ? Number(daily_stock) : null, availVal, defaultReason, dish_id, vendor_id]);
 
     // 2. Update MongoDB `vendors_menus`
-    const mongoMenu = await MongoAdapter.findVendorMenu(vendor_id);
-    if (mongoMenu && mongoMenu.categories) {
-      for (const cat of mongoMenu.categories) {
-        if (cat.dishes) {
-          const targetDish = cat.dishes.find(d => Number(d.dish_id) === Number(dish_id));
-          if (targetDish) {
-            if (name) targetDish.name = name;
-            if (description !== undefined) targetDish.description = description;
-            if (base_price !== undefined) targetDish.price = Number(base_price);
-            if (image_url !== undefined) targetDish.image_url = image_url;
-            targetDish.is_available = availVal === 1;
-            if (dietary_tags && Array.isArray(dietary_tags)) targetDish.dietary_tags = dietary_tags;
-          }
-        }
-      }
-      await MongoAdapter.findOrSeedVendorMenus([mongoMenu]);
+    let mongoMenu = await MongoAdapter.findVendorMenu(vendor_id);
+    if (!mongoMenu) {
+      const vendorUser = await query('SELECT name FROM users WHERE user_id = ?', [vendor_id]);
+      mongoMenu = {
+        vendor_id,
+        business_name: vendorUser[0]?.name || 'Chef Kitchen',
+        cuisine_types: [category || 'Main Menu'],
+        categories: []
+      };
     }
+
+    let targetDish = null;
+    let targetCatObj = null;
+
+    for (const cat of mongoMenu.categories || []) {
+      const found = (cat.dishes || []).find(d => Number(d.dish_id) === Number(dish_id) || (name && d.name.toLowerCase() === name.toLowerCase()));
+      if (found) {
+        targetDish = found;
+        targetCatObj = cat;
+        break;
+      }
+    }
+
+    if (!targetDish) {
+      const targetCatName = category || 'Main Menu';
+      targetCatObj = (mongoMenu.categories || []).find(c => c.category_name.toLowerCase() === targetCatName.toLowerCase());
+      if (!targetCatObj) {
+        targetCatObj = { category_name: targetCatName, dishes: [] };
+        if (!mongoMenu.categories) mongoMenu.categories = [];
+        mongoMenu.categories.push(targetCatObj);
+      }
+      targetDish = {
+        dish_id: Number(dish_id),
+        name: name || 'Dish',
+        price: Number(base_price || 0),
+        is_available: availVal === 1,
+        dietary_tags: Array.isArray(dietary_tags) ? dietary_tags : ['Fresh']
+      };
+      targetCatObj.dishes.push(targetDish);
+    }
+
+    if (name) targetDish.name = name;
+    if (description !== undefined) targetDish.description = description;
+    if (base_price !== undefined) targetDish.price = Number(base_price);
+    if (image_url !== undefined && image_url !== null) targetDish.image_url = image_url;
+    targetDish.is_available = availVal === 1;
+    if (dietary_tags && Array.isArray(dietary_tags)) targetDish.dietary_tags = dietary_tags;
+
+    await MongoAdapter.findOrSeedVendorMenus([mongoMenu]);
 
     return res.json({ success: true, message: `Dish #${dish_id} updated successfully!`, is_available: availVal === 1 });
   } catch (err) {
