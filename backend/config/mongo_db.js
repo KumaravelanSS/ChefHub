@@ -116,6 +116,23 @@ const MongoAdapter = {
   async findOrSeedVendorMenus(seedData) {
     if (isMongoConnected) {
       for (const item of seedData) {
+        const existing = await VendorMenu.findOne({ vendor_id: item.vendor_id });
+        if (existing && existing.categories && item.categories) {
+          for (const cat of item.categories) {
+            const exCat = existing.categories.find(c => c.category_name.toLowerCase() === cat.category_name.toLowerCase());
+            if (exCat && exCat.dishes) {
+              for (const dish of cat.dishes) {
+                const exDish = exCat.dishes.find(d => Number(d.dish_id) === Number(dish.dish_id) || d.name.toLowerCase() === dish.name.toLowerCase());
+                if (exDish && exDish.image_url) {
+                  dish.image_url = exDish.image_url;
+                }
+                if (exDish && exDish.description) {
+                  dish.description = exDish.description;
+                }
+              }
+            }
+          }
+        }
         await VendorMenu.findOneAndUpdate({ vendor_id: item.vendor_id }, item, { upsert: true });
       }
     } else {
@@ -125,6 +142,23 @@ const MongoAdapter = {
       for (const item of seedData) {
         const idx = memoryDocs.vendors_menus.findIndex(v => Number(v.vendor_id) === Number(item.vendor_id));
         if (idx >= 0) {
+          const existing = memoryDocs.vendors_menus[idx];
+          if (existing && existing.categories && item.categories) {
+            for (const cat of item.categories) {
+              const exCat = existing.categories.find(c => c.category_name.toLowerCase() === cat.category_name.toLowerCase());
+              if (exCat && exCat.dishes) {
+                for (const dish of cat.dishes) {
+                  const exDish = exCat.dishes.find(d => Number(d.dish_id) === Number(dish.dish_id) || d.name.toLowerCase() === dish.name.toLowerCase());
+                  if (exDish && exDish.image_url) {
+                    dish.image_url = exDish.image_url;
+                  }
+                  if (exDish && exDish.description) {
+                    dish.description = exDish.description;
+                  }
+                }
+              }
+            }
+          }
           memoryDocs.vendors_menus[idx] = item;
         } else {
           memoryDocs.vendors_menus.push(item);

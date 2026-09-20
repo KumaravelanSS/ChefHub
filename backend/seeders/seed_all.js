@@ -158,10 +158,10 @@ async function seedDatabase() {
     'Pan-Seared Pork Gyoza (6 pcs)': 'https://images.unsplash.com/photo-1496116218417-1a781b1c416c?auto=format&fit=crop&w=600&q=80'
   };
 
-  // Sync relational dishes table image_url and description
+  // Sync relational dishes table image_url and description (only for dishes without existing custom image_url)
   for (const dish of allDishes) {
     if (imageMap[dish.name]) {
-      await query('UPDATE dishes SET image_url = COALESCE(image_url, ?), description = COALESCE(description, ?) WHERE dish_id = ?', [
+      await query('UPDATE dishes SET image_url = ?, description = COALESCE(NULLIF(description, \'\'), ?) WHERE dish_id = ? AND (image_url IS NULL OR image_url = \'\')', [
         imageMap[dish.name],
         'Handcrafted daily with organic ingredients.',
         dish.dish_id
