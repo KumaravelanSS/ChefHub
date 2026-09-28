@@ -299,7 +299,14 @@ router.patch('/dishes/:id/toggle-stock', authenticateToken, requireRole('VENDOR'
       await MongoAdapter.findOrSeedVendorMenus([mongoMenu]);
     }
 
-    return res.json({ success: true, is_available: newAvail === 1, daily_stock: newDailyStock, message: `Stock status updated to ${newAvail === 1 ? 'In Stock' : 'Out of Stock'}.` });
+    return res.json({ 
+      success: true, 
+      dish_id: Number(dish_id), 
+      is_available: newAvail === 1, 
+      daily_stock: newDailyStock, 
+      out_of_stock_reason: newReason, 
+      message: `Stock status updated to ${newAvail === 1 ? 'In Stock' : 'Out of Stock'}.` 
+    });
   } catch (err) {
     console.error('Toggle stock error:', err);
     return res.status(500).json({ success: false, message: 'Failed to toggle stock status.' });

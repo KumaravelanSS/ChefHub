@@ -69,7 +69,7 @@ export default function ChefSite({ user, onLogin, onLogout }) {
       fetchData();
       const interval = setInterval(() => {
         fetchData();
-      }, 4000);
+      }, 8000);
       return () => clearInterval(interval);
     }
   }, [user, activeTab]);
@@ -236,6 +236,23 @@ export default function ChefSite({ user, onLogin, onLogout }) {
   };
 
   const handleToggleStock = async (dish_id) => {
+    // 1. Instant zero-latency optimistic UI update
+    const previousDishes = [...dishes];
+    setDishes(prevDishes => prevDishes.map(d => {
+      if (d.dish_id === dish_id) {
+        const nextAvail = (d.is_available === 1 || d.is_available === true) ? 0 : 1;
+        const nextStock = (nextAvail === 1 && (!d.daily_stock || Number(d.daily_stock) <= 0)) ? 20 : d.daily_stock;
+        const nextReason = nextAvail === 1 ? 'In Stock' : 'Kitchen prep closed for today';
+        return {
+          ...d,
+          is_available: nextAvail,
+          daily_stock: nextStock,
+          out_of_stock_reason: nextReason
+        };
+      }
+      return d;
+    }));
+
     try {
       const token = localStorage.getItem('chefhub_token');
       const res = await fetch(`/api/vendor/dishes/${dish_id}/toggle-stock`, {
@@ -244,11 +261,25 @@ export default function ChefSite({ user, onLogin, onLogout }) {
       });
       const data = await res.json();
       if (data.success) {
-        fetchData();
+        // Sync dish with confirmed server values smoothly
+        setDishes(prevDishes => prevDishes.map(d => {
+          if (d.dish_id === dish_id) {
+            return {
+              ...d,
+              is_available: data.is_available ? 1 : 0,
+              daily_stock: data.daily_stock !== undefined ? data.daily_stock : d.daily_stock,
+              out_of_stock_reason: data.out_of_stock_reason || d.out_of_stock_reason
+            };
+          }
+          return d;
+        }));
       } else {
-        alert(data.message);
+        // Revert on server error
+        setDishes(previousDishes);
+        alert(data.message || 'Failed to toggle stock status.');
       }
     } catch (err) {
+      setDishes(previousDishes);
       alert('Failed to toggle stock status.');
     }
   };
@@ -662,7 +693,7 @@ export default function ChefSite({ user, onLogin, onLogout }) {
                   <tr>
                     <th className="p-3 rounded-l-xl">Dish</th>
                     <th className="p-3">Category</th>
-                    <th className="p-3">Price</th>
+                    <th className="p-3">Price (₹)</th>
                     <th className="p-3">Daily Portion Stock</th>
                     <th className="p-3">Stock Status</th>
                     <th className="p-3 rounded-r-xl text-right">Actions</th>
@@ -689,7 +720,7 @@ export default function ChefSite({ user, onLogin, onLogout }) {
                           </div>
                         </td>
                         <td className="p-3 font-semibold text-slate-700 dark:text-slate-300">{d.category}</td>
-                        <td className="p-3 font-black text-amber-600 dark:text-amber-400">${Number(d.base_price).toFixed(2)}</td>
+                        <td className="p-3 font-black text-amber-600 dark:text-amber-400">₹{Number(d.base_price).toFixed(2)}</td>
                         
                         {/* Daily Portion Stock Counter */}
                         <td className="p-3">
@@ -774,7 +805,7 @@ export default function ChefSite({ user, onLogin, onLogout }) {
                   />
                 </div>
                 <div>
-                  <label className="font-bold text-slate-700 dark:text-slate-300">Price ($)</label>
+                  <label className="font-bold text-slate-700 dark:text-slate-300">Price (₹)</label>
                   <input
                     type="number"
                     step="0.01"
@@ -915,7 +946,7 @@ export default function ChefSite({ user, onLogin, onLogout }) {
                   />
                 </div>
                 <div>
-                  <label className="font-bold text-slate-700 dark:text-slate-300">Price ($)</label>
+                  <label className="font-bold text-slate-700 dark:text-slate-300">Price (₹)</label>
                   <input
                     type="number"
                     step="0.01"
@@ -1054,7 +1085,7 @@ export default function ChefSite({ user, onLogin, onLogout }) {
                   />
                 </div>
                 <div>
-                  <label className="font-bold text-slate-700 dark:text-slate-300">Price ($)</label>
+                  <label className="font-bold text-slate-700 dark:text-slate-300">Price (₹)</label>
                   <input
                     type="number"
                     step="0.01"
@@ -1504,7 +1535,7 @@ export default function ChefSite({ user, onLogin, onLogout }) {
                         <Utensils className="w-4 h-4 text-emerald-500" />
                         <h3 className="font-extrabold text-slate-900 dark:text-white text-base">{dish.name}</h3>
                         <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400 font-bold">
-                          ${Number(dish.base_price).toFixed(2)}
+                          ₹{Number(dish.base_price).toFixed(2)}
                         </span>
                       </div>
                       <span className="text-xs text-emerald-600 dark:text-emerald-400 font-bold bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-0.5 rounded-full">
@@ -1575,7 +1606,7 @@ export default function ChefSite({ user, onLogin, onLogout }) {
                 >
                   <option value="">-- Choose Dish --</option>
                   {dishes.map((d) => (
-                    <option key={d.dish_id} value={d.dish_id}>{d.name} (${Number(d.base_price).toFixed(2)})</option>
+                    <option key={d.dish_id} value={d.dish_id}>{d.name} (₹{Number(d.base_price).toFixed(2)})</option>
                   ))}
                 </select>
               </div>
@@ -1692,7 +1723,7 @@ export default function ChefSite({ user, onLogin, onLogout }) {
           <div className="glass-card rounded-2xl p-6 border border-slate-800 flex justify-between items-center">
             <div>
               <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Total Chef Net Revenue (85% Split)</span>
-              <h2 className="text-3xl font-black text-emerald-400">${payouts.total_earned}</h2>
+              <h2 className="text-3xl font-black text-emerald-400">₹{payouts.total_earned}</h2>
             </div>
             <span className="px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-bold">
               Direct Escrow Payouts Active
@@ -1718,7 +1749,7 @@ export default function ChefSite({ user, onLogin, onLogout }) {
                       <td className="p-3 font-mono text-slate-500">#{p.payout_id}</td>
                       <td className="p-3 font-bold text-slate-900 dark:text-white">Order #{p.order_id}</td>
                       <td className="p-3"><span className="text-emerald-600 dark:text-emerald-400 font-bold">{p.order_status}</span></td>
-                      <td className="p-3 font-black text-emerald-600 dark:text-emerald-400">${Number(p.vendor_amount).toFixed(2)}</td>
+                      <td className="p-3 font-black text-emerald-600 dark:text-emerald-400">₹{Number(p.vendor_amount).toFixed(2)}</td>
                       <td className="p-3 text-slate-600 dark:text-slate-400">{new Date(p.executed_at).toLocaleString()}</td>
                     </tr>
                   ))}

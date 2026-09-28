@@ -247,13 +247,13 @@ export default function RiderSite({ user, onLogin }) {
                       <p className="text-xs text-slate-600 dark:text-slate-400 mt-0.5">Pickup from: <strong className="text-slate-900 dark:text-white font-bold">{job.vendor_name}</strong></p>
                     </div>
                     <span className="px-3 py-1 rounded-full bg-sky-500/10 border border-sky-500/20 text-sky-600 dark:text-sky-400 text-xs font-bold">
-                      Payout: ${(Number(job.total_amount) * 0.10).toFixed(2)}
+                      Payout: ₹{(Number(job.total_amount) * 0.10).toFixed(2)}
                     </span>
                   </div>
 
                   <div className="flex items-center justify-between text-xs bg-slate-100 dark:bg-slate-900/80 p-3 rounded-xl border border-slate-300 dark:border-slate-800">
                     <span className="text-slate-600 dark:text-slate-400">Customer: <strong className="text-slate-900 dark:text-slate-200 font-bold">{job.customer_name}</strong></span>
-                    <span className="text-slate-600 dark:text-slate-400">Total Order: <strong className="text-emerald-600 dark:text-emerald-400 font-extrabold">${Number(job.total_amount).toFixed(2)}</strong></span>
+                    <span className="text-slate-600 dark:text-slate-400">Total Order: <strong className="text-emerald-600 dark:text-emerald-400 font-extrabold">₹{Number(job.total_amount).toFixed(2)}</strong></span>
                   </div>
 
                   <div className="pt-2 border-t border-slate-300 dark:border-slate-800">
@@ -315,7 +315,7 @@ export default function RiderSite({ user, onLogin }) {
           <div className="glass-card rounded-2xl p-5 border border-slate-300 dark:border-slate-800 space-y-4">
             <div className="flex justify-between items-center border-b border-slate-300 dark:border-slate-800 pb-3">
               <h3 className="text-base font-bold text-slate-900 dark:text-white">Rider Payouts (10% Share)</h3>
-              <span className="text-lg font-extrabold text-sky-600 dark:text-sky-400">${earnings.total_earned}</span>
+              <span className="text-lg font-extrabold text-sky-600 dark:text-sky-400">₹{earnings.total_earned}</span>
             </div>
 
             <div className="space-y-2 max-h-60 overflow-y-auto pr-1 text-xs">
@@ -325,7 +325,7 @@ export default function RiderSite({ user, onLogin }) {
                     <span className="font-bold text-slate-900 dark:text-white">Order #{p.order_id}</span>
                     <p className="text-[10px] text-slate-500 dark:text-slate-400 font-semibold">{p.payout_status}</p>
                   </div>
-                  <span className="font-extrabold text-sky-600 dark:text-sky-400">${Number(p.rider_amount).toFixed(2)}</span>
+                  <span className="font-extrabold text-sky-600 dark:text-sky-400">₹{Number(p.rider_amount).toFixed(2)}</span>
                 </div>
               ))}
             </div>

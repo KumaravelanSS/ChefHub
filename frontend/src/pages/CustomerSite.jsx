@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ShoppingBag, Star, Clock, MapPin, CheckCircle2, ChevronRight, X, AlertCircle, Sparkles, Send, Ban, Utensils, Flame, Heart, Search, Filter, Eye, EyeOff, CreditCard, ShieldCheck, Lock, Receipt, ArrowRight, Truck, QrCode, Building, Wallet, Download, RefreshCw } from 'lucide-react';
+import { ShoppingBag, Star, Clock, MapPin, CheckCircle2, ChevronRight, X, AlertCircle, AlertTriangle, Sparkles, Send, Ban, Utensils, Flame, Heart, Search, Filter, Eye, EyeOff, CreditCard, ShieldCheck, Lock, Receipt, ArrowRight, Truck, QrCode, Building, Wallet, Download, RefreshCw } from 'lucide-react';
 
 const fallbackImages = {
   'Signature Truffle Tagliatelle': 'https://images.unsplash.com/photo-1551183053-bf91a1d81141?auto=format&fit=crop&w=600&q=80',
@@ -43,6 +43,10 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
   const [showPaymentGatewayModal, setShowPaymentGatewayModal] = useState(false);
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
   const [confirmedOrder, setConfirmedOrder] = useState(null);
+  const [paymentStage, setPaymentStage] = useState('IDLE'); // 'IDLE' | 'PROCESSING' | 'SUCCESS_ANIM' | 'FAILED_ANIM'
+  const [paymentStageData, setPaymentStageData] = useState(null);
+  const [simulateFail, setSimulateFail] = useState(false);
+  const [merchantTransactionView, setMerchantTransactionView] = useState(null);
 
   const [paymentForm, setPaymentForm] = useState({
     paymentMethod: 'CARD', // 'CARD' | 'UPI' | 'NETBANKING' | 'ESCROW_WALLET'
@@ -292,9 +296,45 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
     }
 
     setIsProcessingPayment(true);
+    setPaymentStage('PROCESSING');
     setOrderStatusMsg('🔒 Authorizing 256-Bit SSL Payment & Securing Escrow...');
 
-    // Simulate realistic 1.2s payment authorization & bank handshake
+    const methodLabel = paymentForm.paymentMethod === 'CARD' ? `Credit Card (${paymentForm.cardNumber.slice(-4) || '4242'})` :
+                        paymentForm.paymentMethod === 'UPI' ? `UPI (${paymentForm.upiId || 'alex@upi'})` :
+                        paymentForm.paymentMethod === 'NETBANKING' ? `Net Banking (${paymentForm.bankName || 'HDFC'})` :
+                        'ChefHub Escrow Wallet';
+
+    // If test mode simulates payment decline/failure:
+    if (simulateFail) {
+      setTimeout(() => {
+        setIsProcessingPayment(false);
+        const failTxnId = 'TXN-FAIL-' + Math.floor(10000000 + Math.random() * 90000000);
+        const failureData = {
+          order_id: null,
+          vendor_name: selectedVendor?.name || selectedVendor?.business_name || 'Chef Kitchen',
+          vendor_id: selectedVendor?.vendor_id,
+          total_amount: (cartTotal + 2.99).toFixed(2),
+          items: [...cart],
+          payment_method: methodLabel,
+          payment_ref: failTxnId,
+          error_reason: 'Bank Authorization Declined: Card issuer denied test charge',
+          status: 'FAILED',
+          created_at: new Date().toISOString()
+        };
+        setPaymentStageData(failureData);
+        setPaymentStage('FAILED_ANIM');
+
+        setTimeout(() => {
+          setShowPaymentGatewayModal(false);
+          setPaymentStage('IDLE');
+          setMerchantTransactionView(failureData);
+          setOrderStatusMsg('❌ Payment Failed: Bank declined authorization.');
+        }, 2600);
+      }, 1200);
+      return;
+    }
+
+    // Realistic 1.2s payment handshake
     await new Promise((resolve) => setTimeout(resolve, 1200));
 
     try {
@@ -366,10 +406,7 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
 
       if (data.success) {
         const newOrderId = data.order_id || (data.order && data.order.order_id) || Math.floor(1000 + Math.random() * 9000);
-        const methodLabel = paymentForm.paymentMethod === 'CARD' ? `Credit Card (${paymentForm.cardNumber.slice(-4) || '4242'})` :
-                            paymentForm.paymentMethod === 'UPI' ? `UPI (${paymentForm.upiId || 'alex@upi'})` :
-                            paymentForm.paymentMethod === 'NETBANKING' ? `Net Banking (${paymentForm.bankName || 'HDFC'})` :
-                            'ChefHub Escrow Wallet';
+        const txnId = 'TXN-' + Math.floor(10000000 + Math.random() * 90000000);
 
         const orderReceipt = {
           order_id: newOrderId,
@@ -380,31 +417,77 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
           subtotal: cartTotal.toFixed(2),
           delivery_fee: '2.99',
           payment_method: methodLabel,
-          payment_ref: 'TXN-' + Math.floor(10000000 + Math.random() * 90000000),
+          payment_ref: txnId,
           delivery_address: paymentForm.deliveryAddress || '124 Gourmet Boulevard, Suite 4B',
           delivery_notes: paymentForm.deliveryNotes || '',
-          status: 'PLACED',
+          status: 'CONFIRMED',
           escrow_status: 'HELD_IN_ESCROW',
           created_at: new Date().toISOString()
         };
 
-        setCart([]);
-        setShowPaymentGatewayModal(false);
-        setConfirmedOrder(orderReceipt);
-        setOrderStatusMsg('✅ Payment Successful & Order Confirmed!');
-        fetchMyOrders();
-        fetchVendors();
+        setPaymentStageData(orderReceipt);
+        setPaymentStage('SUCCESS_ANIM');
+
+        setTimeout(() => {
+          setCart([]);
+          setShowPaymentGatewayModal(false);
+          setPaymentStage('IDLE');
+          setConfirmedOrder(orderReceipt);
+          setMerchantTransactionView(orderReceipt);
+          setOrderStatusMsg('✅ Payment Successful & Order Confirmed!');
+          fetchMyOrders();
+          fetchVendors();
+        }, 2600);
       } else {
-        setShowPaymentGatewayModal(false);
-        alert(`Order Blocked: ${data.message || 'Item out of stock or insufficient inventory.'}`);
-        setOrderStatusMsg(`❌ Order Failed: ${data.message}`);
-        fetchVendors();
+        const failTxnId = 'TXN-FAIL-' + Math.floor(10000000 + Math.random() * 90000000);
+        const failureData = {
+          order_id: null,
+          vendor_name: selectedVendor?.name || selectedVendor?.business_name || 'Chef Kitchen',
+          vendor_id: selectedVendor?.vendor_id,
+          total_amount: (cartTotal + 2.99).toFixed(2),
+          items: [...cart],
+          payment_method: methodLabel,
+          payment_ref: failTxnId,
+          error_reason: data.message || 'Item out of stock or insufficient inventory.',
+          status: 'FAILED',
+          created_at: new Date().toISOString()
+        };
+
+        setPaymentStageData(failureData);
+        setPaymentStage('FAILED_ANIM');
+
+        setTimeout(() => {
+          setShowPaymentGatewayModal(false);
+          setPaymentStage('IDLE');
+          setMerchantTransactionView(failureData);
+          setOrderStatusMsg(`❌ Order Failed: ${data.message}`);
+          fetchVendors();
+        }, 2600);
       }
     } catch (err) {
       console.error('Order placement execution error:', err);
       setIsProcessingPayment(false);
-      setShowPaymentGatewayModal(false);
-      alert('Order Placement Error: Network connection issue. Please try again.');
+      const failTxnId = 'TXN-ERR-' + Math.floor(10000000 + Math.random() * 90000000);
+      const failureData = {
+        order_id: null,
+        vendor_name: selectedVendor?.name || selectedVendor?.business_name || 'Chef Kitchen',
+        vendor_id: selectedVendor?.vendor_id,
+        total_amount: (cartTotal + 2.99).toFixed(2),
+        items: [...cart],
+        payment_method: methodLabel,
+        payment_ref: failTxnId,
+        error_reason: 'Network gateway connection timeout. Please retry.',
+        status: 'FAILED',
+        created_at: new Date().toISOString()
+      };
+      setPaymentStageData(failureData);
+      setPaymentStage('FAILED_ANIM');
+
+      setTimeout(() => {
+        setShowPaymentGatewayModal(false);
+        setPaymentStage('IDLE');
+        setMerchantTransactionView(failureData);
+      }, 2600);
     }
   };
 
@@ -666,6 +749,113 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
             return (
               <div className="space-y-6 sm:space-y-8">
                 
+                {/* Merchant Returned Order Status Banner */}
+                {merchantTransactionView && (
+                  <div className={`p-5 sm:p-6 rounded-3xl border shadow-2xl transition-all space-y-4 ${
+                    merchantTransactionView.status === 'CONFIRMED'
+                      ? 'bg-gradient-to-br from-emerald-500/10 via-slate-900/40 to-teal-500/10 border-emerald-500/40 ring-1 ring-emerald-500/30'
+                      : 'bg-gradient-to-br from-rose-500/10 via-slate-900/40 to-red-500/10 border-rose-500/40 ring-1 ring-rose-500/30'
+                  }`}>
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-300 dark:border-slate-800 pb-4">
+                      <div className="flex items-center gap-3">
+                        <div className={`w-12 h-12 rounded-2xl flex items-center justify-center text-white shadow-lg ${
+                          merchantTransactionView.status === 'CONFIRMED'
+                            ? 'bg-gradient-to-br from-emerald-500 to-teal-600 shadow-emerald-500/25'
+                            : 'bg-gradient-to-br from-rose-500 to-red-600 shadow-rose-500/25'
+                        }`}>
+                          {merchantTransactionView.status === 'CONFIRMED' ? (
+                            <CheckCircle2 className="w-7 h-7" />
+                          ) : (
+                            <AlertTriangle className="w-7 h-7" />
+                          )}
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs uppercase font-extrabold text-slate-500">Merchant Store:</span>
+                            <span className="text-xs font-black text-orange-500 underline decoration-orange-500/30">{merchantTransactionView.vendor_name}</span>
+                          </div>
+                          <h3 className="text-lg sm:text-xl font-black text-slate-900 dark:text-white flex items-center gap-2">
+                            <span>Order Status:</span>
+                            <span className={`px-2.5 py-0.5 rounded-full text-xs font-black uppercase tracking-wider border ${
+                              merchantTransactionView.status === 'CONFIRMED'
+                                ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30'
+                                : 'bg-rose-500/15 text-rose-600 dark:text-rose-400 border-rose-500/30'
+                            }`}>
+                              {merchantTransactionView.status === 'CONFIRMED' ? 'Confirmed & Sent to Kitchen' : 'Payment Failed / Declined'}
+                            </span>
+                          </h3>
+                        </div>
+                      </div>
+
+                      <button
+                        onClick={() => setMerchantTransactionView(null)}
+                        className="self-end sm:self-center text-xs font-bold text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 px-3 py-1.5 rounded-xl hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors"
+                      >
+                        Dismiss
+                      </button>
+                    </div>
+
+                    {/* Transaction Details Strip */}
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+                      <div className="p-3 rounded-xl bg-slate-100 dark:bg-slate-900/80 border border-slate-300 dark:border-slate-800">
+                        <span className="text-[10px] uppercase font-bold text-slate-500 block">Transaction ID</span>
+                        <span className="font-mono font-bold text-slate-900 dark:text-white text-xs">{merchantTransactionView.payment_ref}</span>
+                      </div>
+                      <div className="p-3 rounded-xl bg-slate-100 dark:bg-slate-900/80 border border-slate-300 dark:border-slate-800">
+                        <span className="text-[10px] uppercase font-bold text-slate-500 block">Mode of Payment</span>
+                        <span className="font-bold text-slate-900 dark:text-white text-xs">{merchantTransactionView.payment_method}</span>
+                      </div>
+                      <div className="p-3 rounded-xl bg-slate-100 dark:bg-slate-900/80 border border-slate-300 dark:border-slate-800">
+                        <span className="text-[10px] uppercase font-bold text-slate-500 block">Amount</span>
+                        <span className="font-mono font-black text-amber-600 dark:text-amber-400 text-sm">₹{merchantTransactionView.total_amount}</span>
+                      </div>
+                    </div>
+
+                    {merchantTransactionView.status === 'CONFIRMED' ? (
+                      <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
+                        <p className="text-xs text-slate-600 dark:text-slate-400">
+                          🔒 Funds secured in Escrow. Kitchen has acknowledged and will disburse to rider once ready.
+                        </p>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => {
+                              setActiveTrackingOrder(merchantTransactionView);
+                              setMerchantTransactionView(null);
+                            }}
+                            className="px-4 py-2 rounded-xl bg-gradient-to-r from-orange-500 to-amber-500 text-white font-extrabold text-xs shadow-md shadow-orange-500/20 hover:from-orange-600 hover:to-amber-600 transition-all flex items-center gap-1.5"
+                          >
+                            <Truck className="w-3.5 h-3.5" />
+                            Track Live Timeline
+                          </button>
+                          <button
+                            onClick={() => setConfirmedOrder(merchantTransactionView)}
+                            className="px-4 py-2 rounded-xl bg-slate-200 dark:bg-slate-800 text-slate-800 dark:text-slate-200 font-bold text-xs hover:bg-slate-300 dark:hover:bg-slate-700 transition-all flex items-center gap-1.5"
+                          >
+                            <Receipt className="w-3.5 h-3.5" />
+                            View Receipt
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
+                        <p className="text-xs text-rose-500 font-semibold">
+                          {merchantTransactionView.error_reason || 'Transaction could not be authorized. No funds were debited.'}
+                        </p>
+                        <button
+                          onClick={() => {
+                            setMerchantTransactionView(null);
+                            setShowPaymentGatewayModal(true);
+                          }}
+                          className="px-4 py-2 rounded-xl bg-orange-500 hover:bg-orange-600 text-white font-bold text-xs shadow-md shadow-orange-500/20 transition-all flex items-center gap-1.5"
+                        >
+                          <CreditCard className="w-3.5 h-3.5" />
+                          Retry Payment
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 {/* Hero Chef Storefront Banner */}
                 <div className="glass-card rounded-3xl p-5 sm:p-8 border space-y-4 relative overflow-hidden bg-gradient-to-br from-amber-500/10 via-orange-500/15 to-amber-500/10 dark:from-slate-900 dark:via-slate-900/90 dark:to-slate-950 border-amber-500/30 dark:border-slate-800">
                   <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 relative z-10">
@@ -804,7 +994,7 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
 
                                 {/* Floating Price Pill */}
                                 <div className="absolute top-3 right-3 px-3 py-1 rounded-full bg-slate-950/85 backdrop-blur-md border border-amber-500/40 text-amber-400 font-black text-xs shadow-xl glow-badge flex items-center gap-1 z-20">
-                                  <span>${Number(dish.price).toFixed(2)}</span>
+                                  <span>₹{Number(dish.price).toFixed(2)}</span>
                                 </div>
 
                                 {/* Real-time Stock Availability Status Badge */}
@@ -890,7 +1080,7 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
                                         -
                                       </button>
                                       <span className="text-xs font-black text-amber-600 dark:text-amber-400">
-                                        {cartItem.quantity} in Cart (${(dish.price * cartItem.quantity).toFixed(2)})
+                                        {cartItem.quantity} in Cart (₹{(dish.price * cartItem.quantity).toFixed(2)})
                                       </span>
                                       <button
                                         onClick={() => addToCart(dish)}
@@ -957,10 +1147,10 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
                   <div key={item.dish_id} className="flex items-center justify-between text-xs bg-slate-100 dark:bg-slate-900 p-3 rounded-xl border border-slate-300 dark:border-slate-800">
                     <div>
                       <h5 className="font-bold text-slate-900 dark:text-white text-sm">{item.name}</h5>
-                      <span className="text-slate-600 dark:text-slate-400">${item.price} × {item.quantity}</span>
+                      <span className="text-slate-600 dark:text-slate-400">₹{item.price} × {item.quantity}</span>
                     </div>
                     <div className="flex items-center gap-2.5">
-                      <span className="font-black text-amber-600 dark:text-amber-400 text-sm">${(item.price * item.quantity).toFixed(2)}</span>
+                      <span className="font-black text-amber-600 dark:text-amber-400 text-sm">₹{(item.price * item.quantity).toFixed(2)}</span>
                       <button onClick={() => removeFromCart(item.dish_id)} className="text-slate-400 hover:text-rose-500 transition-colors">
                         <X className="w-4 h-4" />
                       </button>
@@ -974,7 +1164,7 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
               <div className="space-y-3 pt-3 border-t border-slate-300 dark:border-slate-800">
                 <div className="flex justify-between items-center text-sm font-black text-slate-900 dark:text-white">
                   <span>Total Amount</span>
-                  <span className="text-amber-600 dark:text-amber-400 text-lg font-black">${cartTotal.toFixed(2)}</span>
+                  <span className="text-amber-600 dark:text-amber-400 text-lg font-black">₹{cartTotal.toFixed(2)}</span>
                 </div>
 
                 <button
@@ -982,7 +1172,7 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
                   className="w-full py-3.5 rounded-xl bg-gradient-to-r from-orange-500 via-amber-500 to-orange-600 hover:from-orange-600 hover:to-amber-600 text-white font-extrabold text-xs shadow-lg shadow-orange-500/25 transition-all flex items-center justify-center gap-2"
                 >
                   <CreditCard className="w-4 h-4 text-white" />
-                  Proceed to Payment Gateway (${cartTotal.toFixed(2)})
+                  Proceed to Payment Gateway (₹{cartTotal.toFixed(2)})
                 </button>
               </div>
             )}
@@ -1011,7 +1201,7 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
 
                     <div className="flex justify-between items-center text-slate-600 dark:text-slate-400 font-medium gap-2">
                       <span className="truncate max-w-[160px]">Vendor: <strong className="text-slate-900 dark:text-slate-200">{o.vendor_name}</strong></span>
-                      <span className="font-black text-amber-600 dark:text-amber-400 shrink-0">${Number(o.total_amount).toFixed(2)}</span>
+                      <span className="font-black text-amber-600 dark:text-amber-400 shrink-0">₹{Number(o.total_amount).toFixed(2)}</span>
                     </div>
 
                     <div className="flex flex-wrap items-center gap-1.5 pt-1">
@@ -1219,7 +1409,7 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
                   Do you want to cancel the order?
                 </h4>
                 <p className="text-xs text-slate-600 dark:text-slate-400">
-                  Order Total: <strong className="text-slate-900 dark:text-white">${Number(cancelModalOrder.total_amount).toFixed(2)}</strong> ({cancelModalOrder.vendor_name})
+                  Order Total: <strong className="text-slate-900 dark:text-white">₹{Number(cancelModalOrder.total_amount).toFixed(2)}</strong> ({cancelModalOrder.vendor_name})
                 </p>
               </div>
 
@@ -1229,7 +1419,7 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
                   <span>Refund Policy Notice</span>
                 </div>
                 <p className="text-[11px] text-slate-600 dark:text-slate-300 leading-relaxed font-medium">
-                  The payment amount of <strong className="text-amber-500">${Number(cancelModalOrder.total_amount).toFixed(2)}</strong> will be refunded within <strong>2-7 working days</strong> to the same payment method.
+                  The payment amount of <strong className="text-amber-500">₹{Number(cancelModalOrder.total_amount).toFixed(2)}</strong> will be refunded within <strong>2-7 working days</strong> to the same payment method.
                 </p>
               </div>
             </div>
@@ -1283,7 +1473,7 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
           <div className="flex items-center gap-2">
             {cart.length > 0 && (
               <span className="text-xs font-black text-slate-950 bg-slate-950/15 px-2.5 py-1 rounded-xl">
-                ${cartTotal.toFixed(2)}
+                ₹{cartTotal.toFixed(2)}
               </span>
             )}
             <span className="text-xs font-black flex items-center gap-1">
@@ -1315,10 +1505,10 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
                   <div key={item.dish_id} className="flex items-center justify-between text-xs bg-slate-100 dark:bg-slate-900 p-3.5 rounded-xl border border-slate-300 dark:border-slate-800">
                     <div>
                       <h5 className="font-bold text-slate-900 dark:text-white text-sm">{item.name}</h5>
-                      <span className="text-slate-600 dark:text-slate-400">${item.price} × {item.quantity}</span>
+                      <span className="text-slate-600 dark:text-slate-400">₹{item.price} × {item.quantity}</span>
                     </div>
                     <div className="flex items-center gap-3">
-                      <span className="font-black text-amber-600 dark:text-amber-400 text-sm">${(item.price * item.quantity).toFixed(2)}</span>
+                      <span className="font-black text-amber-600 dark:text-amber-400 text-sm">₹{(item.price * item.quantity).toFixed(2)}</span>
                       <button onClick={() => removeFromCart(item.dish_id)} className="text-slate-400 hover:text-rose-500 transition-colors p-1">
                         <X className="w-4 h-4" />
                       </button>
@@ -1332,7 +1522,7 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
               <div className="space-y-3 pt-3 border-t">
                 <div className="flex justify-between items-center text-sm font-black text-white">
                   <span>Total Amount</span>
-                  <span className="text-amber-400 text-xl font-black">${cartTotal.toFixed(2)}</span>
+                  <span className="text-amber-400 text-xl font-black">₹{cartTotal.toFixed(2)}</span>
                 </div>
 
                 <button
@@ -1343,7 +1533,7 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
                   className="w-full py-4 rounded-2xl bg-gradient-to-r from-orange-500 via-amber-500 to-orange-600 hover:from-orange-600 hover:to-amber-600 text-slate-950 font-black text-xs shadow-xl shadow-orange-500/30 transition-all flex items-center justify-center gap-2"
                 >
                   <CreditCard className="w-4 h-4 text-slate-950" />
-                  Proceed to Payment Gateway (${cartTotal.toFixed(2)})
+                  Proceed to Payment Gateway (₹{cartTotal.toFixed(2)})
                 </button>
               </div>
             )}
@@ -1359,9 +1549,12 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
             {/* Header */}
             <div className="flex justify-between items-start border-b border-slate-300 dark:border-slate-800 pb-4">
               <div className="space-y-1">
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 text-[10px] font-bold uppercase tracking-wider flex items-center gap-1">
                     <ShieldCheck className="w-3.5 h-3.5" /> 256-Bit SSL Escrow Protected
+                  </span>
+                  <span className="px-2.5 py-0.5 rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 text-[10px] font-extrabold uppercase tracking-wider flex items-center gap-1">
+                    <Sparkles className="w-3.5 h-3.5" /> Project Simulation (No Real Money)
                   </span>
                 </div>
                 <h3 className="text-xl font-extrabold text-slate-900 dark:text-white flex items-center gap-2">
@@ -1370,223 +1563,443 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
                 </h3>
               </div>
               <button
-                onClick={() => setShowPaymentGatewayModal(false)}
-                className="p-1.5 rounded-xl text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors"
+                onClick={() => {
+                  if (paymentStage === 'IDLE') {
+                    setShowPaymentGatewayModal(false);
+                  }
+                }}
+                disabled={paymentStage !== 'IDLE'}
+                className="p-1.5 rounded-xl text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors disabled:opacity-40"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
-              
-              {/* Order Summary & Pricing Sidebar */}
-              <div className="md:col-span-5 p-4 rounded-2xl bg-slate-100 dark:bg-slate-900/80 border border-slate-300 dark:border-slate-800 space-y-4">
-                <div className="border-b border-slate-300 dark:border-slate-800 pb-2.5">
-                  <h4 className="font-extrabold text-slate-900 dark:text-white text-xs uppercase tracking-wider">Order Summary</h4>
-                  <p className="text-xs text-orange-600 dark:text-orange-400 font-bold truncate mt-0.5">{selectedVendor?.name || selectedVendor?.business_name || 'Chef Kitchen'}</p>
+            {/* Stage: SUCCESS_ANIM Celebration Animation */}
+            {paymentStage === 'SUCCESS_ANIM' && (
+              <div className="py-8 px-4 text-center space-y-6">
+                {/* Ripple & Pop Checkmark */}
+                <div className="relative w-24 h-24 mx-auto flex items-center justify-center">
+                  <div className="absolute inset-0 rounded-full bg-emerald-500/20 animate-ripple-success" />
+                  <div className="w-20 h-20 rounded-full bg-gradient-to-tr from-emerald-600 to-teal-400 text-white flex items-center justify-center shadow-xl shadow-emerald-500/40 animate-check-pop">
+                    <CheckCircle2 className="w-12 h-12 stroke-[2.5]" />
+                  </div>
                 </div>
 
-                <div className="space-y-2 max-h-48 overflow-y-auto pr-1 text-xs">
-                  {cart.map((item) => (
-                    <div key={item.dish_id} className="flex justify-between items-center text-slate-700 dark:text-slate-300">
-                      <span className="truncate max-w-[140px]">{item.name} × {item.quantity}</span>
-                      <span className="font-mono font-bold text-slate-900 dark:text-white">${(item.price * item.quantity).toFixed(2)}</span>
-                    </div>
-                  ))}
+                <div className="space-y-2">
+                  <span className="px-3 py-1 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 text-xs font-black uppercase tracking-wider inline-flex items-center gap-1.5">
+                    <Sparkles className="w-3.5 h-3.5" /> 256-Bit Escrow Secured
+                  </span>
+                  <h3 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white">
+                    Payment Completed! 🎉
+                  </h3>
+                  <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 max-w-sm mx-auto">
+                    Successfully authorized <strong className="text-emerald-600 dark:text-emerald-400 font-extrabold font-mono text-base">₹{paymentStageData?.total_amount}</strong> to <strong className="text-slate-900 dark:text-white">{paymentStageData?.vendor_name}</strong>
+                  </p>
                 </div>
 
-                <div className="space-y-1.5 pt-3 border-t border-slate-300 dark:border-slate-800 text-xs">
-                  <div className="flex justify-between text-slate-600 dark:text-slate-400">
-                    <span>Items Subtotal</span>
-                    <span className="font-mono font-semibold">${cartTotal.toFixed(2)}</span>
+                {/* Transaction ID & Mode of Payment Pill */}
+                <div className="bg-slate-100 dark:bg-slate-900 p-4 rounded-2xl border border-slate-300 dark:border-slate-800 max-w-md mx-auto text-xs space-y-2.5 text-left">
+                  <div className="flex justify-between items-center">
+                    <span className="text-slate-500 dark:text-slate-400 font-semibold">Transaction ID:</span>
+                    <span className="font-mono font-bold text-slate-900 dark:text-white text-xs">{paymentStageData?.payment_ref}</span>
                   </div>
-                  <div className="flex justify-between text-slate-600 dark:text-slate-400">
-                    <span>Standard Express Delivery</span>
-                    <span className="font-mono font-semibold">$2.99</span>
+                  <div className="flex justify-between items-center">
+                    <span className="text-slate-500 dark:text-slate-400 font-semibold">Mode of Payment:</span>
+                    <span className="font-bold text-slate-900 dark:text-white">{paymentStageData?.payment_method}</span>
                   </div>
-                  <div className="flex justify-between text-emerald-600 dark:text-emerald-400 font-semibold">
-                    <span>Escrow Buyer Guarantee</span>
-                    <span>$0.00 (FREE)</span>
+                  <div className="flex justify-between items-center pt-1 border-t border-slate-200 dark:border-slate-800">
+                    <span className="text-slate-500 dark:text-slate-400 font-semibold">Payment Status:</span>
+                    <span className="font-extrabold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                      <CheckCircle2 className="w-3.5 h-3.5" /> CONFIRMED (PAID)
+                    </span>
                   </div>
-                  <div className="flex justify-between items-center pt-2 text-sm font-black text-slate-900 dark:text-white border-t border-slate-300 dark:border-slate-800">
-                    <span>Total Amount Due</span>
-                    <span className="text-amber-600 dark:text-amber-400 font-mono text-base font-black">${(cartTotal + 2.99).toFixed(2)}</span>
+                </div>
+
+                {/* Redirect Countdown Bar */}
+                <div className="max-w-md mx-auto space-y-2 pt-2">
+                  <div className="flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400 font-semibold">
+                    <span className="flex items-center gap-1.5">
+                      <RefreshCw className="w-3 h-3 animate-spin text-orange-500" />
+                      Returning to merchant store...
+                    </span>
+                    <span>2s</span>
                   </div>
+                  <div className="w-full h-1.5 bg-slate-200 dark:bg-slate-800 rounded-full overflow-hidden">
+                    <div className="h-full bg-gradient-to-r from-emerald-500 to-teal-400 animate-redirect-bar rounded-full" />
+                  </div>
+                </div>
+
+                <div>
+                  <button
+                    onClick={() => {
+                      setCart([]);
+                      setShowPaymentGatewayModal(false);
+                      setPaymentStage('IDLE');
+                      setConfirmedOrder(paymentStageData);
+                      setMerchantTransactionView(paymentStageData);
+                      setOrderStatusMsg('✅ Payment Successful & Order Confirmed!');
+                      fetchMyOrders();
+                      fetchVendors();
+                    }}
+                    className="text-xs font-bold text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 underline"
+                  >
+                    Return to Merchant Now →
+                  </button>
                 </div>
               </div>
+            )}
 
-              {/* Payment Methods & Form Input */}
-              <div className="md:col-span-7 space-y-4">
-                
-                {/* Method Tabs */}
-                <div>
-                  <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-2">Select Payment Method</label>
-                  <div className="grid grid-cols-2 gap-2 text-xs">
-                    {[
-                      { id: 'CARD', label: 'Credit / Debit Card', icon: CreditCard },
-                      { id: 'UPI', label: 'UPI / QR Scan', icon: QrCode },
-                      { id: 'NETBANKING', label: 'Net Banking', icon: Building },
-                      { id: 'ESCROW_WALLET', label: 'Escrow Wallet', icon: Wallet }
-                    ].map((m) => {
-                      const IconComp = m.icon;
-                      const isSelected = paymentForm.paymentMethod === m.id;
-                      return (
-                        <button
-                          key={m.id}
-                          type="button"
-                          onClick={() => setPaymentForm({ ...paymentForm, paymentMethod: m.id })}
-                          className={`p-2.5 rounded-xl border font-bold flex items-center gap-2 transition-all ${
-                            isSelected
-                              ? 'bg-orange-500 text-white border-orange-500 shadow-md shadow-orange-500/20'
-                              : 'bg-slate-100 dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-300 dark:border-slate-800 hover:border-orange-500/40'
-                          }`}
-                        >
-                          <IconComp className="w-4 h-4 shrink-0" />
-                          <span className="truncate">{m.label}</span>
-                        </button>
-                      );
-                    })}
+            {/* Stage: FAILED_ANIM Failure Animation */}
+            {paymentStage === 'FAILED_ANIM' && (
+              <div className="py-8 px-4 text-center space-y-6">
+                {/* Ripple & Pop Alert */}
+                <div className="relative w-24 h-24 mx-auto flex items-center justify-center">
+                  <div className="absolute inset-0 rounded-full bg-rose-500/20 animate-ripple-fail" />
+                  <div className="w-20 h-20 rounded-full bg-gradient-to-tr from-rose-600 to-red-500 text-white flex items-center justify-center shadow-xl shadow-rose-500/40 animate-check-pop">
+                    <AlertTriangle className="w-12 h-12 stroke-[2.5]" />
                   </div>
                 </div>
 
-                <form onSubmit={handleExecutePaymentAndOrder} className="space-y-3.5 text-xs">
+                <div className="space-y-2">
+                  <span className="px-3 py-1 rounded-full bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20 text-xs font-black uppercase tracking-wider inline-flex items-center gap-1.5">
+                    <AlertTriangle className="w-3.5 h-3.5" /> Gateway Authorization Failed
+                  </span>
+                  <h3 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white">
+                    Payment Failed ❌
+                  </h3>
+                  <p className="text-xs sm:text-sm text-rose-600 dark:text-rose-400 font-semibold max-w-sm mx-auto">
+                    {paymentStageData?.error_reason || 'Bank authorization declined. No money was deducted.'}
+                  </p>
+                </div>
+
+                {/* Transaction ID & Mode of Payment Pill */}
+                <div className="bg-slate-100 dark:bg-slate-900 p-4 rounded-2xl border border-slate-300 dark:border-slate-800 max-w-md mx-auto text-xs space-y-2.5 text-left">
+                  <div className="flex justify-between items-center">
+                    <span className="text-slate-500 dark:text-slate-400 font-semibold">Transaction ID:</span>
+                    <span className="font-mono font-bold text-slate-900 dark:text-white text-xs">{paymentStageData?.payment_ref}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-slate-500 dark:text-slate-400 font-semibold">Mode of Payment:</span>
+                    <span className="font-bold text-slate-900 dark:text-white">{paymentStageData?.payment_method}</span>
+                  </div>
+                  <div className="flex justify-between items-center pt-1 border-t border-slate-200 dark:border-slate-800">
+                    <span className="text-slate-500 dark:text-slate-400 font-semibold">Payment Status:</span>
+                    <span className="font-extrabold text-rose-600 dark:text-rose-400 flex items-center gap-1">
+                      <AlertTriangle className="w-3.5 h-3.5" /> DECLINED / FAILED
+                    </span>
+                  </div>
+                </div>
+
+                {/* Redirect Countdown Bar */}
+                <div className="max-w-md mx-auto space-y-2 pt-2">
+                  <div className="flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400 font-semibold">
+                    <span className="flex items-center gap-1.5">
+                      <RefreshCw className="w-3 h-3 animate-spin text-rose-500" />
+                      Returning to merchant store...
+                    </span>
+                    <span>2s</span>
+                  </div>
+                  <div className="w-full h-1.5 bg-slate-200 dark:bg-slate-800 rounded-full overflow-hidden">
+                    <div className="h-full bg-gradient-to-r from-rose-500 to-red-400 animate-redirect-bar rounded-full" />
+                  </div>
+                </div>
+
+                <div>
+                  <button
+                    onClick={() => {
+                      setShowPaymentGatewayModal(false);
+                      setPaymentStage('IDLE');
+                      setMerchantTransactionView(paymentStageData);
+                    }}
+                    className="text-xs font-bold text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 underline"
+                  >
+                    Return to Merchant Now →
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Stages: IDLE & PROCESSING Payment Form */}
+            {(paymentStage === 'IDLE' || paymentStage === 'PROCESSING') && (
+              <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
+                
+                {/* Order Summary & Pricing Sidebar */}
+                <div className="md:col-span-5 p-4 rounded-2xl bg-slate-100 dark:bg-slate-900/80 border border-slate-300 dark:border-slate-800 space-y-4">
+                  <div className="border-b border-slate-300 dark:border-slate-800 pb-2.5">
+                    <h4 className="font-extrabold text-slate-900 dark:text-white text-xs uppercase tracking-wider">Order Summary</h4>
+                    <p className="text-xs text-orange-600 dark:text-orange-400 font-bold truncate mt-0.5">{selectedVendor?.name || selectedVendor?.business_name || 'Chef Kitchen'}</p>
+                  </div>
+
+                  <div className="space-y-2 max-h-48 overflow-y-auto pr-1 text-xs">
+                    {cart.map((item) => (
+                      <div key={item.dish_id} className="flex justify-between items-center text-slate-700 dark:text-slate-300">
+                        <span className="truncate max-w-[140px]">{item.name} × {item.quantity}</span>
+                        <span className="font-mono font-bold text-slate-900 dark:text-white">₹{(item.price * item.quantity).toFixed(2)}</span>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="space-y-1.5 pt-3 border-t border-slate-300 dark:border-slate-800 text-xs">
+                    <div className="flex justify-between text-slate-600 dark:text-slate-400">
+                      <span>Items Subtotal</span>
+                      <span className="font-mono font-semibold">₹{cartTotal.toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between text-slate-600 dark:text-slate-400">
+                      <span>Standard Express Delivery</span>
+                      <span className="font-mono font-semibold">₹2.99</span>
+                    </div>
+                    <div className="flex justify-between text-emerald-600 dark:text-emerald-400 font-semibold">
+                      <span>Escrow Buyer Guarantee</span>
+                      <span>₹0.00 (FREE)</span>
+                    </div>
+                    <div className="flex justify-between items-center pt-2 text-sm font-black text-slate-900 dark:text-white border-t border-slate-300 dark:border-slate-800">
+                      <span>Total Amount Due</span>
+                      <span className="text-amber-600 dark:text-amber-400 font-mono text-base font-black">₹{(cartTotal + 2.99).toFixed(2)}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Payment Methods & Form Input */}
+                <div className="md:col-span-7 space-y-4">
                   
-                  {/* Card Payment Form */}
-                  {paymentForm.paymentMethod === 'CARD' && (
-                    <div className="space-y-3 p-3.5 rounded-2xl bg-slate-100 dark:bg-slate-900/60 border border-slate-300 dark:border-slate-800">
-                      <div>
-                        <label className="font-semibold text-slate-700 dark:text-slate-300">Cardholder Full Name</label>
-                        <input
-                          type="text"
-                          value={paymentForm.cardHolder}
-                          onChange={(e) => setPaymentForm({ ...paymentForm, cardHolder: e.target.value })}
-                          className="w-full mt-1 px-3 py-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-800 text-slate-900 dark:text-white outline-none focus:border-orange-500"
-                          required
-                        />
-                      </div>
-                      <div>
-                        <label className="font-semibold text-slate-700 dark:text-slate-300">Card Number</label>
-                        <input
-                          type="text"
-                          value={paymentForm.cardNumber}
-                          onChange={(e) => setPaymentForm({ ...paymentForm, cardNumber: e.target.value })}
-                          className="w-full mt-1 px-3 py-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-800 text-slate-900 dark:text-white font-mono outline-none focus:border-orange-500"
-                          required
-                        />
-                      </div>
-                      <div className="grid grid-cols-2 gap-3">
+                  {/* Method Tabs */}
+                  <div>
+                    <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-2">Select Payment Method</label>
+                    <div className="grid grid-cols-2 gap-2 text-xs">
+                      {[
+                        { id: 'CARD', label: 'Credit / Debit Card', icon: CreditCard },
+                        { id: 'UPI', label: 'UPI / QR Scan', icon: QrCode },
+                        { id: 'NETBANKING', label: 'Net Banking', icon: Building },
+                        { id: 'ESCROW_WALLET', label: 'Escrow Wallet', icon: Wallet }
+                      ].map((m) => {
+                        const IconComp = m.icon;
+                        const isSelected = paymentForm.paymentMethod === m.id;
+                        return (
+                          <button
+                            key={m.id}
+                            type="button"
+                            onClick={() => setPaymentForm({ ...paymentForm, paymentMethod: m.id })}
+                            className={`p-2.5 rounded-xl border font-bold flex items-center gap-2 transition-all ${
+                              isSelected
+                                ? 'bg-orange-500 text-white border-orange-500 shadow-md shadow-orange-500/20'
+                                : 'bg-slate-100 dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-300 dark:border-slate-800 hover:border-orange-500/40'
+                            }`}
+                          >
+                            <IconComp className="w-4 h-4 shrink-0" />
+                            <span className="truncate">{m.label}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  <form onSubmit={handleExecutePaymentAndOrder} className="space-y-3.5 text-xs">
+                    
+                    {/* Card Payment Form */}
+                    {paymentForm.paymentMethod === 'CARD' && (
+                      <div className="space-y-3 p-3.5 rounded-2xl bg-slate-100 dark:bg-slate-900/60 border border-slate-300 dark:border-slate-800">
                         <div>
-                          <label className="font-semibold text-slate-700 dark:text-slate-300">Expires (MM/YY)</label>
+                          <label className="font-semibold text-slate-700 dark:text-slate-300">Cardholder Full Name</label>
                           <input
                             type="text"
-                            value={paymentForm.expiry}
-                            onChange={(e) => setPaymentForm({ ...paymentForm, expiry: e.target.value })}
-                            className="w-full mt-1 px-3 py-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-800 text-slate-900 dark:text-white font-mono outline-none focus:border-orange-500"
+                            value={paymentForm.cardHolder}
+                            onChange={(e) => setPaymentForm({ ...paymentForm, cardHolder: e.target.value })}
+                            className="w-full mt-1 px-3 py-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-800 text-slate-900 dark:text-white outline-none focus:border-orange-500"
                             required
                           />
                         </div>
                         <div>
-                          <label className="font-semibold text-slate-700 dark:text-slate-300">CVV Security Code</label>
+                          <label className="font-semibold text-slate-700 dark:text-slate-300">Card Number</label>
                           <input
-                            type="password"
-                            value={paymentForm.cvv}
-                            maxLength={4}
-                            onChange={(e) => setPaymentForm({ ...paymentForm, cvv: e.target.value })}
+                            type="text"
+                            value={paymentForm.cardNumber}
+                            onChange={(e) => setPaymentForm({ ...paymentForm, cardNumber: e.target.value })}
                             className="w-full mt-1 px-3 py-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-800 text-slate-900 dark:text-white font-mono outline-none focus:border-orange-500"
                             required
                           />
                         </div>
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <label className="font-semibold text-slate-700 dark:text-slate-300">Expires (MM/YY)</label>
+                            <input
+                              type="text"
+                              value={paymentForm.expiry}
+                              onChange={(e) => setPaymentForm({ ...paymentForm, expiry: e.target.value })}
+                              className="w-full mt-1 px-3 py-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-800 text-slate-900 dark:text-white font-mono outline-none focus:border-orange-500"
+                              required
+                            />
+                          </div>
+                          <div>
+                            <label className="font-semibold text-slate-700 dark:text-slate-300">CVV Security Code</label>
+                            <input
+                              type="password"
+                              value={paymentForm.cvv}
+                              maxLength={4}
+                              onChange={(e) => setPaymentForm({ ...paymentForm, cvv: e.target.value })}
+                              className="w-full mt-1 px-3 py-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-800 text-slate-900 dark:text-white font-mono outline-none focus:border-orange-500"
+                              required
+                            />
+                          </div>
+                        </div>
                       </div>
-                    </div>
-                  )}
-
-                  {/* UPI Form */}
-                  {paymentForm.paymentMethod === 'UPI' && (
-                    <div className="p-3.5 rounded-2xl bg-slate-100 dark:bg-slate-900/60 border border-slate-300 dark:border-slate-800 space-y-3">
-                      <div>
-                        <label className="font-semibold text-slate-700 dark:text-slate-300">Virtual Payment Address (UPI ID)</label>
-                        <input
-                          type="text"
-                          value={paymentForm.upiId}
-                          onChange={(e) => setPaymentForm({ ...paymentForm, upiId: e.target.value })}
-                          placeholder="username@upi"
-                          className="w-full mt-1 px-3 py-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-800 text-slate-900 dark:text-white font-mono outline-none focus:border-orange-500"
-                          required
-                        />
-                      </div>
-                      <div className="flex flex-wrap gap-1.5 pt-1">
-                        {['Google Pay', 'PhonePe', 'Paytm', 'BHIM UPI'].map((app) => (
-                          <span key={app} className="px-2.5 py-1 rounded-lg bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-[10px] font-bold">
-                            ⚡ {app}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Net Banking Form */}
-                  {paymentForm.paymentMethod === 'NETBANKING' && (
-                    <div className="p-3.5 rounded-2xl bg-slate-100 dark:bg-slate-900/60 border border-slate-300 dark:border-slate-800 space-y-3">
-                      <label className="font-semibold text-slate-700 dark:text-slate-300">Choose Bank</label>
-                      <select
-                        value={paymentForm.bankName}
-                        onChange={(e) => setPaymentForm({ ...paymentForm, bankName: e.target.value })}
-                        className="w-full px-3 py-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-800 text-slate-900 dark:text-white outline-none focus:border-orange-500 font-bold"
-                      >
-                        <option value="Chase Bank">Chase Bank</option>
-                        <option value="Bank of America">Bank of America</option>
-                        <option value="Wells Fargo">Wells Fargo</option>
-                        <option value="Citibank">Citibank</option>
-                        <option value="HDFC Bank">HDFC Bank</option>
-                      </select>
-                    </div>
-                  )}
-
-                  {/* Escrow Wallet */}
-                  {paymentForm.paymentMethod === 'ESCROW_WALLET' && (
-                    <div className="p-3.5 rounded-2xl bg-slate-100 dark:bg-slate-900/60 border border-slate-300 dark:border-slate-800 space-y-2">
-                      <div className="flex justify-between items-center text-xs">
-                        <span className="font-semibold text-slate-700 dark:text-slate-300">Available ChefHub Escrow Balance:</span>
-                        <span className="font-mono font-extrabold text-emerald-500">$250.00</span>
-                      </div>
-                      <p className="text-[11px] text-slate-500">1-Click Instant Payment deduction with automatic Escrow hold.</p>
-                    </div>
-                  )}
-
-                  {/* Delivery Address */}
-                  <div>
-                    <label className="font-semibold text-slate-700 dark:text-slate-300">Delivery Address</label>
-                    <input
-                      type="text"
-                      value={paymentForm.deliveryAddress}
-                      onChange={(e) => setPaymentForm({ ...paymentForm, deliveryAddress: e.target.value })}
-                      className="w-full mt-1 px-3 py-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-800 text-slate-900 dark:text-white outline-none focus:border-orange-500"
-                      required
-                    />
-                  </div>
-
-                  {/* Submit Payment Button */}
-                  <button
-                    type="submit"
-                    disabled={isProcessingPayment}
-                    className="w-full py-3.5 rounded-xl bg-gradient-to-r from-orange-500 via-amber-500 to-orange-600 hover:from-orange-600 hover:to-amber-600 text-white font-extrabold text-sm shadow-xl shadow-orange-500/25 transition-all flex items-center justify-center gap-2 mt-2 disabled:opacity-75"
-                  >
-                    {isProcessingPayment ? (
-                      <>
-                        <RefreshCw className="w-4 h-4 animate-spin text-white" />
-                        <span>Authorizing & Securing Payment...</span>
-                      </>
-                    ) : (
-                      <>
-                        <Lock className="w-4 h-4 text-white" />
-                        <span>Pay ${(cartTotal + 2.99).toFixed(2)} & Confirm Order</span>
-                      </>
                     )}
-                  </button>
-                </form>
 
+                    {/* UPI Form */}
+                    {paymentForm.paymentMethod === 'UPI' && (
+                      <div className="p-3.5 rounded-2xl bg-slate-100 dark:bg-slate-900/60 border border-slate-300 dark:border-slate-800 space-y-3">
+                        <div>
+                          <label className="font-semibold text-slate-700 dark:text-slate-300">Virtual Payment Address (UPI ID)</label>
+                          <input
+                            type="text"
+                            value={paymentForm.upiId}
+                            onChange={(e) => setPaymentForm({ ...paymentForm, upiId: e.target.value })}
+                            placeholder="username@upi"
+                            className="w-full mt-1 px-3 py-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-800 text-slate-900 dark:text-white font-mono outline-none focus:border-orange-500"
+                            required
+                          />
+                        </div>
+                        <div className="flex flex-wrap gap-1.5 pt-1">
+                          {['Google Pay', 'PhonePe', 'Paytm', 'BHIM UPI'].map((app) => (
+                            <span key={app} className="px-2.5 py-1 rounded-lg bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-[10px] font-bold">
+                              ⚡ {app}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Net Banking Form */}
+                    {paymentForm.paymentMethod === 'NETBANKING' && (
+                      <div className="p-3.5 rounded-2xl bg-slate-100 dark:bg-slate-900/60 border border-slate-300 dark:border-slate-800 space-y-3">
+                        <label className="font-semibold text-slate-700 dark:text-slate-300">Choose Bank</label>
+                        <select
+                          value={paymentForm.bankName}
+                          onChange={(e) => setPaymentForm({ ...paymentForm, bankName: e.target.value })}
+                          className="w-full px-3 py-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-800 text-slate-900 dark:text-white outline-none focus:border-orange-500 font-bold"
+                        >
+                          <option value="HDFC Bank">HDFC Bank</option>
+                          <option value="State Bank of India">State Bank of India</option>
+                          <option value="ICICI Bank">ICICI Bank</option>
+                          <option value="Axis Bank">Axis Bank</option>
+                          <option value="Kotak Mahindra Bank">Kotak Mahindra Bank</option>
+                        </select>
+                      </div>
+                    )}
+
+                    {/* Escrow Wallet */}
+                    {paymentForm.paymentMethod === 'ESCROW_WALLET' && (
+                      <div className="p-3.5 rounded-2xl bg-slate-100 dark:bg-slate-900/60 border border-slate-300 dark:border-slate-800 space-y-2">
+                        <div className="flex justify-between items-center text-xs">
+                          <span className="font-semibold text-slate-700 dark:text-slate-300">Available ChefHub Escrow Balance:</span>
+                          <span className="font-mono font-extrabold text-emerald-500">₹250.00</span>
+                        </div>
+                        <p className="text-[11px] text-slate-500">1-Click Instant Payment deduction with automatic Escrow hold.</p>
+                      </div>
+                    )}
+
+                    {/* Delivery Address */}
+                    <div>
+                      <label className="font-semibold text-slate-700 dark:text-slate-300">Delivery Address</label>
+                      <input
+                        type="text"
+                        value={paymentForm.deliveryAddress}
+                        onChange={(e) => setPaymentForm({ ...paymentForm, deliveryAddress: e.target.value })}
+                        className="w-full mt-1 px-3 py-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-800 text-slate-900 dark:text-white outline-none focus:border-orange-500"
+                        required
+                      />
+                    </div>
+
+                    {/* Academic / Project Simulation Notice & Dual Action Buttons */}
+                    <div className="pt-2 space-y-2.5">
+                      <div className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/25 text-center">
+                        <p className="text-[11px] text-amber-700 dark:text-amber-300 font-bold flex items-center justify-center gap-1.5">
+                          <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+                          <span>Academic Project Sandbox: Real-time database simulation without actual money.</span>
+                        </p>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        {/* Simulate Success Button */}
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            setSimulateFail(false);
+                            handleExecutePaymentAndOrder(e);
+                          }}
+                          disabled={isProcessingPayment}
+                          className="py-3 px-4 rounded-xl bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-600 hover:from-emerald-600 hover:to-teal-700 text-white font-extrabold text-xs shadow-lg shadow-emerald-500/25 transition-all flex items-center justify-center gap-2 disabled:opacity-75"
+                        >
+                          {isProcessingPayment && !simulateFail ? (
+                            <>
+                              <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                              <span>Authorizing...</span>
+                            </>
+                          ) : (
+                            <>
+                              <CheckCircle2 className="w-3.5 h-3.5" />
+                              <span>Simulate Success (₹{(cartTotal + 2.99).toFixed(2)})</span>
+                            </>
+                          )}
+                        </button>
+
+                        {/* Simulate Failure Button */}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSimulateFail(true);
+                            setIsProcessingPayment(true);
+                            setPaymentStage('PROCESSING');
+                            const failTxnId = 'TXN-FAIL-' + Math.floor(10000000 + Math.random() * 90000000);
+                            const failureData = {
+                              order_id: null,
+                              vendor_name: selectedVendor?.name || selectedVendor?.business_name || 'Chef Kitchen',
+                              vendor_id: selectedVendor?.vendor_id,
+                              total_amount: (cartTotal + 2.99).toFixed(2),
+                              items: [...cart],
+                              payment_method: paymentForm.paymentMethod === 'CARD' ? `Credit Card (${paymentForm.cardNumber.slice(-4) || '4242'})` :
+                                              paymentForm.paymentMethod === 'UPI' ? `UPI (${paymentForm.upiId || 'alex@upi'})` :
+                                              paymentForm.paymentMethod === 'NETBANKING' ? `Net Banking (${paymentForm.bankName || 'HDFC Bank'})` :
+                                              'ChefHub Escrow Wallet',
+                              payment_ref: failTxnId,
+                              error_reason: 'Bank Declined: Simulated card/account authorization failure',
+                              status: 'FAILED',
+                              created_at: new Date().toISOString()
+                            };
+                            setTimeout(() => {
+                              setIsProcessingPayment(false);
+                              setPaymentStageData(failureData);
+                              setPaymentStage('FAILED_ANIM');
+                              setTimeout(() => {
+                                setShowPaymentGatewayModal(false);
+                                setPaymentStage('IDLE');
+                                setMerchantTransactionView(failureData);
+                                setOrderStatusMsg('❌ Payment Failed: Bank declined authorization.');
+                              }, 2600);
+                            }, 1100);
+                          }}
+                          disabled={isProcessingPayment}
+                          className="py-3 px-4 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 dark:text-rose-400 border border-rose-500/30 font-bold text-xs transition-all flex items-center justify-center gap-2 disabled:opacity-75"
+                        >
+                          {isProcessingPayment && simulateFail ? (
+                            <>
+                              <RefreshCw className="w-3.5 h-3.5 animate-spin text-rose-500" />
+                              <span>Simulating Decline...</span>
+                            </>
+                          ) : (
+                            <>
+                              <AlertTriangle className="w-3.5 h-3.5 text-rose-500" />
+                              <span>Simulate Bank Decline</span>
+                            </>
+                          )}
+                        </button>
+                      </div>
+                    </div>
+                  </form>
+
+                </div>
               </div>
-            </div>
+            )}
 
           </div>
         </div>
@@ -1658,13 +2071,13 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
                   {confirmedOrder.items?.map((item, idx) => (
                     <div key={idx} className="flex justify-between text-slate-700 dark:text-slate-300">
                       <span className="truncate max-w-[130px]">{item.name} × {item.quantity}</span>
-                      <span className="font-mono font-bold text-slate-900 dark:text-white">${(item.price * item.quantity).toFixed(2)}</span>
+                      <span className="font-mono font-bold text-slate-900 dark:text-white">₹{(item.price * item.quantity).toFixed(2)}</span>
                     </div>
                   ))}
                 </div>
                 <div className="pt-2 border-t border-slate-300 dark:border-slate-800 flex justify-between items-center text-sm font-black">
                   <span>Total Amount Paid</span>
-                  <span className="text-amber-600 dark:text-amber-400 font-mono text-base">${Number(confirmedOrder.total_amount).toFixed(2)}</span>
+                  <span className="text-amber-600 dark:text-amber-400 font-mono text-base">₹{Number(confirmedOrder.total_amount).toFixed(2)}</span>
                 </div>
               </div>
 

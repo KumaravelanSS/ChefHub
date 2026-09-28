@@ -16,17 +16,30 @@ const InventoryEngine = {
       }
       
       const dishes = await query(dishQuery, params);
-      
+      if (!dishes || dishes.length === 0) return;
+
+      const dishIds = dishes.map(d => d.dish_id);
+      const recipeRows = dishIds.length > 0 ? await query(`
+        SELECT dr.dish_id, dr.ingredient_id, dr.quantity_required, i.stock_quantity
+        FROM dish_recipes dr
+        JOIN inventory i ON dr.ingredient_id = i.ingredient_id
+        WHERE dr.dish_id IN (${dishIds.map(() => '?').join(',')})
+      `, dishIds) : [];
+
+      const recipeMap = {};
+      for (const r of recipeRows) {
+        if (!recipeMap[r.dish_id]) recipeMap[r.dish_id] = [];
+        recipeMap[r.dish_id].push(r);
+      }
+
+      let anyChanged = false;
+      const vendorsToSync = new Set();
+
       for (const d of dishes) {
-        const recipes = await query(`
-          SELECT dr.ingredient_id, dr.quantity_required, i.stock_quantity
-          FROM dish_recipes dr
-          JOIN inventory i ON dr.ingredient_id = i.ingredient_id
-          WHERE dr.dish_id = ?
-        `, [d.dish_id]);
+        const recipes = recipeMap[d.dish_id] || [];
 
         let hasIngredientShortage = false;
-        if (recipes && recipes.length > 0) {
+        if (recipes.length > 0) {
           for (const r of recipes) {
             if (Number(r.stock_quantity) < Number(r.quantity_required)) {
               hasIngredientShortage = true;
@@ -46,31 +59,43 @@ const InventoryEngine = {
         } else if (hasIngredientShortage) {
           isAvailable = false;
           reason = 'Raw ingredient shortage (Required ingredients depleted in stock)';
-        } else if (d.is_available === 0 && d.out_of_stock_reason && !d.out_of_stock_reason.includes('Daily portions') && !d.out_of_stock_reason.includes('Raw ingredient')) {
+        } else if ((d.is_available === 0 || d.is_available === false) && d.out_of_stock_reason && !d.out_of_stock_reason.includes('Daily portions') && !d.out_of_stock_reason.includes('Raw ingredient')) {
           isAvailable = false;
           reason = d.out_of_stock_reason;
         }
 
         const availVal = isAvailable ? 1 : 0;
-        await query(
-          'UPDATE dishes SET is_available = ?, out_of_stock_reason = ? WHERE dish_id = ?',
-          [availVal, reason, d.dish_id]
-        );
+        const currentAvailVal = (d.is_available === 1 || d.is_available === true) ? 1 : 0;
+        const currentReason = d.out_of_stock_reason || null;
 
-        // Sync MongoDB vendor menu document
-        const mongoMenu = await MongoAdapter.findVendorMenu(d.vendor_id);
-        if (mongoMenu && mongoMenu.categories) {
-          let updated = false;
-          for (const cat of mongoMenu.categories) {
-            if (cat.dishes) {
-              const target = cat.dishes.find(td => Number(td.dish_id) === Number(d.dish_id));
-              if (target) {
-                target.is_available = isAvailable;
-                updated = true;
+        // Only write to database if status or reason actually changed
+        if (currentAvailVal !== availVal || currentReason !== (reason || null)) {
+          anyChanged = true;
+          vendorsToSync.add(d.vendor_id);
+          await query(
+            'UPDATE dishes SET is_available = ?, out_of_stock_reason = ? WHERE dish_id = ?',
+            [availVal, reason, d.dish_id]
+          );
+        }
+      }
+
+      // Sync MongoDB vendor menus only for vendors with actual dish state changes
+      if (anyChanged && vendorsToSync.size > 0) {
+        for (const vId of vendorsToSync) {
+          const mongoMenu = await MongoAdapter.findVendorMenu(vId);
+          if (mongoMenu && mongoMenu.categories) {
+            const vDishes = await query('SELECT dish_id, is_available FROM dishes WHERE vendor_id = ?', [vId]);
+            const dishAvailMap = {};
+            for (const vd of vDishes) {
+              dishAvailMap[vd.dish_id] = vd.is_available === 1 || vd.is_available === true;
+            }
+            for (const cat of mongoMenu.categories) {
+              for (const td of cat.dishes || []) {
+                if (dishAvailMap[td.dish_id] !== undefined) {
+                  td.is_available = dishAvailMap[td.dish_id];
+                }
               }
             }
-          }
-          if (updated) {
             await MongoAdapter.findOrSeedVendorMenus([mongoMenu]);
           }
         }

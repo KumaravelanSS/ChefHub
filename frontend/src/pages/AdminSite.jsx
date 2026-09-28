@@ -636,7 +636,7 @@ export default function AdminSite({ user, onLogin }) {
                     <th className="p-3 rounded-l-xl">Dish ID</th>
                     <th className="p-3">Dish Name</th>
                     <th className="p-3">Chef / Vendor</th>
-                    <th className="p-3">Price</th>
+                    <th className="p-3">Price (₹)</th>
                     <th className="p-3">Portions Left</th>
                     <th className="p-3">Status</th>
                     <th className="p-3">Current Out-of-Stock Reason</th>
@@ -654,7 +654,7 @@ export default function AdminSite({ user, onLogin }) {
                           <span>{d.name}</span>
                         </td>
                         <td className="p-3 text-slate-700 dark:text-slate-300 font-semibold">{d.vendor_name || 'Chef'}</td>
-                        <td className="p-3 font-mono font-bold text-emerald-600 dark:text-emerald-400">${Number(d.base_price).toFixed(2)}</td>
+                        <td className="p-3 font-mono font-bold text-emerald-600 dark:text-emerald-400">₹{Number(d.base_price).toFixed(2)}</td>
                         <td className="p-3 font-bold font-mono">
                           <span className={`px-2 py-0.5 rounded-lg border ${d.daily_stock > 0 ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20' : 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20'}`}>
                             {d.daily_stock} left
@@ -705,13 +705,13 @@ export default function AdminSite({ user, onLogin }) {
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
               <div className="glass-card rounded-2xl p-5 border border-slate-300 dark:border-slate-800 space-y-2">
                 <span className="text-xs text-slate-600 dark:text-slate-400 font-semibold">Gross Gross Revenue</span>
-                <h3 className="text-2xl font-extrabold text-slate-900 dark:text-white">${Number(metrics.orders_summary?.gross_revenue || 0).toFixed(2)}</h3>
+                <h3 className="text-2xl font-extrabold text-slate-900 dark:text-white">₹{Number(metrics.orders_summary?.gross_revenue || 0).toFixed(2)}</h3>
                 <span className="text-[11px] text-emerald-600 dark:text-emerald-400">100% Escrow Secured</span>
               </div>
 
               <div className="glass-card rounded-2xl p-5 border border-slate-300 dark:border-slate-800 space-y-2">
                 <span className="text-xs text-slate-600 dark:text-slate-400 font-semibold">Platform Commission (5%)</span>
-                <h3 className="text-2xl font-extrabold text-rose-500 dark:text-rose-400">${Number(metrics.financials?.total_platform_commission || 0).toFixed(2)}</h3>
+                <h3 className="text-2xl font-extrabold text-rose-500 dark:text-rose-400">₹{Number(metrics.financials?.total_platform_commission || 0).toFixed(2)}</h3>
                 <span className="text-[11px] text-slate-600 dark:text-slate-400">Net Platform Income</span>
               </div>
 
@@ -738,7 +738,7 @@ export default function AdminSite({ user, onLogin }) {
                       <th className="p-3 rounded-l-xl">Order ID</th>
                       <th className="p-3">Customer</th>
                       <th className="p-3">Vendor</th>
-                      <th className="p-3">Total Amount</th>
+                      <th className="p-3">Total Amount (₹)</th>
                       <th className="p-3">Escrow Status</th>
                       <th className="p-3 rounded-r-xl">Order Lifecycle</th>
                     </tr>
@@ -749,7 +749,7 @@ export default function AdminSite({ user, onLogin }) {
                         <td className="p-3 font-mono text-slate-500">#{o.order_id}</td>
                         <td className="p-3 font-bold text-slate-900 dark:text-white">{o.customer_name}</td>
                         <td className="p-3 text-slate-700 dark:text-slate-300">{o.vendor_name}</td>
-                        <td className="p-3 font-extrabold text-orange-600 dark:text-orange-400">${Number(o.total_amount).toFixed(2)}</td>
+                        <td className="p-3 font-extrabold text-orange-600 dark:text-orange-400">₹{Number(o.total_amount).toFixed(2)}</td>
                         <td className="p-3 text-slate-600 dark:text-slate-400">{o.escrow_status}</td>
                         <td className="p-3">
                           <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
@@ -787,10 +787,10 @@ export default function AdminSite({ user, onLogin }) {
                       <th className="p-3 rounded-l-xl">Payout ID</th>
                       <th className="p-3">Order ID</th>
                       <th className="p-3">Customer</th>
-                      <th className="p-3">Vendor (85%)</th>
-                      <th className="p-3">Rider (10%)</th>
-                      <th className="p-3">Platform Comm. (5%)</th>
-                      <th className="p-3">Gross Total</th>
+                      <th className="p-3">Vendor (85%) (₹)</th>
+                      <th className="p-3">Rider (10%) (₹)</th>
+                      <th className="p-3">Platform Comm. (5%) (₹)</th>
+                      <th className="p-3">Gross Total (₹)</th>
                       <th className="p-3 rounded-r-xl">Escrow Status</th>
                     </tr>
                   </thead>
@@ -801,18 +801,18 @@ export default function AdminSite({ user, onLogin }) {
                         <td className="p-3 font-mono font-bold text-slate-900 dark:text-white">#{p.order_id}</td>
                         <td className="p-3 text-slate-700 dark:text-slate-300">{p.customer_name || 'Alex Customer'}</td>
                         <td className="p-3 font-bold text-emerald-600 dark:text-emerald-400">
-                          ${Number(p.vendor_amount).toFixed(2)}
+                          ₹{Number(p.vendor_amount).toFixed(2)}
                           <span className="block text-[10px] text-slate-400 font-normal">{p.vendor_name}</span>
                         </td>
                         <td className="p-3 font-bold text-sky-600 dark:text-sky-400">
-                          ${Number(p.rider_amount).toFixed(2)}
+                          ₹{Number(p.rider_amount).toFixed(2)}
                           <span className="block text-[10px] text-slate-400 font-normal">{p.rider_name || 'Rider Assigned'}</span>
                         </td>
                         <td className="p-3 font-bold text-rose-600 dark:text-rose-400">
-                          ${Number(p.platform_commission).toFixed(2)}
+                          ₹{Number(p.platform_commission).toFixed(2)}
                         </td>
                         <td className="p-3 font-extrabold text-slate-900 dark:text-white">
-                          ${Number(p.total_amount || (Number(p.vendor_amount) + Number(p.rider_amount) + Number(p.platform_commission))).toFixed(2)}
+                          ₹{Number(p.total_amount || (Number(p.vendor_amount) + Number(p.rider_amount) + Number(p.platform_commission))).toFixed(2)}
                         </td>
                         <td className="p-3">
                           <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${
