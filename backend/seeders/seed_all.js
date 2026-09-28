@@ -81,27 +81,27 @@ async function seedDatabase() {
   const truffleOil = allInventory.find(i => i.ingredient_name === 'Truffle Oil');
   const pastaFlour = allInventory.find(i => i.ingredient_name === 'Artisanal Pasta Flour');
 
-  // 3. Seed Relational Dishes in MySQL
+  // 3. Seed Relational Dishes in MySQL (Sensible Indian Rupee Prices >= 100)
   const dishesToSeed = [
     // Mario Dishes
-    { vendor_id: vendorMario.user_id, name: 'Signature Truffle Tagliatelle', category: 'Fresh Pastas', price: 24.50 },
-    { vendor_id: vendorMario.user_id, name: 'Handmade Parmigiano Ravioli', category: 'Fresh Pastas', price: 21.00 },
-    { vendor_id: vendorMario.user_id, name: 'Wild Mushroom Truffle Gnocchi', category: 'Fresh Pastas', price: 23.00 },
-    { vendor_id: vendorMario.user_id, name: 'Truffle Burrata Flatbread', category: 'Pizzas & Starters', price: 17.50 },
-    { vendor_id: vendorMario.user_id, name: 'Classic Garlic Herb Focaccia', category: 'Pizzas & Starters', price: 8.50 },
-    { vendor_id: vendorMario.user_id, name: 'Traditional Espresso Tiramisu', category: 'Desserts & Drinks', price: 9.50 },
+    { vendor_id: vendorMario.user_id, name: 'Signature Truffle Tagliatelle', category: 'Fresh Pastas', price: 380.00 },
+    { vendor_id: vendorMario.user_id, name: 'Handmade Parmigiano Ravioli', category: 'Fresh Pastas', price: 340.00 },
+    { vendor_id: vendorMario.user_id, name: 'Wild Mushroom Truffle Gnocchi', category: 'Fresh Pastas', price: 360.00 },
+    { vendor_id: vendorMario.user_id, name: 'Truffle Burrata Flatbread', category: 'Pizzas & Starters', price: 290.00 },
+    { vendor_id: vendorMario.user_id, name: 'Classic Garlic Herb Focaccia', category: 'Pizzas & Starters', price: 140.00 },
+    { vendor_id: vendorMario.user_id, name: 'Traditional Espresso Tiramisu', category: 'Desserts & Drinks', price: 180.00 },
 
     // Priya Dishes
-    { vendor_id: vendorPriya.user_id, name: 'Shahi Paneer Tikka Masala', category: 'Royal Curries', price: 18.50 },
-    { vendor_id: vendorPriya.user_id, name: 'Slow-Cooked Butter Chicken', category: 'Royal Curries', price: 19.50 },
-    { vendor_id: vendorPriya.user_id, name: 'Aromatic Royal Dum Biryani', category: 'Biryanis & Breads', price: 19.99 },
-    { vendor_id: vendorPriya.user_id, name: 'Garlic Butter Naan (2 pcs)', category: 'Biryanis & Breads', price: 4.50 },
-    { vendor_id: vendorPriya.user_id, name: 'Chilled Mango Lassi Smoothie', category: 'Desserts & Drinks', price: 5.50 },
+    { vendor_id: vendorPriya.user_id, name: 'Shahi Paneer Tikka Masala', category: 'Royal Curries', price: 320.00 },
+    { vendor_id: vendorPriya.user_id, name: 'Slow-Cooked Butter Chicken', category: 'Royal Curries', price: 360.00 },
+    { vendor_id: vendorPriya.user_id, name: 'Aromatic Royal Dum Biryani', category: 'Biryanis & Breads', price: 390.00 },
+    { vendor_id: vendorPriya.user_id, name: 'Garlic Butter Naan (2 pcs)', category: 'Biryanis & Breads', price: 110.00 },
+    { vendor_id: vendorPriya.user_id, name: 'Chilled Mango Lassi Smoothie', category: 'Desserts & Drinks', price: 120.00 },
 
     // Kenji Dishes
-    { vendor_id: vendorKenji.user_id, name: 'Rich Tonkotsu Pork Ramen', category: 'Ramen & Bowls', price: 18.00 },
-    { vendor_id: vendorKenji.user_id, name: 'Crispy Chicken Katsu Curry Bowl', category: 'Ramen & Bowls', price: 17.50 },
-    { vendor_id: vendorKenji.user_id, name: 'Pan-Seared Pork Gyoza (6 pcs)', category: 'Sides & Appetizers', price: 8.50 }
+    { vendor_id: vendorKenji.user_id, name: 'Rich Tonkotsu Pork Ramen', category: 'Ramen & Bowls', price: 350.00 },
+    { vendor_id: vendorKenji.user_id, name: 'Crispy Chicken Katsu Curry Bowl', category: 'Ramen & Bowls', price: 320.00 },
+    { vendor_id: vendorKenji.user_id, name: 'Pan-Seared Pork Gyoza (6 pcs)', category: 'Sides & Appetizers', price: 180.00 }
   ];
 
   for (const d of dishesToSeed) {
@@ -116,6 +116,18 @@ async function seedDatabase() {
       );
     }
   }
+
+  // Automatic Price Migration: Update any existing dishes below ₹100 to sensible Indian Rupee prices
+  for (const d of dishesToSeed) {
+    await query(
+      'UPDATE dishes SET base_price = ? WHERE vendor_id = ? AND LOWER(name) = LOWER(?) AND (base_price < 100 OR base_price IS NULL)',
+      [d.price, d.vendor_id, d.name]
+    );
+  }
+  await query('UPDATE dishes SET base_price = ROUND(base_price * 15, 0) WHERE base_price > 0 AND base_price < 50');
+  await query('UPDATE dishes SET base_price = 140 WHERE base_price < 100');
+  await query('UPDATE payouts SET vendor_amount = ROUND(vendor_amount * 12, 2), rider_amount = ROUND(rider_amount * 12, 2), platform_commission = ROUND(platform_commission * 12, 2) WHERE vendor_amount < 100');
+  await query('UPDATE orders SET total_amount = ROUND(total_amount * 12, 2) WHERE total_amount < 100');
 
   const allDishes = await query('SELECT * FROM dishes');
 

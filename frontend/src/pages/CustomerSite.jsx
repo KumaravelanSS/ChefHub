@@ -1,5 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { ShoppingBag, Star, Clock, MapPin, CheckCircle2, ChevronRight, X, AlertCircle, AlertTriangle, Sparkles, Send, Ban, Utensils, Flame, Heart, Search, Filter, Eye, EyeOff, CreditCard, ShieldCheck, Lock, Receipt, ArrowRight, Truck, QrCode, Building, Wallet, Download, RefreshCw } from 'lucide-react';
+import { KitchenLoadingScreen, KitchenDataLoader, KitchenSkeletonRows } from '../components/KitchenLoading';
+
+const DELIVERY_FEE = 40.00;
 
 const fallbackImages = {
   'Signature Truffle Tagliatelle': 'https://images.unsplash.com/photo-1551183053-bf91a1d81141?auto=format&fit=crop&w=600&q=80',
@@ -75,10 +78,7 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
   const [reviewComment, setReviewComment] = useState('');
 
   const [orderStatusMsg, setOrderStatusMsg] = useState('');
-
-  useEffect(() => {
-    fetchVendors();
-  }, []);
+  const [loadingVendors, setLoadingVendors] = useState(true);
 
   useEffect(() => {
     if (user && user.role === 'CUSTOMER') {
@@ -100,6 +100,8 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
       }
     } catch (err) {
       console.error(err);
+    } finally {
+      setLoadingVendors(false);
     }
   };
 
@@ -107,11 +109,11 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
     fetchVendors();
     fetchMyOrders();
 
-    // Real-Time Stock Auto-Polling (3 Seconds for Zero-Reload Updates)
+    // Real-Time Stock Auto-Polling (Zero-Reload Updates)
     const stockPollInterval = setInterval(() => {
       fetchVendors();
       fetchMyOrders();
-    }, 3000);
+    }, 6000);
 
     return () => clearInterval(stockPollInterval);
   }, []);
@@ -313,7 +315,7 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
           order_id: null,
           vendor_name: selectedVendor?.name || selectedVendor?.business_name || 'Chef Kitchen',
           vendor_id: selectedVendor?.vendor_id,
-          total_amount: (cartTotal + 2.99).toFixed(2),
+          total_amount: (cartTotal + DELIVERY_FEE).toFixed(2),
           items: [...cart],
           payment_method: methodLabel,
           payment_ref: failTxnId,
@@ -412,10 +414,10 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
           order_id: newOrderId,
           vendor_name: selectedVendor.name || selectedVendor.business_name || 'Chef Kitchen',
           vendor_id: selectedVendor.vendor_id,
-          total_amount: (cartTotal + 2.99).toFixed(2),
+          total_amount: (cartTotal + DELIVERY_FEE).toFixed(2),
           items: [...cart],
           subtotal: cartTotal.toFixed(2),
-          delivery_fee: '2.99',
+          delivery_fee: DELIVERY_FEE.toFixed(2),
           payment_method: methodLabel,
           payment_ref: txnId,
           delivery_address: paymentForm.deliveryAddress || '124 Gourmet Boulevard, Suite 4B',
@@ -444,7 +446,7 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
           order_id: null,
           vendor_name: selectedVendor?.name || selectedVendor?.business_name || 'Chef Kitchen',
           vendor_id: selectedVendor?.vendor_id,
-          total_amount: (cartTotal + 2.99).toFixed(2),
+          total_amount: (cartTotal + DELIVERY_FEE).toFixed(2),
           items: [...cart],
           payment_method: methodLabel,
           payment_ref: failTxnId,
@@ -472,7 +474,7 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
         order_id: null,
         vendor_name: selectedVendor?.name || selectedVendor?.business_name || 'Chef Kitchen',
         vendor_id: selectedVendor?.vendor_id,
-        total_amount: (cartTotal + 2.99).toFixed(2),
+        total_amount: (cartTotal + DELIVERY_FEE).toFixed(2),
         items: [...cart],
         payment_method: methodLabel,
         payment_ref: failTxnId,
@@ -610,6 +612,15 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
           </form>
         </div>
       </div>
+    );
+  }
+
+  if (loadingVendors && vendors.length === 0) {
+    return (
+      <KitchenLoadingScreen 
+        message="Connecting to ChefHub Kitchen Ecosystem..." 
+        subMessage="Fetching independent local chefs, live dish matrices & recipe stock in real-time" 
+      />
     );
   }
 
@@ -1747,7 +1758,7 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
                     </div>
                     <div className="flex justify-between text-slate-600 dark:text-slate-400">
                       <span>Standard Express Delivery</span>
-                      <span className="font-mono font-semibold">₹2.99</span>
+                      <span className="font-mono font-semibold">₹{DELIVERY_FEE.toFixed(2)}</span>
                     </div>
                     <div className="flex justify-between text-emerald-600 dark:text-emerald-400 font-semibold">
                       <span>Escrow Buyer Guarantee</span>
@@ -1755,7 +1766,7 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
                     </div>
                     <div className="flex justify-between items-center pt-2 text-sm font-black text-slate-900 dark:text-white border-t border-slate-300 dark:border-slate-800">
                       <span>Total Amount Due</span>
-                      <span className="text-amber-600 dark:text-amber-400 font-mono text-base font-black">₹{(cartTotal + 2.99).toFixed(2)}</span>
+                      <span className="text-amber-600 dark:text-amber-400 font-mono text-base font-black">₹{(cartTotal + DELIVERY_FEE).toFixed(2)}</span>
                     </div>
                   </div>
                 </div>
@@ -1892,7 +1903,7 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
                       <div className="p-3.5 rounded-2xl bg-slate-100 dark:bg-slate-900/60 border border-slate-300 dark:border-slate-800 space-y-2">
                         <div className="flex justify-between items-center text-xs">
                           <span className="font-semibold text-slate-700 dark:text-slate-300">Available ChefHub Escrow Balance:</span>
-                          <span className="font-mono font-extrabold text-emerald-500">₹250.00</span>
+                          <span className="font-mono font-extrabold text-emerald-500">₹1,000.00</span>
                         </div>
                         <p className="text-[11px] text-slate-500">1-Click Instant Payment deduction with automatic Escrow hold.</p>
                       </div>
@@ -1938,7 +1949,7 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
                           ) : (
                             <>
                               <CheckCircle2 className="w-3.5 h-3.5" />
-                              <span>Simulate Success (₹{(cartTotal + 2.99).toFixed(2)})</span>
+                              <span>Simulate Success (₹{(cartTotal + DELIVERY_FEE).toFixed(2)})</span>
                             </>
                           )}
                         </button>
@@ -1955,7 +1966,7 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
                               order_id: null,
                               vendor_name: selectedVendor?.name || selectedVendor?.business_name || 'Chef Kitchen',
                               vendor_id: selectedVendor?.vendor_id,
-                              total_amount: (cartTotal + 2.99).toFixed(2),
+                              total_amount: (cartTotal + DELIVERY_FEE).toFixed(2),
                               items: [...cart],
                               payment_method: paymentForm.paymentMethod === 'CARD' ? `Credit Card (${paymentForm.cardNumber.slice(-4) || '4242'})` :
                                               paymentForm.paymentMethod === 'UPI' ? `UPI (${paymentForm.upiId || 'alex@upi'})` :

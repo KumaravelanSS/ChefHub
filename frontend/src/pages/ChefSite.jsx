@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { ChefHat, Package, Utensils, DollarSign, AlertTriangle, CheckCircle2, Clock, Plus, Trash2, AlertCircle, Edit3, Image as ImageIcon, X, Sparkles, Ban, Eye, EyeOff, Tag } from 'lucide-react';
+import { ChefHat, Package, Utensils, DollarSign, AlertTriangle, CheckCircle2, Clock, Plus, Trash2, AlertCircle, Edit3, Image as ImageIcon, X, Sparkles, Ban, Eye, EyeOff, Tag, RefreshCw } from 'lucide-react';
+import { KitchenLoadingScreen, KitchenDataLoader, KitchenSkeletonRows } from '../components/KitchenLoading';
 
 const presetImages = [
   { label: 'Pasta', url: 'https://images.unsplash.com/photo-1551183053-bf91a1d81141?auto=format&fit=crop&w=600&q=80' },
@@ -23,7 +24,16 @@ export default function ChefSite({ user, onLogin, onLogout }) {
   const [dishes, setDishes] = useState([]);
   const [inventory, setInventory] = useState([]);
   const [recipes, setRecipes] = useState([]);
-  const [payouts, setPayouts] = useState({ total_earned: '0.00', payouts: [] });
+  const [payouts, setPayouts] = useState(() => {
+    try {
+      const cached = localStorage.getItem('chefhub_vendor_payouts');
+      return cached ? JSON.parse(cached) : { total_earned: '0.00', payouts: [] };
+    } catch {
+      return { total_earned: '0.00', payouts: [] };
+    }
+  });
+  const [loadingPayouts, setLoadingPayouts] = useState(false);
+  const [loadingInitial, setLoadingInitial] = useState(true);
   const [chefReviews, setChefReviews] = useState([]);
 
   // Add Dish Form
@@ -66,13 +76,68 @@ export default function ChefSite({ user, onLogin, onLogout }) {
 
   useEffect(() => {
     if (user && user.role === 'VENDOR') {
-      fetchData();
+      fetchData().finally(() => setLoadingInitial(false));
+      fetchPayouts(false);
       const interval = setInterval(() => {
         fetchData();
-      }, 8000);
+      }, 10000);
       return () => clearInterval(interval);
     }
-  }, [user, activeTab]);
+  }, [user]);
+
+  useEffect(() => {
+    if (user && user.role === 'VENDOR') {
+      if (activeTab === 'payouts') {
+        fetchPayouts(payouts.payouts?.length === 0);
+      } else if (activeTab === 'recipes') {
+        fetchRecipes();
+      } else if (activeTab === 'reviews') {
+        fetchReviews();
+      }
+    }
+  }, [activeTab]);
+
+  const fetchPayouts = async (forceSpinner = false) => {
+    const token = localStorage.getItem('chefhub_token');
+    if (!token) return;
+    if (forceSpinner) setLoadingPayouts(true);
+    try {
+      const res = await fetch('/api/vendor/payouts', { headers: { Authorization: `Bearer ${token}` } });
+      const data = await res.json();
+      if (data.success) {
+        setPayouts(data);
+        localStorage.setItem('chefhub_vendor_payouts', JSON.stringify(data));
+      }
+    } catch (err) {
+      console.error('Chef fetchPayouts error:', err);
+    } finally {
+      setLoadingPayouts(false);
+    }
+  };
+
+  const fetchRecipes = async () => {
+    const token = localStorage.getItem('chefhub_token');
+    if (!token) return;
+    try {
+      const res = await fetch('/api/vendor/recipes', { headers: { Authorization: `Bearer ${token}` } });
+      const data = await res.json();
+      if (data.success) setRecipes(data.recipes);
+    } catch (err) {
+      console.error('Chef fetchRecipes error:', err);
+    }
+  };
+
+  const fetchReviews = async () => {
+    const token = localStorage.getItem('chefhub_token');
+    if (!token) return;
+    try {
+      const res = await fetch('/api/vendor/reviews', { headers: { Authorization: `Bearer ${token}` } });
+      const data = await res.json();
+      if (data.success) setChefReviews(data.reviews);
+    } catch (err) {
+      console.error('Chef fetchReviews error:', err);
+    }
+  };
 
   const fetchData = async () => {
     const token = localStorage.getItem('chefhub_token');
@@ -120,20 +185,6 @@ export default function ChefSite({ user, onLogin, onLogout }) {
           setNewRecipe(prev => ({ ...prev, ingredient_id: dataInv.inventory[0].ingredient_id }));
         }
       }
-
-      if (activeTab === 'recipes') {
-        const res = await fetch('/api/vendor/recipes', { headers });
-        const data = await res.json();
-        if (data.success) setRecipes(data.recipes);
-      } else if (activeTab === 'payouts') {
-        const res = await fetch('/api/vendor/payouts', { headers });
-        const data = await res.json();
-        if (data.success) setPayouts(data);
-      } else if (activeTab === 'reviews') {
-        const res = await fetch('/api/vendor/reviews', { headers });
-        const data = await res.json();
-        if (data.success) setChefReviews(data.reviews);
-      }
     } catch (err) {
       console.error('Chef fetchData error:', err);
     }
@@ -156,7 +207,16 @@ export default function ChefSite({ user, onLogin, onLogout }) {
     executeToggleStatus(false, finalReason);
   };
 
+  // Instant 0ms Optimistic Kitchen Status Toggle
   const executeToggleStatus = async (targetIsOpen, closedReason) => {
+    const prevProfile = { ...storeProfile };
+    // 1. Instant zero-latency optimistic UI update
+    setStoreProfile(prev => ({
+      ...prev,
+      is_open: targetIsOpen,
+      closed_reason: targetIsOpen ? null : (closedReason || 'Chef has manually closed the kitchen for today (Offline).')
+    }));
+
     try {
       const token = localStorage.getItem('chefhub_token');
       const res = await fetch('/api/vendor/toggle-status', {
@@ -167,9 +227,12 @@ export default function ChefSite({ user, onLogin, onLogout }) {
       const data = await res.json();
       if (data.success) {
         setStoreProfile(data.profile || { is_open: data.is_open, closed_reason: data.closed_reason });
-        fetchData();
+      } else {
+        setStoreProfile(prevProfile);
+        alert(data.message || 'Failed to update kitchen status.');
       }
     } catch (err) {
+      setStoreProfile(prevProfile);
       alert('Failed to update kitchen status.');
     }
   };
@@ -550,6 +613,15 @@ export default function ChefSite({ user, onLogin, onLogout }) {
     );
   }
 
+  if (loadingInitial && dishes.length === 0) {
+    return (
+      <KitchenLoadingScreen 
+        message="ChefHub Kitchen DBMS Console" 
+        subMessage="Synchronizing kitchen dishes, raw ingredient inventory & escrow ledgers..." 
+      />
+    );
+  }
+
   // Logged-in Chef Console View
   return (
     <div className="max-w-7xl mx-auto px-4 lg:px-8 py-8 space-y-8">
@@ -700,8 +772,16 @@ export default function ChefSite({ user, onLogin, onLogout }) {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-300 dark:divide-slate-800/60">
-                  {dishes.map((d) => {
-                    const isAvail = d.is_available === 1 || d.is_available === true;
+                  {dishes.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} className="p-4">
+                        <KitchenDataLoader message="Simmering Dishes & Recipe Matrices..." subText="Querying MySQL & PostgreSQL dishes schema..." />
+                        <KitchenSkeletonRows rows={4} cols={6} />
+                      </td>
+                    </tr>
+                  ) : (
+                    dishes.map((d) => {
+                      const isAvail = d.is_available === 1 || d.is_available === true;
                     return (
                       <tr key={d.dish_id} className="hover:bg-slate-100 dark:hover:bg-slate-900/40 transition-colors">
                         <td className="p-3">
@@ -770,7 +850,7 @@ export default function ChefSite({ user, onLogin, onLogout }) {
                         </td>
                       </tr>
                     );
-                  })}
+                  }))}
                 </tbody>
               </table>
             </div>
@@ -811,7 +891,7 @@ export default function ChefSite({ user, onLogin, onLogout }) {
                     step="0.01"
                     value={newDish.base_price}
                     onChange={(e) => setNewDish({ ...newDish, base_price: e.target.value })}
-                    placeholder="22.50"
+                    placeholder="e.g. 280"
                     className="w-full mt-1.5 px-3.5 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 text-slate-900 dark:text-white outline-none focus:border-emerald-500"
                     required
                   />
@@ -1720,42 +1800,84 @@ export default function ChefSite({ user, onLogin, onLogout }) {
       {/* Tab: Payout Earnings */}
       {activeTab === 'payouts' && (
         <div className="space-y-6">
-          <div className="glass-card rounded-2xl p-6 border border-slate-800 flex justify-between items-center">
+          <div className="glass-card rounded-2xl p-6 border border-slate-300 dark:border-slate-800 flex justify-between items-center shadow-lg">
             <div>
-              <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Total Chef Net Revenue (85% Split)</span>
-              <h2 className="text-3xl font-black text-emerald-400">₹{payouts.total_earned}</h2>
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Total Chef Net Revenue (85% Split)</span>
+                {loadingPayouts && <RefreshCw className="w-3.5 h-3.5 animate-spin text-emerald-500" />}
+              </div>
+              <h2 className="text-3xl font-black text-emerald-600 dark:text-emerald-400 mt-1">₹{payouts.total_earned}</h2>
             </div>
-            <span className="px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-bold">
-              Direct Escrow Payouts Active
-            </span>
+            <div className="text-right space-y-1">
+              <span className="px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-xs font-bold inline-block">
+                Direct Escrow Payouts Active
+              </span>
+              <p className="text-[11px] text-slate-400">Zero-lag cached balance with live background sync</p>
+            </div>
           </div>
 
-          <div className="glass-card rounded-2xl p-6 border border-slate-300 dark:border-slate-800 space-y-4">
-            <h3 className="text-base font-bold text-slate-900 dark:text-white border-b border-slate-300 dark:border-slate-800 pb-3">Escrow Payout Ledger</h3>
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs">
-                <thead className="bg-slate-100 dark:bg-slate-900 text-slate-700 dark:text-slate-400 uppercase text-[10px] tracking-wider">
-                  <tr>
-                    <th className="p-3 rounded-l-xl">Payout ID</th>
-                    <th className="p-3">Order ID</th>
-                    <th className="p-3">Order Status</th>
-                    <th className="p-3">Chef 85% Split</th>
-                    <th className="p-3 rounded-r-xl">Timestamp</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-300 dark:divide-slate-800/60">
-                  {payouts.payouts?.map((p) => (
-                    <tr key={p.payout_id} className="hover:bg-slate-100 dark:hover:bg-slate-900/40">
-                      <td className="p-3 font-mono text-slate-500">#{p.payout_id}</td>
-                      <td className="p-3 font-bold text-slate-900 dark:text-white">Order #{p.order_id}</td>
-                      <td className="p-3"><span className="text-emerald-600 dark:text-emerald-400 font-bold">{p.order_status}</span></td>
-                      <td className="p-3 font-black text-emerald-600 dark:text-emerald-400">₹{Number(p.vendor_amount).toFixed(2)}</td>
-                      <td className="p-3 text-slate-600 dark:text-slate-400">{new Date(p.executed_at).toLocaleString()}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+          <div className="glass-card rounded-2xl p-6 border border-slate-300 dark:border-slate-800 space-y-4 shadow-xl">
+            <div className="flex justify-between items-center border-b border-slate-300 dark:border-slate-800 pb-3">
+              <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                <span>Escrow Payout Ledger</span>
+                <span className="text-xs font-normal text-slate-500 dark:text-slate-400 font-mono">({payouts.payouts?.length || 0} transactions)</span>
+              </h3>
+              <button 
+                onClick={() => fetchPayouts(true)} 
+                disabled={loadingPayouts}
+                className="px-3 py-1 text-xs font-bold rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 hover:border-emerald-500/50 text-slate-700 dark:text-slate-300 flex items-center gap-1.5 transition-all cursor-pointer"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${loadingPayouts ? 'animate-spin text-emerald-500' : ''}`} />
+                <span>Refresh Ledger</span>
+              </button>
             </div>
+
+            {loadingPayouts && (!payouts.payouts || payouts.payouts.length === 0) ? (
+              <div className="space-y-4">
+                <KitchenDataLoader 
+                  message="Syncing Escrow Ledgers & Calculating Net Payouts..." 
+                  subText="Querying MySQL & PostgreSQL Escrow releases and 85% chef splits..." 
+                />
+                <KitchenSkeletonRows rows={5} />
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-slate-100 dark:bg-slate-900 text-slate-700 dark:text-slate-400 uppercase text-[10px] tracking-wider">
+                    <tr>
+                      <th className="p-3 rounded-l-xl">Payout ID</th>
+                      <th className="p-3">Order ID</th>
+                      <th className="p-3">Order Status</th>
+                      <th className="p-3">Chef 85% Split</th>
+                      <th className="p-3 rounded-r-xl">Timestamp</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-300 dark:divide-slate-800/60">
+                    {payouts.payouts && payouts.payouts.length > 0 ? (
+                      payouts.payouts.map((p) => (
+                        <tr key={p.payout_id} className="hover:bg-slate-100 dark:hover:bg-slate-900/40 transition-colors">
+                          <td className="p-3 font-mono text-slate-500">#{p.payout_id}</td>
+                          <td className="p-3 font-bold text-slate-900 dark:text-white">Order #{p.order_id}</td>
+                          <td className="p-3">
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                              {p.order_status || 'COMPLETED'}
+                            </span>
+                          </td>
+                          <td className="p-3 font-black text-emerald-600 dark:text-emerald-400 text-sm">₹{Number(p.vendor_amount).toFixed(2)}</td>
+                          <td className="p-3 text-slate-600 dark:text-slate-400">{new Date(p.executed_at).toLocaleString()}</td>
+                        </tr>
+                      ))
+                    ) : (
+                      <tr>
+                        <td colSpan={5} className="py-8 text-center text-slate-400">
+                          No escrow payouts recorded yet for this kitchen. Completed customer orders will appear here automatically.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
         </div>
       )}

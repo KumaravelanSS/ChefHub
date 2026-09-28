@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { ShieldAlert, Users, DollarSign, Activity, Lock, Database, AlertCircle, Ban, CheckCircle2, KeyRound, UserPlus, Trash2, Eye, EyeOff, Edit3, X, Utensils, Package, Tag, AlertTriangle } from 'lucide-react';
+import { ShieldAlert, Users, DollarSign, Activity, Lock, Database, AlertCircle, Ban, CheckCircle2, KeyRound, UserPlus, Trash2, Eye, EyeOff, Edit3, X, Utensils, Package, Tag, AlertTriangle, RefreshCw } from 'lucide-react';
+import { KitchenLoadingScreen, KitchenDataLoader, KitchenSkeletonRows } from '../components/KitchenLoading';
 
 export default function AdminSite({ user, onLogin }) {
   const [loginUsername, setLoginUsername] = useState('admin');
@@ -14,7 +15,14 @@ export default function AdminSite({ user, onLogin }) {
   const [showPasswordsMap, setShowPasswordsMap] = useState({});
   const [auditLogs, setAuditLogs] = useState([]);
   const [adminReviews, setAdminReviews] = useState([]);
-  const [adminPayouts, setAdminPayouts] = useState([]);
+  const [adminPayouts, setAdminPayouts] = useState(() => {
+    try {
+      const cached = localStorage.getItem('chefhub_admin_payouts');
+      return cached ? JSON.parse(cached) : [];
+    } catch {
+      return [];
+    }
+  });
 
   // Create User Form
   const [newUser, setNewUser] = useState({ name: '', email: '', password: '', role: 'CUSTOMER', phone: '' });
@@ -43,14 +51,20 @@ export default function AdminSite({ user, onLogin }) {
     if (user && user.role === 'ADMIN') {
       fetchData();
 
-      // Real-Time Auto-Polling (3 Seconds for Zero-Reload Updates)
+      // Real-Time Auto-Polling (8 Seconds for Zero-Reload Updates)
       const adminPoll = setInterval(() => {
         fetchData();
-      }, 3000);
+      }, 8000);
 
       return () => clearInterval(adminPoll);
     }
-  }, [user, activeTab]);
+  }, [user]);
+
+  useEffect(() => {
+    if (user && user.role === 'ADMIN') {
+      fetchData();
+    }
+  }, [activeTab]);
 
   const fetchData = async () => {
     const token = localStorage.getItem('chefhub_token');
@@ -77,7 +91,10 @@ export default function AdminSite({ user, onLogin }) {
       } else if (activeTab === 'payouts') {
         const res = await fetch('/api/admin/payouts', { headers });
         const data = await res.json();
-        if (data.success) setAdminPayouts(data.payouts);
+        if (data.success) {
+          setAdminPayouts(data.payouts);
+          localStorage.setItem('chefhub_admin_payouts', JSON.stringify(data.payouts));
+        }
       } else if (activeTab === 'reviews') {
         const res = await fetch('/api/admin/reviews', { headers });
         const data = await res.json();
@@ -795,7 +812,15 @@ export default function AdminSite({ user, onLogin }) {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-300 dark:divide-slate-800/60">
-                    {adminPayouts.map((p) => (
+                    {adminPayouts.length === 0 ? (
+                      <tr>
+                        <td colSpan={8} className="p-4">
+                          <KitchenDataLoader message="Querying Escrow Ledgers & Payouts..." subText="Retrieving direct escrow releases from MySQL & PostgreSQL..." />
+                          <KitchenSkeletonRows rows={5} cols={8} />
+                        </td>
+                      </tr>
+                    ) : (
+                      adminPayouts.map((p) => (
                       <tr key={p.payout_id} className="hover:bg-slate-100 dark:hover:bg-slate-900/40">
                         <td className="p-3 font-mono text-slate-500">#{p.payout_id}</td>
                         <td className="p-3 font-mono font-bold text-slate-900 dark:text-white">#{p.order_id}</td>
@@ -824,7 +849,7 @@ export default function AdminSite({ user, onLogin }) {
                           </span>
                         </td>
                       </tr>
-                    ))}
+                    )))}
                   </tbody>
                 </table>
               </div>
