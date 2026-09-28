@@ -299,7 +299,7 @@ export default function AdminSite({ user, onLogin }) {
                 <ShieldAlert className="w-6 h-6" />
               </div>
               <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Admin Master Console Site</h2>
-              <p className="text-xs text-slate-600 dark:text-slate-400">Master access over all 12 schemas & user CRUD</p>
+              <p className="text-xs text-slate-600 dark:text-slate-400">Master access over user registry, orders & platform audits</p>
             </div>
 
             {loginError && (
@@ -421,7 +421,7 @@ export default function AdminSite({ user, onLogin }) {
                 }`}
             >
               <Database className="w-3.5 h-3.5" />
-              MongoDB Audits
+              System Audit Logs
             </button>
 
             <button
@@ -441,7 +441,7 @@ export default function AdminSite({ user, onLogin }) {
             <div className="lg:col-span-2 glass-card rounded-2xl p-6 border border-slate-300 dark:border-slate-800 space-y-4">
               <div className="flex justify-between items-center border-b border-slate-300 dark:border-slate-800 pb-3">
                 <div>
-                  <h2 className="text-xl font-bold text-slate-900 dark:text-white">Global User Accounts Table (MySQL `users`)</h2>
+                  <h2 className="text-xl font-bold text-slate-900 dark:text-white">Global User Accounts Registry</h2>
                   <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">Full Admin CRUD & User Account Ban/Delete Controls</p>
                 </div>
               </div>
@@ -741,13 +741,13 @@ export default function AdminSite({ user, onLogin }) {
               <div className="glass-card rounded-2xl p-5 border border-slate-300 dark:border-slate-800 space-y-2">
                 <span className="text-xs text-slate-600 dark:text-slate-400 font-semibold">Customer Sentiment Score</span>
                 <h3 className="text-2xl font-extrabold text-emerald-600 dark:text-emerald-400">{metrics.sentiment_summary?.positive || 0} Positive</h3>
-                <span className="text-[11px] text-slate-600 dark:text-slate-400">MongoDB Review Log</span>
+                <span className="text-[11px] text-slate-600 dark:text-slate-400">Customer Review Stream</span>
               </div>
             </div>
 
             {/* Recent Orders Overview */}
             <div className="glass-card rounded-2xl p-6 border border-slate-300 dark:border-slate-800 space-y-4">
-              <h3 className="text-lg font-bold text-slate-900 dark:text-white border-b border-slate-300 dark:border-slate-800 pb-3">Cross-Schema Recent Orders Audit</h3>
+              <h3 className="text-lg font-bold text-slate-900 dark:text-white border-b border-slate-300 dark:border-slate-800 pb-3">Platform Orders & Escrow Audit</h3>
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-xs">
                   <thead className="bg-slate-100 dark:bg-slate-900 text-slate-700 dark:text-slate-400 uppercase text-[10px] tracking-wider">
@@ -815,7 +815,7 @@ export default function AdminSite({ user, onLogin }) {
                     {adminPayouts.length === 0 ? (
                       <tr>
                         <td colSpan={8} className="p-4">
-                          <KitchenDataLoader message="Querying Escrow Ledgers & Payouts..." subText="Retrieving direct escrow releases from MySQL & PostgreSQL..." />
+                          <KitchenDataLoader message="Querying Escrow Ledgers & Payouts..." subText="Retrieving verified orders and chef payout ledgers..." />
                           <KitchenSkeletonRows rows={5} cols={8} />
                         </td>
                       </tr>
@@ -864,7 +864,7 @@ export default function AdminSite({ user, onLogin }) {
               <div className="flex justify-between items-center border-b border-slate-300 dark:border-slate-800 pb-3">
                 <div>
                   <h2 className="text-xl font-bold text-slate-900 dark:text-white">⭐ Customer Ratings & Feedback Audit</h2>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">MongoDB Review Analytics & NLP Sentiment Classification</p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Customer Review Analytics & Sentiment Feedback</p>
                 </div>
                 <span className="px-3 py-1 rounded-full bg-amber-500/10 text-amber-500 text-xs font-bold border border-amber-500/20">
                   {adminReviews.length} Verified Reviews
@@ -901,10 +901,10 @@ export default function AdminSite({ user, onLogin }) {
           </div>
         )}
 
-        {/* Tab: MongoDB System Audit Logs */}
+        {/* Tab: System Security Audit Logs */}
         {activeTab === 'audits' && (
           <div className="glass-card rounded-2xl p-6 border border-slate-300 dark:border-slate-800 space-y-4">
-            <h2 className="text-xl font-bold text-slate-900 dark:text-white border-b border-slate-300 dark:border-slate-800 pb-3">MongoDB System Audit Logs</h2>
+            <h2 className="text-xl font-bold text-slate-900 dark:text-white border-b border-slate-300 dark:border-slate-800 pb-3">System Security & Operational Audit Logs</h2>
             <div className="space-y-3 font-mono text-xs max-h-96 overflow-y-auto pr-1">
               {auditLogs.map((log) => (
                 <div key={log.log_id} className="p-3.5 rounded-xl bg-slate-100 dark:bg-slate-900/80 border border-slate-300 dark:border-slate-800 space-y-1">
@@ -924,7 +924,7 @@ export default function AdminSite({ user, onLogin }) {
           <div className="max-w-xl mx-auto glass-card rounded-2xl p-6 border border-slate-300 dark:border-slate-800 space-y-6">
             <div className="border-b border-slate-300 dark:border-slate-800 pb-3">
               <h2 className="text-xl font-bold text-slate-900 dark:text-white">Change Master Admin Credentials</h2>
-              <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">Update the single Master Admin username and password hash in MySQL</p>
+              <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">Update Master Administrator credentials and security password</p>
             </div>
 
             {adminUpdateMsg && (

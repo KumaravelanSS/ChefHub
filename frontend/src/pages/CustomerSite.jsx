@@ -272,8 +272,8 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
     setShowPaymentGatewayModal(true);
   };
 
-  const handleExecutePaymentAndOrder = async (e) => {
-    if (e) e.preventDefault();
+  const handleExecutePaymentAndOrder = async (e, shouldFail = false) => {
+    if (e && e.preventDefault) e.preventDefault();
     if (!selectedVendor) return;
 
     // Re-verify stock before authorizing payment
@@ -307,7 +307,8 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
                         'ChefHub Escrow Wallet';
 
     // If test mode simulates payment decline/failure:
-    if (simulateFail) {
+    if (shouldFail) {
+      setSimulateFail(true);
       setTimeout(() => {
         setIsProcessingPayment(false);
         const failTxnId = 'TXN-FAIL-' + Math.floor(10000000 + Math.random() * 90000000);
@@ -329,15 +330,17 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
         setTimeout(() => {
           setShowPaymentGatewayModal(false);
           setPaymentStage('IDLE');
+          setSimulateFail(false);
           setMerchantTransactionView(failureData);
           setOrderStatusMsg('❌ Payment Failed: Bank declined authorization.');
         }, 2600);
-      }, 1200);
+      }, 1100);
       return;
     }
 
-    // Realistic 1.2s payment handshake
-    await new Promise((resolve) => setTimeout(resolve, 1200));
+    setSimulateFail(false);
+    // Realistic payment handshake
+    await new Promise((resolve) => setTimeout(resolve, 1100));
 
     try {
       let token = localStorage.getItem('chefhub_token');
@@ -1921,25 +1924,15 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
                       />
                     </div>
 
-                    {/* Academic / Project Simulation Notice & Dual Action Buttons */}
-                    <div className="pt-2 space-y-2.5">
-                      <div className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/25 text-center">
-                        <p className="text-[11px] text-amber-700 dark:text-amber-300 font-bold flex items-center justify-center gap-1.5">
-                          <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-                          <span>Academic Project Sandbox: Real-time database simulation without actual money.</span>
-                        </p>
-                      </div>
-
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {/* Dual Action Simulation Buttons */}
+                    <div className="pt-2">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                         {/* Simulate Success Button */}
                         <button
                           type="button"
-                          onClick={(e) => {
-                            setSimulateFail(false);
-                            handleExecutePaymentAndOrder(e);
-                          }}
+                          onClick={(e) => handleExecutePaymentAndOrder(e, false)}
                           disabled={isProcessingPayment}
-                          className="py-3 px-4 rounded-xl bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-600 hover:from-emerald-600 hover:to-teal-700 text-white font-extrabold text-xs shadow-lg shadow-emerald-500/25 transition-all flex items-center justify-center gap-2 disabled:opacity-75"
+                          className="py-3 px-4 rounded-xl bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-600 hover:from-emerald-600 hover:to-teal-700 text-white font-extrabold text-xs shadow-lg shadow-emerald-500/25 transition-all flex items-center justify-center gap-2 disabled:opacity-75 cursor-pointer"
                         >
                           {isProcessingPayment && !simulateFail ? (
                             <>
@@ -1957,40 +1950,9 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
                         {/* Simulate Failure Button */}
                         <button
                           type="button"
-                          onClick={() => {
-                            setSimulateFail(true);
-                            setIsProcessingPayment(true);
-                            setPaymentStage('PROCESSING');
-                            const failTxnId = 'TXN-FAIL-' + Math.floor(10000000 + Math.random() * 90000000);
-                            const failureData = {
-                              order_id: null,
-                              vendor_name: selectedVendor?.name || selectedVendor?.business_name || 'Chef Kitchen',
-                              vendor_id: selectedVendor?.vendor_id,
-                              total_amount: (cartTotal + DELIVERY_FEE).toFixed(2),
-                              items: [...cart],
-                              payment_method: paymentForm.paymentMethod === 'CARD' ? `Credit Card (${paymentForm.cardNumber.slice(-4) || '4242'})` :
-                                              paymentForm.paymentMethod === 'UPI' ? `UPI (${paymentForm.upiId || 'alex@upi'})` :
-                                              paymentForm.paymentMethod === 'NETBANKING' ? `Net Banking (${paymentForm.bankName || 'HDFC Bank'})` :
-                                              'ChefHub Escrow Wallet',
-                              payment_ref: failTxnId,
-                              error_reason: 'Bank Declined: Simulated card/account authorization failure',
-                              status: 'FAILED',
-                              created_at: new Date().toISOString()
-                            };
-                            setTimeout(() => {
-                              setIsProcessingPayment(false);
-                              setPaymentStageData(failureData);
-                              setPaymentStage('FAILED_ANIM');
-                              setTimeout(() => {
-                                setShowPaymentGatewayModal(false);
-                                setPaymentStage('IDLE');
-                                setMerchantTransactionView(failureData);
-                                setOrderStatusMsg('❌ Payment Failed: Bank declined authorization.');
-                              }, 2600);
-                            }, 1100);
-                          }}
+                          onClick={(e) => handleExecutePaymentAndOrder(e, true)}
                           disabled={isProcessingPayment}
-                          className="py-3 px-4 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 dark:text-rose-400 border border-rose-500/30 font-bold text-xs transition-all flex items-center justify-center gap-2 disabled:opacity-75"
+                          className="py-3 px-4 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 dark:text-rose-400 border border-rose-500/30 font-bold text-xs transition-all flex items-center justify-center gap-2 disabled:opacity-75 cursor-pointer"
                         >
                           {isProcessingPayment && simulateFail ? (
                             <>

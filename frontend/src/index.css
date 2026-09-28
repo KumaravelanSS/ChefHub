@@ -199,7 +199,7 @@ html.dark ::-webkit-scrollbar-thumb {
   animation: progressBarShrink 2.6s linear forwards;
 }
 
-/* --- Kitchen & DBMS Culinary Loading Animations --- */
+/* --- Kitchen Culinary Loading Animations --- */
 @keyframes kitchenPanSimmer {
   0%, 100% { transform: rotate(0deg) translateY(0); }
   25% { transform: rotate(-3deg) translateY(-2px); }

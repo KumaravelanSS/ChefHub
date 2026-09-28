@@ -2,11 +2,11 @@ import React from 'react';
 import { ChefHat, Flame, Sparkles, Database, RefreshCw, UtensilsCrossed } from 'lucide-react';
 
 /**
- * Fullscreen or overlay Kitchen DBMS Loading Screen
+ * Fullscreen or overlay Kitchen Loading Screen
  */
 export function KitchenLoadingScreen({ 
-  message = 'Connecting to ChefHub Relational DBMS Engine...', 
-  subMessage = 'Synchronizing PostgreSQL & MongoDB schemas with zero-delay caching' 
+  message = 'Connecting to ChefHub Kitchen Network...', 
+  subMessage = 'Synchronizing kitchen menus, dishes & live orders...' 
 }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-md p-4 transition-all duration-300">
@@ -43,8 +43,8 @@ export function KitchenLoadingScreen({
         {/* Loading Titles */}
         <div className="space-y-2 mb-6">
           <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-orange-500/10 border border-orange-500/25 text-orange-600 dark:text-orange-400 text-[11px] font-black uppercase tracking-wider">
-            <Database className="w-3 h-3 text-orange-500 animate-pulse" />
-            <span>DBMS Live Query</span>
+            <Sparkles className="w-3 h-3 text-orange-500 animate-pulse" />
+            <span>Live Kitchen Network</span>
           </div>
           <h3 className="text-xl font-black text-slate-900 dark:text-white tracking-tight">
             {message}
@@ -67,8 +67,8 @@ export function KitchenLoadingScreen({
  * Tab/Card Level Kitchen Data Loader
  */
 export function KitchenDataLoader({ 
-  message = 'Simmering queries...', 
-  subText = 'Retrieving fresh kitchen records' 
+  message = 'Loading kitchen dishes...', 
+  subText = 'Connecting to kitchen menu catalog' 
 }) {
   return (
     <div className="py-12 px-4 flex flex-col items-center justify-center text-center">

@@ -616,8 +616,8 @@ export default function ChefSite({ user, onLogin, onLogout }) {
   if (loadingInitial && dishes.length === 0) {
     return (
       <KitchenLoadingScreen 
-        message="ChefHub Kitchen DBMS Console" 
-        subMessage="Synchronizing kitchen dishes, raw ingredient inventory & escrow ledgers..." 
+        message="ChefHub Kitchen Console" 
+        subMessage="Loading kitchen dishes, ingredient inventory & orders..." 
       />
     );
   }
@@ -775,7 +775,7 @@ export default function ChefSite({ user, onLogin, onLogout }) {
                   {dishes.length === 0 ? (
                     <tr>
                       <td colSpan={6} className="p-4">
-                        <KitchenDataLoader message="Simmering Dishes & Recipe Matrices..." subText="Querying MySQL & PostgreSQL dishes schema..." />
+                        <KitchenDataLoader message="Loading Dishes Menu..." subText="Connecting to kitchen catalog and dishes..." />
                         <KitchenSkeletonRows rows={4} cols={6} />
                       </td>
                     </tr>
@@ -980,7 +980,7 @@ export default function ChefSite({ user, onLogin, onLogout }) {
                 type="submit"
                 className="w-full py-3.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-slate-950 font-black text-xs transition-all shadow-lg shadow-emerald-500/20"
               >
-                + Save New Dish (MySQL & MongoDB)
+                + Save New Dish to Menu
               </button>
             </form>
           </div>
@@ -1119,7 +1119,7 @@ export default function ChefSite({ user, onLogin, onLogout }) {
                 type="submit"
                 className="w-full py-3.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-slate-950 font-black text-xs transition-all shadow-lg shadow-emerald-500/20"
               >
-                + Save New Dish (MySQL & MongoDB)
+                + Save New Dish to Menu
               </button>
             </form>
           </div>
@@ -1366,7 +1366,7 @@ export default function ChefSite({ user, onLogin, onLogout }) {
       {activeTab === 'inventory' && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           <div className="lg:col-span-2 glass-card rounded-2xl p-6 border border-slate-300 dark:border-slate-800 space-y-4">
-            <h2 className="text-xl font-bold text-slate-900 dark:text-white border-b border-slate-300 dark:border-slate-800 pb-3">Relational Ingredient Stock Inventory</h2>
+            <h2 className="text-xl font-bold text-slate-900 dark:text-white border-b border-slate-300 dark:border-slate-800 pb-3">Kitchen Raw Ingredient Stock & Inventory</h2>
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs">
                 <thead className="bg-slate-100 dark:bg-slate-900 text-slate-700 dark:text-slate-400 uppercase text-[10px] tracking-wider">
@@ -1836,7 +1836,7 @@ export default function ChefSite({ user, onLogin, onLogout }) {
               <div className="space-y-4">
                 <KitchenDataLoader 
                   message="Syncing Escrow Ledgers & Calculating Net Payouts..." 
-                  subText="Querying MySQL & PostgreSQL Escrow releases and 85% chef splits..." 
+                  subText="Calculating escrow disbursements and 85% chef earnings..." 
                 />
                 <KitchenSkeletonRows rows={5} />
               </div>

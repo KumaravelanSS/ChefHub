@@ -35,7 +35,7 @@ export default function LandingPortalsPage() {
       description: 'Real-time kitchen order board, recipe inventory management, and automatic ingredient stock tracking.',
       features: [
         'Kitchen Display System (KDS) Order Management',
-        'Relational Recipe Builder & Ingredient Manager',
+        'Artisanal Recipe Builder & Ingredient Manager',
         'Automatic Inventory Deduction on Order Acceptance',
         'Low Stock Alerts & Reorder Level Trackers'
       ]

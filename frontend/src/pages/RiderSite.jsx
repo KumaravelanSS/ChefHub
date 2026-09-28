@@ -289,7 +289,7 @@ export default function RiderSite({ user, onLogin }) {
           <div className="glass-card rounded-2xl p-5 border border-slate-300 dark:border-slate-800 space-y-4">
             <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2 border-b border-slate-300 dark:border-slate-800 pb-3">
               <Navigation className="w-4 h-4 text-sky-500 dark:text-sky-400" />
-              <span>MongoDB GPS Coordinates</span>
+              <span>Live GPS Navigation Coordinates</span>
             </h3>
 
             <div className="bg-slate-100 dark:bg-slate-950 p-4 rounded-xl border border-slate-300 dark:border-slate-900 space-y-2 font-mono text-xs">

@@ -148,15 +148,15 @@ function MainApp() {
       </main>
 
       {/* Footer */}
-      <footer className="border-t border-slate-900 bg-slate-950 py-6 text-center text-xs text-slate-500">
+      <footer className="border-t border-slate-200 dark:border-slate-900 bg-slate-100 dark:bg-slate-950 py-6 text-center text-xs text-slate-500">
         <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-3">
-          <p>© 2026 ChefHub DBMS Project. Production-Level Multi-Portal Ecosystem.</p>
-          <div className="flex items-center gap-4 text-slate-400">
-            <span>7 MySQL Relational Tables</span>
+          <p>© 2026 ChefHub. Handcrafted Gourmet Food & Kitchen Ecosystem.</p>
+          <div className="flex items-center gap-4 text-slate-400 font-semibold">
+            <span>Verified Independent Chefs</span>
             <span>•</span>
-            <span>5 MongoDB Collections</span>
+            <span>Direct Escrow Protection</span>
             <span>•</span>
-            <span>12 Schemas Total</span>
+            <span>Real-Time Express Logistics</span>
           </div>
         </div>
       </footer>
