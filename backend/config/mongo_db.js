@@ -6,7 +6,44 @@ const memoryDocs = {
   vendors_menus: [],
   rider_logistics: [],
   order_tracking_logs: [],
-  reviews_analytics: [],
+  reviews_analytics: [
+    {
+      review_id: 101,
+      order_id: 1,
+      customer_id: 4,
+      vendor_id: 2,
+      rider_id: 6,
+      vendor_rating: 5,
+      rider_rating: 5,
+      comment: 'Absolutely incredible Signature Truffle Tagliatelle! Delivered hot and fresh by David.',
+      sentiment_label: 'POSITIVE',
+      created_at: new Date(Date.now() - 3600000 * 2)
+    },
+    {
+      review_id: 104,
+      order_id: 4,
+      customer_id: 4,
+      vendor_id: 2,
+      rider_id: 6,
+      vendor_rating: 5,
+      rider_rating: 5,
+      comment: 'The handmade pasta is authentic Italian perfection. Best in the city!',
+      sentiment_label: 'POSITIVE',
+      created_at: new Date(Date.now() - 3600000 * 8)
+    },
+    {
+      review_id: 105,
+      order_id: 7,
+      customer_id: 5,
+      vendor_id: 2,
+      rider_id: 6,
+      vendor_rating: 5,
+      rider_rating: 4,
+      comment: 'Truffle Burrata Flatbread was warm, crispy, and the cheese was super creamy.',
+      sentiment_label: 'POSITIVE',
+      created_at: new Date(Date.now() - 3600000 * 18)
+    }
+  ],
   system_audit_logs: []
 };
 
@@ -111,6 +148,11 @@ async function initMongoDb() {
     await mongoose.connect(mongoUri, { serverSelectionTimeoutMS: 2000 });
     isMongoConnected = true;
     console.log('[Mongo Engine] Connected to MongoDB instance successfully.');
+    const count = await ReviewAnalytics.countDocuments();
+    if (count === 0 && memoryDocs.reviews_analytics.length > 0) {
+      await ReviewAnalytics.insertMany(memoryDocs.reviews_analytics);
+      console.log('[Mongo Engine] Seeded verified customer reviews into MongoDB.');
+    }
   } catch (err) {
     console.log('[Mongo Engine] MongoDB offline. Operating in Resilient Mongo Memory Mode for zero-friction evaluation.');
     isMongoConnected = false;
@@ -223,20 +265,31 @@ const MongoAdapter = {
     return memoryDocs.order_tracking_logs.find(l => l.order_id === Number(order_id)) || null;
   },
   async upsertReview(reviewObj) {
+    const normalized = {
+      ...reviewObj,
+      review_id: reviewObj.review_id ? Number(reviewObj.review_id) : Date.now(),
+      order_id: Number(reviewObj.order_id),
+      customer_id: Number(reviewObj.customer_id),
+      vendor_id: Number(reviewObj.vendor_id),
+      rider_id: reviewObj.rider_id ? Number(reviewObj.rider_id) : null,
+      vendor_rating: Number(reviewObj.vendor_rating || 5),
+      rider_rating: reviewObj.rider_rating ? Number(reviewObj.rider_rating) : 5,
+      created_at: reviewObj.created_at || new Date()
+    };
     if (isMongoConnected) {
       return await ReviewAnalytics.findOneAndUpdate(
-        { order_id: Number(reviewObj.order_id) },
-        reviewObj,
+        { order_id: normalized.order_id },
+        normalized,
         { upsert: true, new: true }
       );
     } else {
-      const idx = memoryDocs.reviews_analytics.findIndex(r => Number(r.order_id) === Number(reviewObj.order_id));
+      const idx = memoryDocs.reviews_analytics.findIndex(r => Number(r.order_id) === normalized.order_id);
       if (idx >= 0) {
-        memoryDocs.reviews_analytics[idx] = { ...memoryDocs.reviews_analytics[idx], ...reviewObj };
+        memoryDocs.reviews_analytics[idx] = { ...memoryDocs.reviews_analytics[idx], ...normalized };
         return memoryDocs.reviews_analytics[idx];
       } else {
-        memoryDocs.reviews_analytics.push(reviewObj);
-        return reviewObj;
+        memoryDocs.reviews_analytics.push(normalized);
+        return normalized;
       }
     }
   },
@@ -248,10 +301,23 @@ const MongoAdapter = {
     return memoryDocs.reviews_analytics.find(r => Number(r.order_id) === Number(order_id)) || null;
   },
   async getReviews(filter = {}) {
-    if (isMongoConnected) return await ReviewAnalytics.find(filter);
+    if (isMongoConnected) {
+      const q = {};
+      if (filter.vendor_id !== undefined && filter.vendor_id !== null) {
+        q.vendor_id = Number(filter.vendor_id);
+      }
+      if (filter.rider_id !== undefined && filter.rider_id !== null) {
+        q.rider_id = Number(filter.rider_id);
+      }
+      return await ReviewAnalytics.find(q);
+    }
     return memoryDocs.reviews_analytics.filter(r => {
-      if (filter.vendor_id && r.vendor_id !== Number(filter.vendor_id)) return false;
-      if (filter.rider_id && r.rider_id !== Number(filter.rider_id)) return false;
+      if (filter.vendor_id !== undefined && filter.vendor_id !== null && Number(r.vendor_id) !== Number(filter.vendor_id)) {
+        return false;
+      }
+      if (filter.rider_id !== undefined && filter.rider_id !== null && Number(r.rider_id) !== Number(filter.rider_id)) {
+        return false;
+      }
       return true;
     });
   },

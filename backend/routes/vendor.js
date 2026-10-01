@@ -653,9 +653,10 @@ router.get('/reviews', authenticateToken, requireRole('VENDOR'), async (req, res
     const reviews = await MongoAdapter.getReviews({ vendor_id: Number(vendor_id) });
     const formatted = [];
     for (const r of reviews) {
-      const cust = await query('SELECT name FROM users WHERE user_id = ?', [r.customer_id]);
+      const raw = r.toObject ? r.toObject() : r;
+      const cust = await query('SELECT name FROM users WHERE user_id = ?', [raw.customer_id]);
       formatted.push({
-        ...r,
+        ...raw,
         customer_name: cust.length > 0 ? cust[0].name : 'Customer'
       });
     }

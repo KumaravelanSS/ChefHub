@@ -472,6 +472,13 @@ router.post('/reviews', authenticateToken, requireRole('CUSTOMER'), async (req, 
       updated_at: new Date()
     });
 
+    try {
+      const { broadcastToChannel } = require('../services/realtime_engine');
+      if (broadcastToChannel) {
+        broadcastToChannel(`vendor_${vendor_id}`, 'REVIEW_POSTED', { order_id, vendor_id, sentiment_label });
+      }
+    } catch (e) {}
+
     return res.json({ success: true, message: 'Review saved successfully!', review });
   } catch (err) {
     console.error('Submit review error:', err);

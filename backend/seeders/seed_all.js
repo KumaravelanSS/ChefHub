@@ -355,12 +355,36 @@ async function seedDatabase() {
       comment: 'Rich tonkotsu broth, very tasty ramen egg. Will order again!',
       sentiment_label: 'POSITIVE',
       created_at: new Date(Date.now() - 3600000 * 48)
+    },
+    {
+      review_id: 104,
+      order_id: 4,
+      customer_id: customerAlex ? customerAlex.user_id : 4,
+      vendor_id: vendorMario ? vendorMario.user_id : 2,
+      rider_id: riderDavid ? riderDavid.user_id : 6,
+      vendor_rating: 5,
+      rider_rating: 5,
+      comment: 'The handmade pasta is authentic Italian perfection. Best in the city!',
+      sentiment_label: 'POSITIVE',
+      created_at: new Date(Date.now() - 3600000 * 8)
+    },
+    {
+      review_id: 105,
+      order_id: 7,
+      customer_id: 5,
+      vendor_id: vendorMario ? vendorMario.user_id : 2,
+      rider_id: riderDavid ? riderDavid.user_id : 6,
+      vendor_rating: 5,
+      rider_rating: 4,
+      comment: 'Truffle Burrata Flatbread was warm, crispy, and the cheese was super creamy.',
+      sentiment_label: 'POSITIVE',
+      created_at: new Date(Date.now() - 3600000 * 18)
     }
   ];
 
   for (const r of sampleReviews) {
-    const existing = await MongoAdapter.getReviews({ vendor_id: r.vendor_id });
-    if (!existing || existing.length === 0) {
+    const existing = await MongoAdapter.getReviewForOrder(r.order_id);
+    if (!existing) {
       await MongoAdapter.upsertReview(r);
     }
   }

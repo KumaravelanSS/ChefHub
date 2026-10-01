@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { ChefHat, Package, Utensils, DollarSign, AlertTriangle, CheckCircle2, Clock, Plus, Trash2, AlertCircle, Edit3, Image as ImageIcon, X, Sparkles, Ban, Eye, EyeOff, Tag, RefreshCw } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { ChefHat, Package, Utensils, DollarSign, AlertTriangle, CheckCircle2, Clock, Plus, Trash2, AlertCircle, Edit3, Image as ImageIcon, X, Sparkles, Ban, Eye, EyeOff, Tag, RefreshCw, Star } from 'lucide-react';
 import { KitchenLoadingScreen, KitchenDataLoader, KitchenSkeletonRows } from '../components/KitchenLoading';
 
 const presetImages = [
@@ -74,6 +74,29 @@ export default function ChefSite({ user, onLogin, onLogout }) {
     chef_bio: ''
   });
 
+  const tabRefs = useRef({});
+  const [indicatorStyle, setIndicatorStyle] = useState({ left: 0, width: 0, opacity: 0 });
+
+  useEffect(() => {
+    const updateIndicator = () => {
+      const currentTabEl = tabRefs.current[activeTab];
+      if (currentTabEl) {
+        setIndicatorStyle({
+          left: currentTabEl.offsetLeft,
+          width: currentTabEl.offsetWidth,
+          opacity: 1
+        });
+      }
+    };
+    updateIndicator();
+    const timer = setTimeout(updateIndicator, 60);
+    window.addEventListener('resize', updateIndicator);
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener('resize', updateIndicator);
+    };
+  }, [activeTab, dishes.length, inventory.length, chefReviews.length]);
+
   useEffect(() => {
     if (user && user.role === 'VENDOR') {
       fetchData().finally(() => setLoadingInitial(false));
@@ -97,6 +120,11 @@ export default function ChefSite({ user, onLogin, onLogout }) {
 
         eventSource.addEventListener('DISH_STOCK_UPDATED', () => {
           fetchData();
+        });
+
+        eventSource.addEventListener('REVIEW_POSTED', () => {
+          fetchData();
+          fetchReviews();
         });
       } catch (e) {
         // Fallback to background interval
@@ -173,12 +201,13 @@ export default function ChefSite({ user, onLogin, onLogout }) {
     const headers = { Authorization: `Bearer ${token}` };
 
     try {
-      // Parallel fetch store profile, dishes, orders, and inventory so portion & ingredient stock updates in real-time
-      const [resProf, resDishes, resOrders, resInv] = await Promise.all([
+      // Parallel fetch store profile, dishes, orders, inventory, and reviews so portion, status, and reviews update in real-time
+      const [resProf, resDishes, resOrders, resInv, resReviews] = await Promise.all([
         fetch('/api/vendor/profile', { headers }),
         fetch('/api/vendor/dishes', { headers }),
         fetch('/api/vendor/orders', { headers }),
-        fetch('/api/vendor/inventory', { headers })
+        fetch('/api/vendor/inventory', { headers }),
+        fetch('/api/vendor/reviews', { headers })
       ]);
 
       const dataProf = await resProf.json();
@@ -212,6 +241,11 @@ export default function ChefSite({ user, onLogin, onLogout }) {
         if (dataInv.inventory.length > 0 && !newRecipe.ingredient_id) {
           setNewRecipe(prev => ({ ...prev, ingredient_id: dataInv.inventory[0].ingredient_id }));
         }
+      }
+
+      const dataReviews = await resReviews.json();
+      if (dataReviews.success && Array.isArray(dataReviews.reviews)) {
+        setChefReviews(dataReviews.reviews);
       }
     } catch (err) {
       console.error('Chef fetchData error:', err);
@@ -704,8 +738,17 @@ export default function ChefSite({ user, onLogin, onLogout }) {
   }
 
   // Logged-in Chef Console View
+  const navTabs = [
+    { id: 'dishes', label: `Dishes Menu (${dishes.length})`, icon: Utensils },
+    { id: 'orders', label: 'Kitchen Order Queue', icon: Clock },
+    { id: 'inventory', label: `Stock Inventory (${inventory.length})`, icon: Package },
+    { id: 'recipes', label: 'Recipe Builder', icon: Plus },
+    { id: 'payouts', label: 'Payout Earnings', icon: DollarSign },
+    { id: 'reviews', label: `Customer Reviews (${chefReviews.length})`, icon: Tag }
+  ];
+
   return (
-    <div className="max-w-7xl mx-auto px-4 lg:px-8 py-8 space-y-8">
+    <div className="max-w-[1540px] w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
       
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-5 border-b border-slate-200/80 dark:border-slate-800/80 pb-6">
@@ -760,88 +803,50 @@ export default function ChefSite({ user, onLogin, onLogout }) {
           <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 font-medium">Manage dish menu, real-time stock availability, ingredient inventory, and kitchen orders</p>
         </div>
 
-        {/* Modern Segmented Tab Switcher */}
-        <div className="flex flex-wrap items-center gap-1.5 p-1.5 bg-slate-200/60 dark:bg-slate-900/90 backdrop-blur-md rounded-2xl border border-slate-300/80 dark:border-slate-800 text-xs font-bold shadow-inner">
-          <button
-            onClick={() => setActiveTab('dishes')}
-            className={`flex items-center gap-2 px-3.5 py-2 rounded-xl transition-all ${
-              activeTab === 'dishes' 
-                ? 'bg-white dark:bg-emerald-500 text-emerald-800 dark:text-slate-950 shadow-md font-black border border-emerald-200/80 dark:border-emerald-400' 
-                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-white/50 dark:hover:bg-slate-800/60'
-            }`}
-          >
-            <Utensils className="w-3.5 h-3.5" />
-            Dishes Menu ({dishes.length})
-          </button>
+        {/* Modern Segmented Tab Switcher with Smooth Sliding Indicator */}
+        <div className="relative flex items-center gap-1.5 p-1.5 bg-slate-200/70 dark:bg-slate-900/90 backdrop-blur-md rounded-2xl border border-slate-300/80 dark:border-slate-800 text-xs font-bold shadow-inner overflow-x-auto no-scrollbar">
+          {/* Smooth Sliding Highlight Rectangle */}
+          <div
+            className="absolute top-1.5 bottom-1.5 rounded-xl transition-all duration-300 ease-out pointer-events-none z-0
+                       bg-white border border-emerald-300/80 shadow-md shadow-emerald-500/10
+                       dark:bg-gradient-to-r dark:from-emerald-500/25 dark:via-teal-500/20 dark:to-emerald-500/15
+                       dark:border dark:border-emerald-400/60 dark:ring-1 dark:ring-emerald-400/30
+                       dark:shadow-[0_0_18px_rgba(52,211,153,0.22)] dark:backdrop-blur-md"
+            style={{
+              transform: `translateX(${indicatorStyle.left}px)`,
+              width: `${indicatorStyle.width}px`,
+              opacity: indicatorStyle.opacity
+            }}
+          />
 
-          <button
-            onClick={() => setActiveTab('orders')}
-            className={`flex items-center gap-2 px-3.5 py-2 rounded-xl transition-all ${
-              activeTab === 'orders' 
-                ? 'bg-white dark:bg-emerald-500 text-emerald-800 dark:text-slate-950 shadow-md font-black border border-emerald-200/80 dark:border-emerald-400' 
-                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-white/50 dark:hover:bg-slate-800/60'
-            }`}
-          >
-            <Clock className="w-3.5 h-3.5" />
-            Kitchen Order Queue
-          </button>
-
-          <button
-            onClick={() => setActiveTab('inventory')}
-            className={`flex items-center gap-2 px-3.5 py-2 rounded-xl transition-all ${
-              activeTab === 'inventory' 
-                ? 'bg-white dark:bg-emerald-500 text-emerald-800 dark:text-slate-950 shadow-md font-black border border-emerald-200/80 dark:border-emerald-400' 
-                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-white/50 dark:hover:bg-slate-800/60'
-            }`}
-          >
-            <Package className="w-3.5 h-3.5" />
-            Stock Inventory ({inventory.length})
-          </button>
-
-          <button
-            onClick={() => setActiveTab('recipes')}
-            className={`flex items-center gap-2 px-3.5 py-2 rounded-xl transition-all ${
-              activeTab === 'recipes' 
-                ? 'bg-white dark:bg-emerald-500 text-emerald-800 dark:text-slate-950 shadow-md font-black border border-emerald-200/80 dark:border-emerald-400' 
-                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-white/50 dark:hover:bg-slate-800/60'
-            }`}
-          >
-            <Plus className="w-3.5 h-3.5" />
-            Recipe Builder
-          </button>
-
-          <button
-            onClick={() => setActiveTab('payouts')}
-            className={`flex items-center gap-2 px-3.5 py-2 rounded-xl transition-all ${
-              activeTab === 'payouts' 
-                ? 'bg-white dark:bg-emerald-500 text-emerald-800 dark:text-slate-950 shadow-md font-black border border-emerald-200/80 dark:border-emerald-400' 
-                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-white/50 dark:hover:bg-slate-800/60'
-            }`}
-          >
-            <DollarSign className="w-3.5 h-3.5" />
-            Payout Earnings
-          </button>
-
-          <button
-            onClick={() => setActiveTab('reviews')}
-            className={`flex items-center gap-2 px-3.5 py-2 rounded-xl transition-all ${
-              activeTab === 'reviews' 
-                ? 'bg-white dark:bg-emerald-500 text-emerald-800 dark:text-slate-950 shadow-md font-black border border-emerald-200/80 dark:border-emerald-400' 
-                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-white/50 dark:hover:bg-slate-800/60'
-            }`}
-          >
-            <Tag className="w-3.5 h-3.5" />
-            Customer Reviews ({chefReviews.length})
-          </button>
+          {navTabs.map((tab) => {
+            const Icon = tab.icon;
+            const isActive = activeTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                ref={(el) => (tabRefs.current[tab.id] = el)}
+                onClick={() => setActiveTab(tab.id)}
+                className={`relative z-10 flex items-center gap-2 px-3.5 py-2 rounded-xl transition-colors duration-200 whitespace-nowrap cursor-pointer select-none ${
+                  isActive
+                    ? 'text-emerald-900 dark:text-emerald-300 font-black'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-emerald-200'
+                }`}
+              >
+                <Icon className={`w-3.5 h-3.5 transition-colors ${isActive ? 'text-emerald-600 dark:text-emerald-400' : ''}`} />
+                <span>{tab.label}</span>
+              </button>
+            );
+          })}
         </div>
       </div>
 
       {/* Tab: Dishes Menu CRUD with Real-time Stock Toggle & Edit Modal */}
       {activeTab === 'dishes' && (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 items-start">
           
-          {/* Left 2 Cols: Dishes Table */}
-          <div className="lg:col-span-2 glass-card rounded-3xl p-6 sm:p-7 border border-slate-200/80 dark:border-slate-800 bg-white/95 dark:bg-slate-900/95 space-y-5 shadow-xl shadow-slate-200/40 dark:shadow-none backdrop-blur-xl relative overflow-hidden">
+          {/* Left: Dishes Table (8 cols on XL screens) */}
+          <div className="xl:col-span-8 glass-card rounded-3xl p-5 sm:p-6 border border-slate-200/80 dark:border-slate-800 bg-white/95 dark:bg-slate-900/95 space-y-4 shadow-xl shadow-slate-200/40 dark:shadow-none backdrop-blur-xl relative overflow-hidden">
             <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800/80 pb-4">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-amber-500 to-orange-500 text-white flex items-center justify-center shadow-lg shadow-amber-500/20 shrink-0">
@@ -858,16 +863,16 @@ export default function ChefSite({ user, onLogin, onLogout }) {
               </span>
             </div>
             
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto w-full">
               <table className="w-full text-left text-xs">
                 <thead className="bg-slate-50 dark:bg-slate-800/50 text-slate-500 dark:text-slate-400 uppercase text-[10px] font-black tracking-wider border-b border-slate-100 dark:border-slate-800">
                   <tr>
-                    <th className="p-3.5 pl-4 rounded-l-2xl">Dish</th>
-                    <th className="p-3.5">Category</th>
-                    <th className="p-3.5">Price (₹)</th>
-                    <th className="p-3.5">Daily Portion Stock</th>
-                    <th className="p-3.5">Stock Status</th>
-                    <th className="p-3.5 pr-4 rounded-r-2xl text-right">Actions</th>
+                    <th className="py-3 px-3 pl-4 rounded-l-2xl whitespace-nowrap">Dish</th>
+                    <th className="py-3 px-3 whitespace-nowrap">Category</th>
+                    <th className="py-3 px-3 whitespace-nowrap">Price (₹)</th>
+                    <th className="py-3 px-3 whitespace-nowrap">Daily Portion Stock</th>
+                    <th className="py-3 px-3 whitespace-nowrap">Stock Status</th>
+                    <th className="py-3 px-3 pr-4 rounded-r-2xl text-right whitespace-nowrap">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
@@ -884,21 +889,21 @@ export default function ChefSite({ user, onLogin, onLogout }) {
                       const stockNum = Number(d.daily_stock !== undefined ? d.daily_stock : 20);
                     return (
                       <tr key={d.dish_id} className="group hover:bg-amber-500/[0.03] dark:hover:bg-slate-800/40 transition-all">
-                        <td className="p-3.5 pl-4">
-                          <div className="flex items-center gap-3.5">
+                        <td className="py-3 px-3 pl-4">
+                          <div className="flex items-center gap-3">
                             {d.image_url ? (
-                              <img src={d.image_url} alt={d.name} className="w-12 h-12 rounded-2xl object-cover ring-2 ring-slate-100 dark:ring-slate-800 shadow-md group-hover:scale-105 transition-transform shrink-0" />
+                              <img src={d.image_url} alt={d.name} className="w-11 h-11 rounded-2xl object-cover ring-2 ring-slate-100 dark:ring-slate-800 shadow-md group-hover:scale-105 transition-transform shrink-0" />
                             ) : (
-                              <div className="w-12 h-12 rounded-2xl bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center font-bold text-xs ring-2 ring-slate-100 dark:ring-slate-800 shrink-0">
+                              <div className="w-11 h-11 rounded-2xl bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center font-bold text-xs ring-2 ring-slate-100 dark:ring-slate-800 shrink-0">
                                 <Utensils className="w-5 h-5" />
                               </div>
                             )}
-                            <div>
-                              <h4 className="font-extrabold text-slate-900 dark:text-white text-sm font-display group-hover:text-amber-600 dark:group-hover:text-amber-400 transition-colors leading-tight">{d.name}</h4>
-                              <div className="flex items-center gap-2 mt-1">
-                                <span className="text-[10px] text-slate-400 font-mono font-bold">ID #{d.dish_id}</span>
+                            <div className="min-w-0">
+                              <h4 className="font-extrabold text-slate-900 dark:text-white text-xs sm:text-sm font-display group-hover:text-amber-600 dark:group-hover:text-amber-400 transition-colors leading-snug line-clamp-1" title={d.name}>{d.name}</h4>
+                              <div className="flex items-center gap-1.5 mt-0.5">
+                                <span className="text-[10px] text-slate-400 font-mono font-bold whitespace-nowrap">ID #{d.dish_id}</span>
                                 {d.dietary_tags && d.dietary_tags[0] && (
-                                  <span className="text-[9px] font-extrabold px-1.5 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400">
+                                  <span className="text-[9px] font-extrabold px-1.5 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 whitespace-nowrap">
                                     {d.dietary_tags[0]}
                                   </span>
                                 )}
@@ -906,18 +911,18 @@ export default function ChefSite({ user, onLogin, onLogout }) {
                             </div>
                           </div>
                         </td>
-                        <td className="p-3.5">
-                          <span className="px-3 py-1 rounded-full text-xs font-extrabold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200/70 dark:border-slate-700/60 shadow-sm">
+                        <td className="py-3 px-3 whitespace-nowrap">
+                          <span className="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-extrabold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200/70 dark:border-slate-700/60 shadow-sm whitespace-nowrap">
                             {d.category}
                           </span>
                         </td>
-                        <td className="p-3.5 font-black text-amber-600 dark:text-amber-400 text-sm font-display tracking-tight">
+                        <td className="py-3 px-3 whitespace-nowrap font-black text-amber-600 dark:text-amber-400 text-sm font-display tracking-tight">
                           ₹{Number(d.base_price).toFixed(2)}
                         </td>
                         
                         {/* Daily Portion Stock Counter & Dynamic Stepper */}
-                        <td className="p-3.5">
-                          <div className="flex items-center gap-1.5">
+                        <td className="py-3 px-3 whitespace-nowrap">
+                          <div className="inline-flex items-center gap-1.5">
                             <button
                               type="button"
                               onClick={() => handleAdjustStock(d.dish_id, -1)}
@@ -927,7 +932,7 @@ export default function ChefSite({ user, onLogin, onLogout }) {
                             >
                               -
                             </button>
-                            <span className={`px-2.5 py-1 rounded-xl text-xs font-black font-mono border text-center min-w-[56px] shadow-sm transition-colors ${
+                            <span className={`px-2.5 py-1 rounded-xl text-xs font-black font-mono border text-center min-w-[48px] shadow-sm transition-colors ${
                               stockNum > 5 
                                 ? 'bg-emerald-50 text-emerald-800 border-emerald-300 dark:bg-emerald-500/15 dark:text-emerald-300 dark:border-emerald-500/30' 
                                 : stockNum > 0 
@@ -948,34 +953,34 @@ export default function ChefSite({ user, onLogin, onLogout }) {
                         </td>
 
                         {/* Real-Time Stock Status Toggle Button */}
-                        <td className="p-3.5">
+                        <td className="py-3 px-3 whitespace-nowrap">
                           <button
                             onClick={() => handleToggleStock(d.dish_id)}
-                            className={`px-3.5 py-1.5 rounded-full text-xs font-black transition-all flex items-center gap-2 shadow-sm cursor-pointer active:scale-95 ${
+                            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-black transition-all shadow-sm cursor-pointer active:scale-95 whitespace-nowrap ${
                               isAvail
                                 ? 'bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 dark:bg-emerald-500/15 dark:hover:bg-emerald-500/25 dark:text-emerald-300 dark:border-emerald-500/40'
                                 : 'bg-rose-50 hover:bg-rose-100 text-rose-800 border border-rose-300 dark:bg-rose-500/15 dark:hover:bg-rose-500/25 dark:text-rose-300 dark:border-rose-500/40'
                             }`}
                             title="Click to toggle real-time stock status"
                           >
-                            <span className={`w-2 h-2 rounded-full ${isAvail ? 'bg-emerald-500 animate-pulse shadow-sm shadow-emerald-500/50' : 'bg-rose-500'}`} />
+                            <span className={`w-2 h-2 rounded-full shrink-0 ${isAvail ? 'bg-emerald-500 animate-pulse shadow-sm shadow-emerald-500/50' : 'bg-rose-500'}`} />
                             <span>{isAvail ? 'In Stock' : 'Out of Stock'}</span>
                           </button>
                         </td>
 
                         {/* Edit & Delete Action Buttons */}
-                        <td className="p-3.5 pr-4 text-right">
-                          <div className="flex items-center justify-end gap-1.5">
+                        <td className="py-3 px-3 pr-4 text-right whitespace-nowrap">
+                          <div className="inline-flex items-center justify-end gap-1.5">
                             <button
                               onClick={() => openEditModal(d)}
-                              className="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-amber-500 hover:text-white dark:bg-slate-800 dark:hover:bg-amber-500 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 font-bold text-xs transition-all flex items-center gap-1.5 shadow-sm active:scale-95 cursor-pointer"
+                              className="px-2.5 py-1.5 rounded-xl bg-slate-100 hover:bg-amber-500 hover:text-white dark:bg-slate-800 dark:hover:bg-amber-500 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 font-bold text-xs transition-all flex items-center gap-1 shadow-sm active:scale-95 cursor-pointer whitespace-nowrap"
                               title="Edit dish details"
                             >
                               <Edit3 className="w-3.5 h-3.5" /> Edit
                             </button>
                             <button
                               onClick={() => handleDeleteDish(d.dish_id)}
-                              className="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-rose-500 hover:text-white dark:bg-slate-800 dark:hover:bg-rose-500 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 font-bold text-xs transition-all flex items-center gap-1.5 shadow-sm active:scale-95 cursor-pointer"
+                              className="px-2.5 py-1.5 rounded-xl bg-slate-100 hover:bg-rose-500 hover:text-white dark:bg-slate-800 dark:hover:bg-rose-500 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 font-bold text-xs transition-all flex items-center gap-1 shadow-sm active:scale-95 cursor-pointer whitespace-nowrap"
                               title="Delete dish from menu"
                             >
                               <Trash2 className="w-3.5 h-3.5" /> Delete
@@ -990,8 +995,8 @@ export default function ChefSite({ user, onLogin, onLogout }) {
             </div>
           </div>
 
-          {/* Right Col: Add New Dish Form */}
-          <div className="glass-card rounded-3xl p-6 sm:p-7 border border-slate-200/80 dark:border-slate-800 bg-white/95 dark:bg-slate-900/95 space-y-5 shadow-xl shadow-slate-200/40 dark:shadow-none backdrop-blur-xl relative overflow-hidden">
+          {/* Right Col: Add New Dish Form (4 cols on XL screens) */}
+          <div className="xl:col-span-4 glass-card rounded-3xl p-5 sm:p-6 border border-slate-200/80 dark:border-slate-800 bg-white/95 dark:bg-slate-900/95 space-y-4 shadow-xl shadow-slate-200/40 dark:shadow-none backdrop-blur-xl relative overflow-hidden">
             <div className="flex items-center gap-3 border-b border-slate-100 dark:border-slate-800/80 pb-4">
               <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-emerald-500 to-teal-400 text-slate-950 font-black flex items-center justify-center shadow-lg shadow-emerald-500/20 shrink-0">
                 <Plus className="w-5 h-5 stroke-[2.5]" />
@@ -2204,8 +2209,8 @@ export default function ChefSite({ user, onLogin, onLogout }) {
       {/* Tab: Customer Reviews */}
       {activeTab === 'reviews' && (
         <div className="space-y-6">
-          <div className="glass-card rounded-3xl p-6 sm:p-7 border border-slate-200/80 dark:border-slate-800 bg-white/95 dark:bg-slate-900/95 space-y-5 shadow-xl shadow-slate-200/40 dark:shadow-none">
-            <div className="flex flex-wrap justify-between items-center border-b border-slate-100 dark:border-slate-800 pb-3 gap-3">
+          <div className="glass-card rounded-3xl p-6 sm:p-7 border border-slate-200/80 dark:border-slate-800 bg-white/95 dark:bg-slate-900/95 space-y-5 shadow-xl shadow-slate-200/40 dark:shadow-none backdrop-blur-xl">
+            <div className="flex flex-wrap justify-between items-center border-b border-slate-100 dark:border-slate-800 pb-4 gap-3">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-amber-500 to-orange-500 text-slate-950 flex items-center justify-center shadow-lg shadow-amber-500/20 shrink-0">
                   <Star className="w-5 h-5 fill-slate-950 text-slate-950" />
@@ -2215,7 +2220,8 @@ export default function ChefSite({ user, onLogin, onLogout }) {
                   <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">Real-time reviews and NLP sentiment scoring from verified customers</p>
                 </div>
               </div>
-              <span className="px-3.5 py-1 rounded-full bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 text-xs font-black border border-emerald-500/20 shadow-sm">
+              <span className="px-3.5 py-1.5 rounded-full bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 text-xs font-black border border-emerald-500/25 shadow-sm inline-flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
                 {chefReviews.length} Verified Customer Reviews
               </span>
             </div>
@@ -2228,14 +2234,17 @@ export default function ChefSite({ user, onLogin, onLogout }) {
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
                 {chefReviews.map((r, i) => (
-                  <div key={r.review_id || i} className="p-5 rounded-2xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200/80 dark:border-slate-800 space-y-3 shadow-sm hover:border-slate-300 dark:hover:border-slate-700 transition-all">
+                  <div
+                    key={r.review_id || i}
+                    className="p-5 rounded-2xl bg-white/90 dark:bg-gradient-to-br dark:from-slate-900/95 dark:via-slate-900/80 dark:to-slate-950/95 border border-slate-200/80 dark:border-emerald-500/20 dark:ring-1 dark:ring-emerald-500/15 space-y-3.5 shadow-md dark:shadow-[0_0_20px_rgba(52,211,153,0.06)] hover:border-slate-300 dark:hover:border-emerald-400/40 transition-all backdrop-blur-md"
+                  >
                     <div className="flex justify-between items-start">
                       <div className="flex items-center gap-2.5">
-                        <div className="w-8 h-8 rounded-full bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 font-black text-xs flex items-center justify-center border border-emerald-500/20">
+                        <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-emerald-500/20 to-teal-500/20 text-emerald-700 dark:text-emerald-300 font-black text-xs flex items-center justify-center border border-emerald-500/30 shadow-sm">
                           {(r.customer_name || 'C').charAt(0).toUpperCase()}
                         </div>
                         <div>
-                          <h4 className="font-black text-slate-900 dark:text-white text-sm">{r.customer_name || 'Customer'}</h4>
+                          <h4 className="font-black text-slate-900 dark:text-white text-sm leading-tight">{r.customer_name || 'Customer'}</h4>
                           <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">Order #{r.order_id}</p>
                         </div>
                       </div>
@@ -2250,13 +2259,19 @@ export default function ChefSite({ user, onLogin, onLogout }) {
 
                     <div className="flex items-center gap-1 text-amber-500 text-sm">
                       {Array.from({ length: r.vendor_rating || 5 }).map((_, starIdx) => (
-                        <Star key={starIdx} className="w-4 h-4 fill-amber-400 text-amber-400" />
+                        <Star key={starIdx} className="w-4 h-4 fill-amber-400 text-amber-400 drop-shadow-sm" />
                       ))}
                     </div>
 
-                    <p className="text-xs text-slate-700 dark:text-slate-300 italic bg-white dark:bg-slate-900 p-3 rounded-xl border border-slate-200/80 dark:border-slate-800/80 shadow-inner">
+                    <p className="text-xs text-slate-700 dark:text-slate-200 italic bg-slate-50/80 dark:bg-slate-950/70 p-3.5 rounded-xl border border-slate-200/80 dark:border-slate-800/80 shadow-inner leading-relaxed">
                       "{r.comment || 'Delicious meal!'}"
                     </p>
+
+                    {r.created_at && (
+                      <p className="text-[10px] text-slate-400 font-medium text-right pt-0.5">
+                        {new Date(r.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
+                      </p>
+                    )}
                   </div>
                 ))}
               </div>
