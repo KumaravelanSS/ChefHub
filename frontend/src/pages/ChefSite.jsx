@@ -708,20 +708,20 @@ export default function ChefSite({ user, onLogin, onLogout }) {
     <div className="max-w-7xl mx-auto px-4 lg:px-8 py-8 space-y-8">
       
       {/* Header */}
-      <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-300 dark:border-slate-800/80 pb-6">
-        <div>
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-xs font-bold uppercase flex items-center gap-1">
-              <ChefHat className="w-3.5 h-3.5" /> Kitchen Management
+      <div className="flex flex-wrap items-center justify-between gap-5 border-b border-slate-200/80 dark:border-slate-800/80 pb-6">
+        <div className="space-y-2">
+          <div className="flex flex-wrap items-center gap-2.5">
+            <span className="px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-700 dark:text-emerald-400 text-xs font-black uppercase tracking-wider flex items-center gap-1.5 shadow-sm">
+              <ChefHat className="w-3.5 h-3.5" /> Kitchen Management Console
             </span>
 
             {/* Live Store Open / Closed Status Toggle Button */}
             <button
               onClick={handleInitiateKitchenToggle}
-              className={`px-3 py-1 rounded-full text-xs font-black flex items-center gap-1.5 transition-all shadow-md cursor-pointer ${
+              className={`px-3.5 py-1 rounded-full text-xs font-black flex items-center gap-2 transition-all shadow-md active:scale-95 cursor-pointer ${
                 storeProfile.is_open
-                  ? 'bg-emerald-500 hover:bg-emerald-600 text-white shadow-emerald-500/20'
-                  : 'bg-rose-500 hover:bg-rose-600 text-white shadow-rose-500/20'
+                  ? 'bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white shadow-emerald-500/25 ring-2 ring-emerald-400/30'
+                  : 'bg-gradient-to-r from-rose-500 to-red-600 hover:from-rose-600 hover:to-red-700 text-white shadow-rose-500/25 ring-2 ring-rose-400/30'
               }`}
               title="Click to toggle whether your kitchen is open to accept orders"
             >
@@ -732,7 +732,7 @@ export default function ChefSite({ user, onLogin, onLogout }) {
             {/* Operating Hours Settings Button */}
             <button
               onClick={() => setShowHoursModal(true)}
-              className="px-3 py-1 rounded-full text-xs font-bold bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-300 dark:hover:bg-slate-700 transition-colors flex items-center gap-1.5 border border-slate-300 dark:border-slate-700"
+              className="px-3.5 py-1 rounded-full text-xs font-bold bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700/80 transition-all flex items-center gap-1.5 border border-slate-200 dark:border-slate-700 shadow-sm active:scale-95"
             >
               <Clock className="w-3.5 h-3.5 text-amber-500" />
               Hours: {storeProfile.operating_hours || '11:00 AM - 10:00 PM'}
@@ -740,32 +740,34 @@ export default function ChefSite({ user, onLogin, onLogout }) {
           </div>
 
           {!storeProfile.is_open && storeProfile.closed_reason && (
-            <div className="mt-2.5 p-2.5 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-600 dark:text-rose-400 text-xs font-bold flex items-center gap-2">
-              <Ban className="w-4 h-4 shrink-0" />
+            <div className="p-3 rounded-2xl bg-rose-500/10 border border-rose-500/20 text-rose-700 dark:text-rose-400 text-xs font-bold flex items-center gap-2 shadow-sm animate-fade-in">
+              <Ban className="w-4 h-4 shrink-0 text-rose-500" />
               <span>Current Closure Reason: "{storeProfile.closed_reason}"</span>
             </div>
           )}
 
           {autoReopenedNotice && (
-            <div className="mt-2.5 p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-xs font-bold flex items-center justify-between gap-2">
+            <div className="p-3 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-700 dark:text-emerald-400 text-xs font-bold flex items-center justify-between gap-2 shadow-sm animate-fade-in">
               <div className="flex items-center gap-2">
                 <Sparkles className="w-4 h-4 text-emerald-500 shrink-0" />
                 <span>🌅 New day detected! Kitchen automatically re-opened for orders today.</span>
               </div>
-              <button onClick={() => setAutoReopenedNotice(false)} className="text-xs text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-0.5">✕</button>
+              <button onClick={() => setAutoReopenedNotice(false)} className="text-xs text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1 rounded-lg">✕</button>
             </div>
           )}
 
-          <h1 className="text-3xl font-black text-slate-900 dark:text-white mt-1">{user.name}</h1>
-          <p className="text-xs text-slate-600 dark:text-slate-400">Manage dish menu, real-time stock availability, ingredient inventory, and kitchen orders</p>
+          <h1 className="text-3xl sm:text-4xl font-black font-display text-slate-900 dark:text-white tracking-tight">{user.name}</h1>
+          <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 font-medium">Manage dish menu, real-time stock availability, ingredient inventory, and kitchen orders</p>
         </div>
 
-        {/* Tab Switcher */}
-        <div className="flex flex-wrap items-center gap-1.5 p-1 bg-slate-100 dark:bg-slate-900 rounded-2xl border border-slate-300 dark:border-slate-800 text-xs font-bold shadow-inner">
+        {/* Modern Segmented Tab Switcher */}
+        <div className="flex flex-wrap items-center gap-1.5 p-1.5 bg-slate-200/60 dark:bg-slate-900/90 backdrop-blur-md rounded-2xl border border-slate-300/80 dark:border-slate-800 text-xs font-bold shadow-inner">
           <button
             onClick={() => setActiveTab('dishes')}
             className={`flex items-center gap-2 px-3.5 py-2 rounded-xl transition-all ${
-              activeTab === 'dishes' ? 'bg-emerald-500 text-white shadow-md font-black' : 'text-slate-700 dark:text-slate-400 hover:text-emerald-600 dark:hover:text-white'
+              activeTab === 'dishes' 
+                ? 'bg-white dark:bg-emerald-500 text-emerald-800 dark:text-slate-950 shadow-md font-black border border-emerald-200/80 dark:border-emerald-400' 
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-white/50 dark:hover:bg-slate-800/60'
             }`}
           >
             <Utensils className="w-3.5 h-3.5" />
@@ -775,7 +777,9 @@ export default function ChefSite({ user, onLogin, onLogout }) {
           <button
             onClick={() => setActiveTab('orders')}
             className={`flex items-center gap-2 px-3.5 py-2 rounded-xl transition-all ${
-              activeTab === 'orders' ? 'bg-emerald-500 text-white shadow-md font-black' : 'text-slate-700 dark:text-slate-400 hover:text-emerald-600 dark:hover:text-white'
+              activeTab === 'orders' 
+                ? 'bg-white dark:bg-emerald-500 text-emerald-800 dark:text-slate-950 shadow-md font-black border border-emerald-200/80 dark:border-emerald-400' 
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-white/50 dark:hover:bg-slate-800/60'
             }`}
           >
             <Clock className="w-3.5 h-3.5" />
@@ -785,7 +789,9 @@ export default function ChefSite({ user, onLogin, onLogout }) {
           <button
             onClick={() => setActiveTab('inventory')}
             className={`flex items-center gap-2 px-3.5 py-2 rounded-xl transition-all ${
-              activeTab === 'inventory' ? 'bg-emerald-500 text-white shadow-md font-black' : 'text-slate-700 dark:text-slate-400 hover:text-emerald-600 dark:hover:text-white'
+              activeTab === 'inventory' 
+                ? 'bg-white dark:bg-emerald-500 text-emerald-800 dark:text-slate-950 shadow-md font-black border border-emerald-200/80 dark:border-emerald-400' 
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-white/50 dark:hover:bg-slate-800/60'
             }`}
           >
             <Package className="w-3.5 h-3.5" />
@@ -795,7 +801,9 @@ export default function ChefSite({ user, onLogin, onLogout }) {
           <button
             onClick={() => setActiveTab('recipes')}
             className={`flex items-center gap-2 px-3.5 py-2 rounded-xl transition-all ${
-              activeTab === 'recipes' ? 'bg-emerald-500 text-white shadow-md font-black' : 'text-slate-700 dark:text-slate-400 hover:text-emerald-600 dark:hover:text-white'
+              activeTab === 'recipes' 
+                ? 'bg-white dark:bg-emerald-500 text-emerald-800 dark:text-slate-950 shadow-md font-black border border-emerald-200/80 dark:border-emerald-400' 
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-white/50 dark:hover:bg-slate-800/60'
             }`}
           >
             <Plus className="w-3.5 h-3.5" />
@@ -805,7 +813,9 @@ export default function ChefSite({ user, onLogin, onLogout }) {
           <button
             onClick={() => setActiveTab('payouts')}
             className={`flex items-center gap-2 px-3.5 py-2 rounded-xl transition-all ${
-              activeTab === 'payouts' ? 'bg-emerald-500 text-white shadow-md font-black' : 'text-slate-700 dark:text-slate-400 hover:text-emerald-600 dark:hover:text-white'
+              activeTab === 'payouts' 
+                ? 'bg-white dark:bg-emerald-500 text-emerald-800 dark:text-slate-950 shadow-md font-black border border-emerald-200/80 dark:border-emerald-400' 
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-white/50 dark:hover:bg-slate-800/60'
             }`}
           >
             <DollarSign className="w-3.5 h-3.5" />
@@ -815,7 +825,9 @@ export default function ChefSite({ user, onLogin, onLogout }) {
           <button
             onClick={() => setActiveTab('reviews')}
             className={`flex items-center gap-2 px-3.5 py-2 rounded-xl transition-all ${
-              activeTab === 'reviews' ? 'bg-emerald-500 text-white shadow-md font-black' : 'text-slate-700 dark:text-slate-400 hover:text-emerald-600 dark:hover:text-white'
+              activeTab === 'reviews' 
+                ? 'bg-white dark:bg-emerald-500 text-emerald-800 dark:text-slate-950 shadow-md font-black border border-emerald-200/80 dark:border-emerald-400' 
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-white/50 dark:hover:bg-slate-800/60'
             }`}
           >
             <Tag className="w-3.5 h-3.5" />
@@ -829,33 +841,39 @@ export default function ChefSite({ user, onLogin, onLogout }) {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           
           {/* Left 2 Cols: Dishes Table */}
-          <div className="lg:col-span-2 glass-card rounded-3xl p-6 border border-slate-300 dark:border-slate-800 space-y-4 shadow-xl">
-            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-300 dark:border-slate-800/80 pb-3">
-              <div>
-                <h2 className="text-xl font-black text-slate-900 dark:text-white">Dishes Menu & Real-Time Stock Controls</h2>
-                <p className="text-xs text-slate-600 dark:text-slate-400">Modify dish names, daily portion stocks, prices, and toggle real-time customer stock availability</p>
+          <div className="lg:col-span-2 glass-card rounded-3xl p-6 sm:p-7 border border-slate-200/80 dark:border-slate-800 bg-white/95 dark:bg-slate-900/95 space-y-5 shadow-xl shadow-slate-200/40 dark:shadow-none backdrop-blur-xl relative overflow-hidden">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800/80 pb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-amber-500 to-orange-500 text-white flex items-center justify-center shadow-lg shadow-amber-500/20 shrink-0">
+                  <Utensils className="w-5 h-5 text-slate-950" />
+                </div>
+                <div>
+                  <h2 className="text-xl sm:text-2xl font-black font-display text-slate-900 dark:text-white tracking-tight">Dishes Menu & Live Stock</h2>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">Manage pricing, portion counters, and real-time customer availability</p>
+                </div>
               </div>
-              <span className="px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-bold">
+              <span className="px-3.5 py-1.5 rounded-full bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/25 text-emerald-700 dark:text-emerald-400 text-xs font-black flex items-center gap-2 shadow-sm">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
                 {dishes.length} Dishes Registered
               </span>
             </div>
             
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs">
-                <thead className="bg-slate-100 dark:bg-slate-900 text-slate-700 dark:text-slate-400 uppercase text-[10px] tracking-wider">
+                <thead className="bg-slate-50 dark:bg-slate-800/50 text-slate-500 dark:text-slate-400 uppercase text-[10px] font-black tracking-wider border-b border-slate-100 dark:border-slate-800">
                   <tr>
-                    <th className="p-3 rounded-l-xl">Dish</th>
-                    <th className="p-3">Category</th>
-                    <th className="p-3">Price (₹)</th>
-                    <th className="p-3">Daily Portion Stock</th>
-                    <th className="p-3">Stock Status</th>
-                    <th className="p-3 rounded-r-xl text-right">Actions</th>
+                    <th className="p-3.5 pl-4 rounded-l-2xl">Dish</th>
+                    <th className="p-3.5">Category</th>
+                    <th className="p-3.5">Price (₹)</th>
+                    <th className="p-3.5">Daily Portion Stock</th>
+                    <th className="p-3.5">Stock Status</th>
+                    <th className="p-3.5 pr-4 rounded-r-2xl text-right">Actions</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-300 dark:divide-slate-800/60">
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
                   {dishes.length === 0 ? (
                     <tr>
-                      <td colSpan={6} className="p-4">
+                      <td colSpan={6} className="p-6">
                         <KitchenDataLoader message="Loading Dishes Menu..." subText="Connecting to kitchen catalog and dishes..." />
                         <KitchenSkeletonRows rows={4} cols={6} />
                       </td>
@@ -863,49 +881,65 @@ export default function ChefSite({ user, onLogin, onLogout }) {
                   ) : (
                     dishes.map((d) => {
                       const isAvail = d.is_available === 1 || d.is_available === true;
+                      const stockNum = Number(d.daily_stock !== undefined ? d.daily_stock : 20);
                     return (
-                      <tr key={d.dish_id} className="hover:bg-slate-100 dark:hover:bg-slate-900/40 transition-colors">
-                        <td className="p-3">
-                          <div className="flex items-center gap-3">
+                      <tr key={d.dish_id} className="group hover:bg-amber-500/[0.03] dark:hover:bg-slate-800/40 transition-all">
+                        <td className="p-3.5 pl-4">
+                          <div className="flex items-center gap-3.5">
                             {d.image_url ? (
-                              <img src={d.image_url} alt={d.name} className="w-10 h-10 rounded-xl object-cover border border-slate-300 dark:border-slate-800 shrink-0" />
+                              <img src={d.image_url} alt={d.name} className="w-12 h-12 rounded-2xl object-cover ring-2 ring-slate-100 dark:ring-slate-800 shadow-md group-hover:scale-105 transition-transform shrink-0" />
                             ) : (
-                              <div className="w-10 h-10 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 flex items-center justify-center font-bold text-xs shrink-0">
-                                <Utensils className="w-4 h-4" />
+                              <div className="w-12 h-12 rounded-2xl bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center font-bold text-xs ring-2 ring-slate-100 dark:ring-slate-800 shrink-0">
+                                <Utensils className="w-5 h-5" />
                               </div>
                             )}
                             <div>
-                              <h4 className="font-bold text-slate-900 dark:text-white text-sm">{d.name}</h4>
-                              <span className="text-[10px] text-slate-500 font-mono">ID #{d.dish_id}</span>
+                              <h4 className="font-extrabold text-slate-900 dark:text-white text-sm font-display group-hover:text-amber-600 dark:group-hover:text-amber-400 transition-colors leading-tight">{d.name}</h4>
+                              <div className="flex items-center gap-2 mt-1">
+                                <span className="text-[10px] text-slate-400 font-mono font-bold">ID #{d.dish_id}</span>
+                                {d.dietary_tags && d.dietary_tags[0] && (
+                                  <span className="text-[9px] font-extrabold px-1.5 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400">
+                                    {d.dietary_tags[0]}
+                                  </span>
+                                )}
+                              </div>
                             </div>
                           </div>
                         </td>
-                        <td className="p-3 font-semibold text-slate-700 dark:text-slate-300">{d.category}</td>
-                        <td className="p-3 font-black text-amber-600 dark:text-amber-400">₹{Number(d.base_price).toFixed(2)}</td>
+                        <td className="p-3.5">
+                          <span className="px-3 py-1 rounded-full text-xs font-extrabold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200/70 dark:border-slate-700/60 shadow-sm">
+                            {d.category}
+                          </span>
+                        </td>
+                        <td className="p-3.5 font-black text-amber-600 dark:text-amber-400 text-sm font-display tracking-tight">
+                          ₹{Number(d.base_price).toFixed(2)}
+                        </td>
                         
                         {/* Daily Portion Stock Counter & Dynamic Stepper */}
-                        <td className="p-3">
+                        <td className="p-3.5">
                           <div className="flex items-center gap-1.5">
                             <button
                               type="button"
                               onClick={() => handleAdjustStock(d.dish_id, -1)}
-                              disabled={Number(d.daily_stock) <= 0}
-                              className="w-6 h-6 rounded-lg bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-black text-xs flex items-center justify-center transition-all disabled:opacity-30 cursor-pointer"
+                              disabled={stockNum <= 0}
+                              className="w-7 h-7 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-black text-xs flex items-center justify-center transition-all active:scale-90 disabled:opacity-30 disabled:cursor-not-allowed shadow-sm border border-slate-200 dark:border-slate-700 cursor-pointer"
                               title="Decrease 1 portion"
                             >
                               -
                             </button>
-                            <span className={`px-2 py-0.5 rounded-lg text-xs font-black font-mono border text-center min-w-[58px] ${
-                              Number(d.daily_stock) > 5 ? 'bg-teal-500/10 text-teal-600 dark:text-teal-400 border-teal-500/20' :
-                              Number(d.daily_stock) > 0 ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20' :
-                              'bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20'
+                            <span className={`px-2.5 py-1 rounded-xl text-xs font-black font-mono border text-center min-w-[56px] shadow-sm transition-colors ${
+                              stockNum > 5 
+                                ? 'bg-emerald-50 text-emerald-800 border-emerald-300 dark:bg-emerald-500/15 dark:text-emerald-300 dark:border-emerald-500/30' 
+                                : stockNum > 0 
+                                ? 'bg-amber-50 text-amber-800 border-amber-300 dark:bg-amber-500/15 dark:text-amber-300 dark:border-amber-500/30' 
+                                : 'bg-rose-50 text-rose-800 border-rose-300 dark:bg-rose-500/15 dark:text-rose-300 dark:border-rose-500/30'
                             }`}>
-                              {d.daily_stock !== undefined ? `${d.daily_stock}` : '20'}
+                              {stockNum}
                             </span>
                             <button
                               type="button"
                               onClick={() => handleAdjustStock(d.dish_id, +5)}
-                              className="px-1.5 h-6 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/30 text-emerald-600 dark:text-emerald-400 font-black text-[11px] flex items-center justify-center transition-all cursor-pointer"
+                              className="px-2 h-7 rounded-xl bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-500/20 dark:hover:bg-emerald-500/30 text-emerald-700 dark:text-emerald-300 font-extrabold text-xs flex items-center justify-center transition-all active:scale-90 shadow-sm border border-emerald-200 dark:border-emerald-500/30 cursor-pointer"
                               title="Add +5 portions"
                             >
                               +5
@@ -914,34 +948,34 @@ export default function ChefSite({ user, onLogin, onLogout }) {
                         </td>
 
                         {/* Real-Time Stock Status Toggle Button */}
-                        <td className="p-3">
+                        <td className="p-3.5">
                           <button
                             onClick={() => handleToggleStock(d.dish_id)}
-                            className={`px-3 py-1.5 rounded-xl border text-[11px] font-black transition-all flex items-center gap-1.5 shadow-sm ${
+                            className={`px-3.5 py-1.5 rounded-full text-xs font-black transition-all flex items-center gap-2 shadow-sm cursor-pointer active:scale-95 ${
                               isAvail
-                                ? 'bg-emerald-500/15 border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/25'
-                                : 'bg-rose-500/15 border-rose-500/30 text-rose-400 hover:bg-rose-500/25'
+                                ? 'bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 dark:bg-emerald-500/15 dark:hover:bg-emerald-500/25 dark:text-emerald-300 dark:border-emerald-500/40'
+                                : 'bg-rose-50 hover:bg-rose-100 text-rose-800 border border-rose-300 dark:bg-rose-500/15 dark:hover:bg-rose-500/25 dark:text-rose-300 dark:border-rose-500/40'
                             }`}
                             title="Click to toggle real-time stock status"
                           >
-                            <span className={`w-2 h-2 rounded-full ${isAvail ? 'bg-emerald-400 animate-pulse' : 'bg-rose-500'}`} />
+                            <span className={`w-2 h-2 rounded-full ${isAvail ? 'bg-emerald-500 animate-pulse shadow-sm shadow-emerald-500/50' : 'bg-rose-500'}`} />
                             <span>{isAvail ? 'In Stock' : 'Out of Stock'}</span>
                           </button>
                         </td>
 
                         {/* Edit & Delete Action Buttons */}
-                        <td className="p-3 text-right">
+                        <td className="p-3.5 pr-4 text-right">
                           <div className="flex items-center justify-end gap-1.5">
                             <button
                               onClick={() => openEditModal(d)}
-                              className="px-2.5 py-1.5 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/20 font-bold text-[11px] transition-all flex items-center gap-1"
-                              title="Edit dish name, image URL, daily stock, price or description"
+                              className="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-amber-500 hover:text-white dark:bg-slate-800 dark:hover:bg-amber-500 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 font-bold text-xs transition-all flex items-center gap-1.5 shadow-sm active:scale-95 cursor-pointer"
+                              title="Edit dish details"
                             >
                               <Edit3 className="w-3.5 h-3.5" /> Edit
                             </button>
                             <button
                               onClick={() => handleDeleteDish(d.dish_id)}
-                              className="px-2.5 py-1.5 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/20 font-bold text-[11px] transition-all flex items-center gap-1"
+                              className="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-rose-500 hover:text-white dark:bg-slate-800 dark:hover:bg-rose-500 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 font-bold text-xs transition-all flex items-center gap-1.5 shadow-sm active:scale-95 cursor-pointer"
                               title="Delete dish from menu"
                             >
                               <Trash2 className="w-3.5 h-3.5" /> Delete
@@ -957,59 +991,68 @@ export default function ChefSite({ user, onLogin, onLogout }) {
           </div>
 
           {/* Right Col: Add New Dish Form */}
-          <div className="glass-card rounded-3xl p-6 border border-slate-300 dark:border-slate-800 space-y-4 shadow-xl">
-            <h3 className="text-base font-extrabold text-slate-900 dark:text-white border-b border-slate-300 dark:border-slate-800 pb-3">+ Add New Dish to Menu</h3>
+          <div className="glass-card rounded-3xl p-6 sm:p-7 border border-slate-200/80 dark:border-slate-800 bg-white/95 dark:bg-slate-900/95 space-y-5 shadow-xl shadow-slate-200/40 dark:shadow-none backdrop-blur-xl relative overflow-hidden">
+            <div className="flex items-center gap-3 border-b border-slate-100 dark:border-slate-800/80 pb-4">
+              <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-emerald-500 to-teal-400 text-slate-950 font-black flex items-center justify-center shadow-lg shadow-emerald-500/20 shrink-0">
+                <Plus className="w-5 h-5 stroke-[2.5]" />
+              </div>
+              <div>
+                <h3 className="text-base font-black font-display text-slate-900 dark:text-white tracking-tight">Add New Dish</h3>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">Publish a handcrafted meal to your catalog</p>
+              </div>
+            </div>
+
             <form onSubmit={handleAddDish} className="space-y-4 text-xs">
               <div>
-                <label className="font-bold text-slate-700 dark:text-slate-300">Dish Name</label>
+                <label className="font-extrabold text-slate-700 dark:text-slate-300 block mb-1">Dish Name</label>
                 <input
                   type="text"
                   value={newDish.name}
                   onChange={(e) => setNewDish({ ...newDish, name: e.target.value })}
                   placeholder="e.g. Handmade Truffle Gnocchi"
-                  className="w-full mt-1.5 px-3.5 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 text-slate-900 dark:text-white outline-none focus:border-emerald-500"
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700/80 text-slate-900 dark:text-white placeholder-slate-400 font-medium outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 shadow-sm transition-all"
                   required
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="font-bold text-slate-700 dark:text-slate-300">Category</label>
+                  <label className="font-extrabold text-slate-700 dark:text-slate-300 block mb-1">Category</label>
                   <input
                     type="text"
                     value={newDish.category}
                     onChange={(e) => setNewDish({ ...newDish, category: e.target.value })}
                     placeholder="Pasta / Curry"
-                    className="w-full mt-1.5 px-3.5 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 text-slate-900 dark:text-white outline-none focus:border-emerald-500"
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700/80 text-slate-900 dark:text-white placeholder-slate-400 font-medium outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 shadow-sm transition-all"
                     required
                   />
                 </div>
                 <div>
-                  <label className="font-bold text-slate-700 dark:text-slate-300">Price (₹)</label>
+                  <label className="font-extrabold text-slate-700 dark:text-slate-300 block mb-1">Price (₹)</label>
                   <input
                     type="number"
                     step="0.01"
                     value={newDish.base_price}
                     onChange={(e) => setNewDish({ ...newDish, base_price: e.target.value })}
                     placeholder="e.g. 280"
-                    className="w-full mt-1.5 px-3.5 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 text-slate-900 dark:text-white outline-none focus:border-emerald-500"
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700/80 text-slate-900 dark:text-white placeholder-slate-400 font-black font-display outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 shadow-sm transition-all"
                     required
                   />
                 </div>
               </div>
 
-              <div className="p-3.5 rounded-2xl bg-emerald-500/5 dark:bg-emerald-500/10 border border-emerald-500/25 space-y-2.5">
+              <div className="p-4 rounded-2xl bg-emerald-500/[0.04] dark:bg-emerald-500/[0.08] border border-emerald-500/20 dark:border-emerald-500/30 space-y-3 shadow-inner">
                 <div className="flex justify-between items-center">
                   <label className="font-extrabold text-slate-800 dark:text-slate-200 flex items-center gap-1.5 text-xs">
-                    <Package className="w-4 h-4 text-emerald-500" />
-                    <span>Daily Stock Portions (Chef Morning Target)</span>
+                    <Package className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                    <span>Daily Portion Target</span>
                   </label>
                   <span className={`text-[10px] font-black px-2.5 py-0.5 rounded-full ${
                     Number(newDish.daily_stock) > 5 
-                      ? 'bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30' 
+                      ? 'bg-emerald-50 text-emerald-800 border border-emerald-200 dark:bg-emerald-500/20 dark:text-emerald-300 dark:border-emerald-500/30' 
                       : Number(newDish.daily_stock) > 0 
-                      ? 'bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/30' 
-                      : 'bg-rose-500/20 text-rose-600 dark:text-rose-400 border border-rose-500/30'
+                      ? 'bg-amber-50 text-amber-800 border border-amber-200 dark:bg-amber-500/20 dark:text-amber-300 dark:border-amber-500/30' 
+                      : 'bg-rose-50 text-rose-800 border border-rose-200 dark:bg-rose-500/20 dark:text-rose-300 dark:border-rose-500/30'
                   }`}>
                     {Number(newDish.daily_stock) > 0 ? `${newDish.daily_stock} portions` : 'Depleted (0)'}
                   </span>
@@ -1023,7 +1066,7 @@ export default function ChefSite({ user, onLogin, onLogout }) {
                       const next = Math.max(0, cur - 1);
                       setNewDish({ ...newDish, daily_stock: next, is_available: next > 0 });
                     }}
-                    className="w-10 h-10 rounded-xl bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 font-black text-lg text-slate-900 dark:text-white flex items-center justify-center border border-slate-300 dark:border-slate-700 transition-all active:scale-95 shadow-sm"
+                    className="w-10 h-10 rounded-xl bg-white hover:bg-slate-100 dark:bg-slate-800 dark:hover:bg-slate-700 font-black text-lg text-slate-900 dark:text-white flex items-center justify-center border border-slate-200 dark:border-slate-700 transition-all active:scale-95 shadow-sm cursor-pointer"
                     title="Decrease portions by 1"
                   >
                     -
@@ -1037,7 +1080,7 @@ export default function ChefSite({ user, onLogin, onLogout }) {
                       setNewDish({ ...newDish, daily_stock: val, is_available: val > 0 });
                     }}
                     placeholder="20"
-                    className="flex-1 px-3.5 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 text-slate-900 dark:text-white font-black text-center text-sm outline-none focus:border-emerald-500 shadow-inner"
+                    className="flex-1 px-3.5 py-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white font-black font-mono text-center text-sm outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 shadow-inner"
                     required
                   />
                   <button
@@ -1047,7 +1090,7 @@ export default function ChefSite({ user, onLogin, onLogout }) {
                       const next = cur + 1;
                       setNewDish({ ...newDish, daily_stock: next, is_available: true });
                     }}
-                    className="w-10 h-10 rounded-xl bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 font-black text-lg text-slate-900 dark:text-white flex items-center justify-center border border-slate-300 dark:border-slate-700 transition-all active:scale-95 shadow-sm"
+                    className="w-10 h-10 rounded-xl bg-white hover:bg-slate-100 dark:bg-slate-800 dark:hover:bg-slate-700 font-black text-lg text-slate-900 dark:text-white flex items-center justify-center border border-slate-200 dark:border-slate-700 transition-all active:scale-95 shadow-sm cursor-pointer"
                     title="Increase portions by 1"
                   >
                     +
@@ -1055,7 +1098,7 @@ export default function ChefSite({ user, onLogin, onLogout }) {
                 </div>
 
                 {/* Quick Presets */}
-                <div className="space-y-1 pt-1">
+                <div className="space-y-1.5 pt-1">
                   <span className="text-[10px] text-slate-500 dark:text-slate-400 font-bold">Quick Presets:</span>
                   <div className="flex flex-wrap gap-1.5">
                     {[
@@ -1074,7 +1117,7 @@ export default function ChefSite({ user, onLogin, onLogout }) {
                           const nextVal = Math.max(0, preset.calc(cur));
                           setNewDish({ ...newDish, daily_stock: nextVal, is_available: nextVal > 0 });
                         }}
-                        className="px-2.5 py-1 rounded-lg bg-white dark:bg-slate-900 hover:bg-emerald-500 hover:text-slate-950 text-slate-700 dark:text-slate-300 text-[10px] font-extrabold border border-slate-300 dark:border-slate-700 transition-all active:scale-95 shadow-sm"
+                        className="px-2.5 py-1 rounded-lg bg-white dark:bg-slate-800 hover:bg-emerald-500 hover:text-white text-slate-700 dark:text-slate-300 text-[10px] font-extrabold border border-slate-200 dark:border-slate-700 transition-all active:scale-95 shadow-sm cursor-pointer"
                       >
                         {preset.label}
                       </button>
@@ -1084,25 +1127,25 @@ export default function ChefSite({ user, onLogin, onLogout }) {
               </div>
 
               <div>
-                <label className="font-bold text-slate-700 dark:text-slate-300">Food Image URL</label>
+                <label className="font-extrabold text-slate-700 dark:text-slate-300 block mb-1">Food Image URL</label>
                 <input
                   type="url"
                   value={newDish.image_url}
                   onChange={(e) => setNewDish({ ...newDish, image_url: e.target.value })}
                   placeholder="https://images.unsplash.com/..."
-                  className="w-full mt-1.5 px-3.5 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 text-slate-900 dark:text-white outline-none focus:border-emerald-500"
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700/80 text-slate-900 dark:text-white placeholder-slate-400 font-medium outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 shadow-sm transition-all"
                 />
                 
                 {/* Image Quick Presets */}
-                <div className="space-y-1 mt-2">
-                  <span className="text-[10px] text-slate-600 dark:text-slate-400 font-semibold">Quick Food Image Presets:</span>
-                  <div className="flex flex-wrap gap-1">
+                <div className="space-y-1.5 mt-2.5">
+                  <span className="text-[10px] text-slate-500 dark:text-slate-400 font-bold">Quick Food Photo Presets:</span>
+                  <div className="flex flex-wrap gap-1.5">
                     {presetImages.map((p, idx) => (
                       <button
                         key={idx}
                         type="button"
-                        onClick={() => setNewDish({ ...newDish, image_url: p.url })}
-                        className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-[10px] font-bold border border-slate-300 dark:border-slate-700"
+                        onClick={() => setNewDish({ ...newDish, image_url: p.url, category: newDish.category || p.label.replace(/[^a-zA-Z]/g, '') })}
+                        className="px-2.5 py-1 rounded-lg bg-white dark:bg-slate-800 hover:bg-amber-500 hover:text-white text-slate-700 dark:text-slate-300 text-[10px] font-extrabold border border-slate-200 dark:border-slate-700 transition-all active:scale-95 shadow-sm cursor-pointer"
                       >
                         {p.label}
                       </button>
@@ -1112,47 +1155,58 @@ export default function ChefSite({ user, onLogin, onLogout }) {
               </div>
 
               <div>
-                <label className="font-bold text-slate-700 dark:text-slate-300">Description</label>
+                <label className="font-extrabold text-slate-700 dark:text-slate-300 block mb-1">Description</label>
                 <textarea
                   rows="2"
                   value={newDish.description}
                   onChange={(e) => setNewDish({ ...newDish, description: e.target.value })}
-                  placeholder="Brief dish description..."
-                  className="w-full mt-1.5 px-3.5 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 text-slate-900 dark:text-white outline-none focus:border-emerald-500"
+                  placeholder="Brief culinary description, key seasonings, flavor profile..."
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700/80 text-slate-900 dark:text-white placeholder-slate-400 font-medium outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 shadow-sm transition-all resize-none"
                 />
               </div>
 
-              <div className="pt-2">
-                <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">Initial Stock Availability</label>
-                <div className="flex items-center gap-4">
-                  <label className="flex items-center gap-1.5 text-xs text-emerald-600 dark:text-emerald-400 font-bold cursor-pointer">
+              <div className="pt-1">
+                <label className="font-extrabold text-slate-700 dark:text-slate-300 block mb-1.5">Initial Stock Availability</label>
+                <div className="grid grid-cols-2 gap-2.5">
+                  <label className={`flex items-center justify-center gap-2 p-2.5 rounded-xl border cursor-pointer font-black text-xs transition-all ${
+                    newDish.is_available 
+                      ? 'bg-emerald-50 text-emerald-800 border-emerald-300 dark:bg-emerald-500/15 dark:text-emerald-300 dark:border-emerald-500/40 shadow-sm ring-1 ring-emerald-500/20' 
+                      : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-800'
+                  }`}>
                     <input
                       type="radio"
                       name="newDishStock"
                       checked={newDish.is_available === true}
                       onChange={() => setNewDish({ ...newDish, is_available: true })}
-                      className="accent-emerald-500"
+                      className="accent-emerald-500 hidden"
                     />
-                    <span>🟢 In Stock</span>
+                    <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                    <span>In Stock</span>
                   </label>
-                  <label className="flex items-center gap-1.5 text-xs text-rose-600 dark:text-rose-400 font-bold cursor-pointer">
+                  <label className={`flex items-center justify-center gap-2 p-2.5 rounded-xl border cursor-pointer font-black text-xs transition-all ${
+                    !newDish.is_available 
+                      ? 'bg-rose-50 text-rose-800 border-rose-300 dark:bg-rose-500/15 dark:text-rose-300 dark:border-rose-500/40 shadow-sm ring-1 ring-rose-500/20' 
+                      : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-800'
+                  }`}>
                     <input
                       type="radio"
                       name="newDishStock"
                       checked={newDish.is_available === false}
                       onChange={() => setNewDish({ ...newDish, is_available: false })}
-                      className="accent-rose-500"
+                      className="accent-rose-500 hidden"
                     />
-                    <span>🔴 Out of Stock</span>
+                    <span className="w-2 h-2 rounded-full bg-rose-500" />
+                    <span>Out of Stock</span>
                   </label>
                 </div>
               </div>
 
               <button
                 type="submit"
-                className="w-full py-3.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-slate-950 font-black text-xs transition-all shadow-lg shadow-emerald-500/20"
+                className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-600 hover:from-emerald-600 hover:via-teal-600 hover:to-emerald-700 text-white font-black text-sm tracking-wide shadow-xl shadow-emerald-500/25 flex items-center justify-center gap-2 transform active:scale-98 transition-all cursor-pointer mt-2"
               >
-                + Save New Dish to Menu
+                <Plus className="w-4 h-4 stroke-[3]" />
+                <span>Save New Dish to Menu</span>
               </button>
             </form>
           </div>
@@ -1165,16 +1219,16 @@ export default function ChefSite({ user, onLogin, onLogout }) {
         <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 overflow-hidden animate-fade-in">
           <form 
             onSubmit={handleSaveEditDish}
-            className="glass-card bg-white dark:bg-slate-950 rounded-3xl border border-slate-300 dark:border-slate-800 max-w-lg w-full max-h-[90vh] flex flex-col shadow-2xl overflow-hidden"
+            className="glass-card bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/80 dark:border-slate-800 max-w-lg w-full max-h-[90vh] flex flex-col shadow-2xl overflow-hidden"
           >
             {/* STICKY TOP HEADER */}
-            <div className="flex justify-between items-center px-6 py-4 border-b border-slate-200 dark:border-slate-800 bg-white/95 dark:bg-slate-950/95 backdrop-blur-md shrink-0 z-10">
-              <div className="flex items-center gap-2.5">
-                <div className="p-2 rounded-xl bg-amber-500/10 text-amber-500 border border-amber-500/20">
+            <div className="flex justify-between items-center px-6 py-4.5 border-b border-slate-100 dark:border-slate-800 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md shrink-0 z-10">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-amber-500/10 text-amber-500 border border-amber-500/20 flex items-center justify-center shadow-sm">
                   <Edit3 className="w-4 h-4" />
                 </div>
                 <div>
-                  <h3 className="font-black text-slate-900 dark:text-white text-base flex items-center gap-1.5">
+                  <h3 className="font-black font-display text-slate-900 dark:text-white text-base flex items-center gap-1.5">
                     Edit Dish #{editForm.dish_id}
                     {editForm.name && (
                       <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 truncate max-w-[160px]">
@@ -1182,13 +1236,13 @@ export default function ChefSite({ user, onLogin, onLogout }) {
                       </span>
                     )}
                   </h3>
-                  <p className="text-[10px] text-slate-500 dark:text-slate-400">Update pricing, live portions and availability</p>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">Update pricing, live portions and availability</p>
                 </div>
               </div>
               <button 
                 type="button"
                 onClick={() => setEditingDish(null)} 
-                className="text-slate-400 hover:text-slate-900 dark:hover:text-white p-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-all"
+                className="text-slate-400 hover:text-slate-900 dark:hover:text-white p-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-all cursor-pointer"
                 title="Close Modal"
               >
                 <X className="w-5 h-5" />
@@ -1196,55 +1250,55 @@ export default function ChefSite({ user, onLogin, onLogout }) {
             </div>
 
             {/* SCROLLABLE FORM BODY */}
-            <div className="overflow-y-auto px-6 py-4 space-y-3.5 text-xs flex-1 custom-scrollbar">
+            <div className="overflow-y-auto px-6 py-4 space-y-4 text-xs flex-1 custom-scrollbar">
               <div>
-                <label className="font-bold text-slate-700 dark:text-slate-300">Dish Name</label>
+                <label className="font-extrabold text-slate-700 dark:text-slate-300">Dish Name</label>
                 <input
                   type="text"
                   value={editForm.name}
                   onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
-                  className="w-full mt-1 px-3.5 py-2 rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 text-slate-900 dark:text-white outline-none focus:border-amber-500 font-semibold"
+                  className="w-full mt-1.5 px-3.5 py-2.5 rounded-xl bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700/80 text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 font-semibold shadow-sm transition-all"
                   required
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="font-bold text-slate-700 dark:text-slate-300">Category</label>
+                  <label className="font-extrabold text-slate-700 dark:text-slate-300">Category</label>
                   <input
                     type="text"
                     value={editForm.category}
                     onChange={(e) => setEditForm({ ...editForm, category: e.target.value })}
-                    className="w-full mt-1 px-3.5 py-2 rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 text-slate-900 dark:text-white outline-none focus:border-amber-500"
+                    className="w-full mt-1.5 px-3.5 py-2.5 rounded-xl bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700/80 text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 font-medium shadow-sm transition-all"
                     required
                   />
                 </div>
                 <div>
-                  <label className="font-bold text-slate-700 dark:text-slate-300">Price (₹)</label>
+                  <label className="font-extrabold text-slate-700 dark:text-slate-300">Price (₹)</label>
                   <input
                     type="number"
                     step="0.01"
                     value={editForm.base_price}
                     onChange={(e) => setEditForm({ ...editForm, base_price: e.target.value })}
-                    className="w-full mt-1 px-3.5 py-2 rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 text-slate-900 dark:text-white outline-none focus:border-amber-500 font-bold"
+                    className="w-full mt-1.5 px-3.5 py-2.5 rounded-xl bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700/80 text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 font-black shadow-sm transition-all"
                     required
                   />
                 </div>
               </div>
 
               {/* Portions in Stock Field with Steppers & Quick Chips */}
-              <div className="p-3 rounded-2xl bg-amber-500/5 dark:bg-amber-500/10 border border-amber-500/25 space-y-2">
+              <div className="p-3.5 rounded-2xl bg-amber-500/5 dark:bg-amber-500/10 border border-amber-500/20 space-y-2.5">
                 <div className="flex justify-between items-center">
                   <label className="font-extrabold text-slate-800 dark:text-slate-200 flex items-center gap-1.5 text-xs">
-                    <Package className="w-3.5 h-3.5 text-amber-500" />
+                    <Package className="w-4 h-4 text-amber-500" />
                     <span>Portions in Stock (Daily Availability Target)</span>
                   </label>
-                  <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${
+                  <span className={`text-[10px] font-black px-2.5 py-0.5 rounded-full ${
                     Number(editForm.daily_stock) > 5 
-                      ? 'bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30' 
+                      ? 'bg-emerald-50 text-emerald-800 border border-emerald-300 dark:bg-emerald-500/20 dark:text-emerald-400 dark:border-emerald-500/30' 
                       : Number(editForm.daily_stock) > 0 
-                      ? 'bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/30' 
-                      : 'bg-rose-500/20 text-rose-600 dark:text-rose-400 border border-rose-500/30'
+                      ? 'bg-amber-50 text-amber-800 border border-amber-300 dark:bg-amber-500/20 dark:text-amber-400 dark:border-amber-500/30' 
+                      : 'bg-rose-50 text-rose-800 border border-rose-300 dark:bg-rose-500/20 dark:text-rose-400 dark:border-rose-500/30'
                   }`}>
                     {Number(editForm.daily_stock) > 0 ? `${editForm.daily_stock} portions ready` : 'Depleted (0 remaining)'}
                   </span>
@@ -1263,7 +1317,7 @@ export default function ChefSite({ user, onLogin, onLogout }) {
                         out_of_stock_reason: next === 0 ? 'Daily portions fully exhausted (0 remaining)' : (editForm.out_of_stock_reason === 'Daily portions fully exhausted (0 remaining)' ? 'In Stock' : editForm.out_of_stock_reason)
                       });
                     }}
-                    className="w-9 h-9 rounded-xl bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 font-black text-base text-slate-900 dark:text-white flex items-center justify-center border border-slate-300 dark:border-slate-700 transition-all active:scale-95 shadow-sm"
+                    className="w-10 h-10 rounded-xl bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 font-black text-lg text-slate-900 dark:text-white flex items-center justify-center border border-slate-200 dark:border-slate-700 transition-all active:scale-95 shadow-sm cursor-pointer"
                     title="Decrease portions by 1"
                   >
                     -
@@ -1281,7 +1335,7 @@ export default function ChefSite({ user, onLogin, onLogout }) {
                         out_of_stock_reason: val === 0 ? 'Daily portions fully exhausted (0 remaining)' : (editForm.out_of_stock_reason === 'Daily portions fully exhausted (0 remaining)' ? 'In Stock' : editForm.out_of_stock_reason)
                       });
                     }}
-                    className="flex-1 px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 text-slate-900 dark:text-white font-black text-center text-sm outline-none focus:border-amber-500 shadow-inner"
+                    className="flex-1 px-3 py-2 rounded-xl bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700/80 text-slate-900 dark:text-white font-black text-center text-base outline-none focus:border-amber-500 shadow-inner"
                     placeholder="e.g. 25"
                     required
                   />
@@ -1297,7 +1351,7 @@ export default function ChefSite({ user, onLogin, onLogout }) {
                         out_of_stock_reason: editForm.out_of_stock_reason === 'Daily portions fully exhausted (0 remaining)' ? 'In Stock' : editForm.out_of_stock_reason
                       });
                     }}
-                    className="w-9 h-9 rounded-xl bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 font-black text-base text-slate-900 dark:text-white flex items-center justify-center border border-slate-300 dark:border-slate-700 transition-all active:scale-95 shadow-sm"
+                    className="w-10 h-10 rounded-xl bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 font-black text-lg text-slate-900 dark:text-white flex items-center justify-center border border-slate-200 dark:border-slate-700 transition-all active:scale-95 shadow-sm cursor-pointer"
                     title="Increase portions by 1"
                   >
                     +
@@ -1306,7 +1360,7 @@ export default function ChefSite({ user, onLogin, onLogout }) {
 
                 {/* Stock Quick Presets */}
                 <div className="flex items-center gap-1.5 flex-wrap pt-0.5">
-                  <span className="text-[10px] text-slate-500 dark:text-slate-400 font-semibold">Presets:</span>
+                  <span className="text-[10px] text-slate-500 dark:text-slate-400 font-bold">Presets:</span>
                   {[
                     { label: '+5', calc: (c) => c + 5 },
                     { label: '+10', calc: (c) => c + 10 },
@@ -1328,7 +1382,7 @@ export default function ChefSite({ user, onLogin, onLogout }) {
                           out_of_stock_reason: nextVal === 0 ? 'Daily portions fully exhausted (0 remaining)' : (editForm.out_of_stock_reason === 'Daily portions fully exhausted (0 remaining)' ? 'In Stock' : editForm.out_of_stock_reason)
                         });
                       }}
-                      className="px-2 py-0.5 rounded-lg bg-white dark:bg-slate-900 hover:bg-amber-500 hover:text-slate-950 text-slate-700 dark:text-slate-300 text-[10px] font-extrabold border border-slate-300 dark:border-slate-700 transition-all active:scale-95 shadow-sm"
+                      className="px-2.5 py-1 rounded-lg bg-white dark:bg-slate-900 hover:bg-amber-500 hover:text-slate-950 text-slate-700 dark:text-slate-300 text-[10px] font-extrabold border border-slate-200 dark:border-slate-700 transition-all active:scale-95 shadow-sm cursor-pointer"
                     >
                       {preset.label}
                     </button>
@@ -1337,24 +1391,24 @@ export default function ChefSite({ user, onLogin, onLogout }) {
               </div>
 
               <div>
-                <label className="font-bold text-slate-700 dark:text-slate-300">Food Image URL</label>
+                <label className="font-extrabold text-slate-700 dark:text-slate-300">Food Image URL</label>
                 <input
                   type="url"
                   value={editForm.image_url}
                   onChange={(e) => setEditForm({ ...editForm, image_url: e.target.value })}
                   placeholder="https://images.unsplash.com/..."
-                  className="w-full mt-1 px-3.5 py-2 rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 text-slate-900 dark:text-white outline-none focus:border-amber-500"
+                  className="w-full mt-1.5 px-3.5 py-2.5 rounded-xl bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700/80 text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 text-xs shadow-sm transition-all"
                 />
 
                 {/* Quick Presets */}
-                <div className="flex flex-wrap items-center gap-1 mt-1.5">
-                  <span className="text-[10px] text-slate-500 font-semibold mr-1">Presets:</span>
+                <div className="flex flex-wrap items-center gap-1.5 mt-2">
+                  <span className="text-[10px] text-slate-500 font-bold mr-1">Image Presets:</span>
                   {presetImages.map((p, idx) => (
                     <button
                       key={idx}
                       type="button"
                       onClick={() => setEditForm({ ...editForm, image_url: p.url })}
-                      className="px-1.5 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-[9px] font-bold border border-slate-300 dark:border-slate-700"
+                      className="px-2 py-0.5 rounded-lg bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-[10px] font-bold border border-slate-200 dark:border-slate-700 transition-all shadow-sm cursor-pointer"
                     >
                       {p.label}
                     </button>
@@ -1363,19 +1417,24 @@ export default function ChefSite({ user, onLogin, onLogout }) {
               </div>
 
               <div>
-                <label className="font-bold text-slate-700 dark:text-slate-300">Description</label>
+                <label className="font-extrabold text-slate-700 dark:text-slate-300">Description</label>
                 <textarea
                   rows="2"
                   value={editForm.description}
                   onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
-                  className="w-full mt-1 px-3.5 py-2 rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 text-slate-900 dark:text-white outline-none focus:border-amber-500"
+                  placeholder="Brief culinary description..."
+                  className="w-full mt-1.5 px-3.5 py-2.5 rounded-xl bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700/80 text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 shadow-sm transition-all resize-none"
                 />
               </div>
 
               <div className="pt-1">
-                <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">Stock Availability Status</label>
-                <div className="flex items-center gap-4 bg-slate-100 dark:bg-slate-900 p-2.5 rounded-xl border border-slate-300 dark:border-slate-800">
-                  <label className="flex items-center gap-2 text-xs text-emerald-600 dark:text-emerald-400 font-extrabold cursor-pointer">
+                <label className="font-extrabold text-slate-700 dark:text-slate-300 block mb-1.5">Stock Availability Status</label>
+                <div className="grid grid-cols-2 gap-2.5">
+                  <label className={`flex items-center justify-center gap-2 p-2.5 rounded-xl border cursor-pointer font-black text-xs transition-all ${
+                    editForm.is_available 
+                      ? 'bg-emerald-50 text-emerald-800 border-emerald-300 dark:bg-emerald-500/15 dark:text-emerald-300 dark:border-emerald-500/40 shadow-sm ring-1 ring-emerald-500/20' 
+                      : 'bg-white dark:bg-slate-950 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-800'
+                  }`}>
                     <input
                       type="radio"
                       name="editDishStock"
@@ -1390,11 +1449,16 @@ export default function ChefSite({ user, onLogin, onLogout }) {
                           out_of_stock_reason: 'In Stock'
                         });
                       }}
-                      className="accent-emerald-500"
+                      className="accent-emerald-500 hidden"
                     />
-                    <span>🟢 In Stock (Available for Order)</span>
+                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                    <span>In Stock (Orderable)</span>
                   </label>
-                  <label className="flex items-center gap-2 text-xs text-rose-600 dark:text-rose-400 font-extrabold cursor-pointer">
+                  <label className={`flex items-center justify-center gap-2 p-2.5 rounded-xl border cursor-pointer font-black text-xs transition-all ${
+                    !editForm.is_available 
+                      ? 'bg-rose-50 text-rose-800 border-rose-300 dark:bg-rose-500/15 dark:text-rose-300 dark:border-rose-500/40 shadow-sm ring-1 ring-rose-500/20' 
+                      : 'bg-white dark:bg-slate-950 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-800'
+                  }`}>
                     <input
                       type="radio"
                       name="editDishStock"
@@ -1405,26 +1469,27 @@ export default function ChefSite({ user, onLogin, onLogout }) {
                         daily_stock: 0,
                         out_of_stock_reason: editForm.out_of_stock_reason === 'In Stock' ? 'Daily portions fully exhausted (0 remaining)' : (editForm.out_of_stock_reason || 'Daily portions fully exhausted (0 remaining)')
                       })}
-                      className="accent-rose-500"
+                      className="accent-rose-500 hidden"
                     />
-                    <span>🔴 Out of Stock</span>
+                    <span className="w-2 h-2 rounded-full bg-rose-500" />
+                    <span>Out of Stock</span>
                   </label>
                 </div>
               </div>
 
               {/* Conditional Out-of-Stock Reason banner display: ONLY show when dish is Out of Stock */}
               {!editForm.is_available && (
-                <div className="p-3 rounded-2xl bg-rose-500/5 dark:bg-rose-500/10 border border-rose-500/20 space-y-2 animate-fade-in">
+                <div className="p-3.5 rounded-2xl bg-rose-500/10 border border-rose-500/25 space-y-2.5 animate-fade-in">
                   <div className="flex items-center justify-between">
-                    <label className="font-extrabold text-rose-600 dark:text-rose-400 flex items-center gap-1.5 text-xs">
-                      <AlertTriangle className="w-3.5 h-3.5" />
-                      <span>Out-of-Stock Reason (Customer Portal Banner Display)</span>
+                    <label className="font-extrabold text-rose-700 dark:text-rose-400 flex items-center gap-1.5 text-xs">
+                      <AlertTriangle className="w-4 h-4 text-rose-500" />
+                      <span>Out-of-Stock Reason (Customer Portal Banner)</span>
                     </label>
-                    <span className="text-[10px] text-rose-500 font-bold">Visible to customers</span>
+                    <span className="text-[10px] text-rose-600 dark:text-rose-400 font-black px-2 py-0.5 rounded-full bg-rose-500/15">Customer Visible</span>
                   </div>
                   
                   {/* Preset Pills GUI */}
-                  <div className="flex flex-wrap gap-1">
+                  <div className="flex flex-wrap gap-1.5">
                     {[
                       'Daily portions fully exhausted (0 remaining)',
                       'Raw ingredient shortage (Required ingredients depleted in stock)',
@@ -1436,10 +1501,10 @@ export default function ChefSite({ user, onLogin, onLogout }) {
                         key={preset}
                         type="button"
                         onClick={() => setEditForm({ ...editForm, out_of_stock_reason: preset })}
-                        className={`px-2 py-0.5 rounded-lg text-[9px] font-semibold border transition-all ${
+                        className={`px-2.5 py-1 rounded-lg text-[9px] font-extrabold border transition-all cursor-pointer ${
                           editForm.out_of_stock_reason === preset
                             ? 'bg-rose-500 text-white font-black border-rose-500 shadow-sm'
-                            : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 border-slate-300 dark:border-slate-800 hover:border-rose-500/50'
+                            : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-800 hover:border-rose-400'
                         }`}
                       >
                         {preset}
@@ -1452,27 +1517,27 @@ export default function ChefSite({ user, onLogin, onLogout }) {
                     value={editForm.out_of_stock_reason || ''}
                     onChange={(e) => setEditForm({ ...editForm, out_of_stock_reason: e.target.value })}
                     placeholder="Enter reason why dish is out of stock..."
-                    className="w-full px-3 py-1.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-800 text-slate-900 dark:text-white outline-none focus:border-rose-500 text-xs"
+                    className="w-full px-3.5 py-2 rounded-xl bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 text-xs shadow-sm"
                   />
                 </div>
               )}
             </div>
 
             {/* STICKY BOTTOM FOOTER */}
-            <div className="flex items-center gap-3 px-6 py-3.5 border-t border-slate-200 dark:border-slate-800 bg-slate-50/95 dark:bg-slate-950/95 backdrop-blur-md shrink-0 z-10">
+            <div className="flex items-center gap-3 px-6 py-4 border-t border-slate-100 dark:border-slate-800 bg-slate-50/95 dark:bg-slate-950/95 backdrop-blur-md shrink-0 z-10">
               <button
                 type="button"
                 onClick={() => setEditingDish(null)}
-                className="flex-1 py-2.5 rounded-xl bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-extrabold text-xs transition-all"
+                className="flex-1 py-3 rounded-2xl bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-extrabold text-xs transition-all border border-slate-200 dark:border-slate-700 shadow-sm cursor-pointer"
               >
                 Cancel
               </button>
               <button
                 type="submit"
-                className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-slate-950 font-black text-xs shadow-lg shadow-amber-500/20 transition-all active:scale-[0.98] flex items-center justify-center gap-1.5"
+                className="flex-1 py-3 rounded-2xl bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 hover:from-amber-600 hover:via-orange-600 hover:to-amber-700 text-slate-950 font-black text-xs shadow-lg shadow-amber-500/25 transition-all active:scale-[0.98] flex items-center justify-center gap-2 cursor-pointer"
               >
-                <CheckCircle2 className="w-4 h-4" />
-                Update Dish Details
+                <CheckCircle2 className="w-4 h-4 stroke-[2.5]" />
+                <span>Save Dish Changes</span>
               </button>
             </div>
           </form>
@@ -1482,46 +1547,73 @@ export default function ChefSite({ user, onLogin, onLogout }) {
       {/* Tab: Kitchen Orders Queue */}
       {activeTab === 'orders' && (
         <div className="space-y-6">
-          <h2 className="text-xl font-bold text-slate-900 dark:text-white">Live Kitchen Order Display System (KDS)</h2>
+          <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-200/80 dark:border-slate-800 pb-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-amber-500 to-orange-500 text-slate-950 flex items-center justify-center shadow-lg shadow-amber-500/20 shrink-0">
+                <Clock className="w-5 h-5 stroke-[2.5]" />
+              </div>
+              <div>
+                <h2 className="text-xl sm:text-2xl font-black font-display text-slate-900 dark:text-white tracking-tight">Live Kitchen Order Display System (KDS)</h2>
+                <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">Real-time incoming orders, preparation status, and driver dispatch</p>
+              </div>
+            </div>
+            <span className="px-3.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-700 dark:text-emerald-400 text-xs font-black shadow-sm">
+              {orders.length} Active Ticket{orders.length !== 1 ? 's' : ''}
+            </span>
+          </div>
+
           {orders.length === 0 ? (
-            <p className="text-xs text-slate-500 dark:text-slate-400 text-center py-12 glass-card rounded-2xl">No incoming orders in queue.</p>
+            <div className="text-center py-16 glass-card bg-white/60 dark:bg-slate-900/60 rounded-3xl border border-slate-200/80 dark:border-slate-800 space-y-2">
+              <div className="w-12 h-12 rounded-2xl bg-slate-100 dark:bg-slate-800 text-slate-400 flex items-center justify-center mx-auto">
+                <Clock className="w-6 h-6" />
+              </div>
+              <p className="text-sm font-bold text-slate-700 dark:text-slate-300">No incoming orders in queue</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400">Incoming customer orders will appear here in real-time</p>
+            </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {orders.map((o) => (
-                <div key={o.order_id} className="glass-card rounded-2xl p-5 border border-slate-300 dark:border-slate-800 space-y-4 flex flex-col justify-between">
-                  <div className="space-y-3">
-                    <div className="flex justify-between items-center border-b border-slate-300 dark:border-slate-800 pb-2">
-                      <span className="font-extrabold text-slate-900 dark:text-white text-sm">Order #{o.order_id}</span>
-                      <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase ${
-                        o.status === 'READY' ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30' :
-                        o.status === 'PREPARING' ? 'bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30' :
-                        'bg-orange-500/15 text-orange-600 dark:text-orange-400 border border-orange-500/30'
+                <div key={o.order_id} className="glass-card rounded-3xl p-5 sm:p-6 border border-slate-200/80 dark:border-slate-800 bg-white/95 dark:bg-slate-900/95 space-y-4 flex flex-col justify-between shadow-xl shadow-slate-200/40 dark:shadow-none hover:border-slate-300 dark:hover:border-slate-700 transition-all">
+                  <div className="space-y-3.5">
+                    <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-800 pb-3">
+                      <div className="flex items-center gap-2">
+                        <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
+                        <span className="font-black font-display text-slate-900 dark:text-white text-base">Order #{o.order_id}</span>
+                      </div>
+                      <span className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider border shadow-sm ${
+                        o.status === 'READY' ? 'bg-emerald-50 text-emerald-800 border-emerald-300 dark:bg-emerald-500/20 dark:text-emerald-300 dark:border-emerald-500/40' :
+                        o.status === 'PREPARING' ? 'bg-amber-50 text-amber-800 border-amber-300 dark:bg-amber-500/20 dark:text-amber-300 dark:border-amber-500/40' :
+                        'bg-blue-50 text-blue-800 border-blue-300 dark:bg-blue-500/20 dark:text-blue-300 dark:border-blue-500/40'
                       }`}>
                         {o.status}
                       </span>
                     </div>
 
-                    <div className="text-xs text-slate-600 dark:text-slate-300 space-y-1">
-                      <p>Customer: <strong className="text-slate-900 dark:text-slate-200">{o.customer_name}</strong> ({o.customer_phone})</p>
-                      <p className="text-slate-500 dark:text-slate-400 text-[11px]">{new Date(o.timestamp).toLocaleString()}</p>
+                    <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200/70 dark:border-slate-800/80 text-xs space-y-1">
+                      <p className="text-slate-600 dark:text-slate-300 font-medium">Customer: <strong className="text-slate-900 dark:text-white font-extrabold">{o.customer_name}</strong> ({o.customer_phone})</p>
+                      <p className="text-slate-400 dark:text-slate-500 text-[11px] font-medium">{new Date(o.timestamp).toLocaleString()}</p>
                     </div>
 
-                    <div className="space-y-1.5 pt-2 border-t border-slate-300 dark:border-slate-800 text-xs">
-                      <span className="font-bold text-slate-600 dark:text-slate-400 text-[11px]">Items Ordered:</span>
-                      {o.items?.map((item, idx) => (
-                        <div key={idx} className="flex justify-between text-slate-800 dark:text-slate-200 bg-slate-100 dark:bg-slate-900 p-2 rounded-lg border border-slate-300 dark:border-slate-800">
-                          <span>{item.dish_name}</span>
-                          <span className="font-bold text-emerald-600 dark:text-emerald-400">x{item.quantity}</span>
-                        </div>
-                      ))}
+                    <div className="space-y-1.5 pt-1 text-xs">
+                      <span className="font-extrabold text-slate-500 dark:text-slate-400 text-[11px] uppercase tracking-wider block">Items Ordered:</span>
+                      <div className="space-y-1 max-h-48 overflow-y-auto custom-scrollbar">
+                        {o.items?.map((item, idx) => (
+                          <div key={idx} className="flex justify-between items-center text-slate-800 dark:text-slate-200 bg-slate-50 dark:bg-slate-950/50 p-2.5 rounded-xl border border-slate-200/70 dark:border-slate-800/70 text-xs">
+                            <span className="font-bold">{item.dish_name}</span>
+                            <span className="px-2 py-0.5 rounded-lg bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 font-black text-xs border border-emerald-500/20">
+                              x{item.quantity}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   </div>
 
-                  <div className="flex gap-2 pt-2 border-t">
+                  <div className="pt-3 border-t border-slate-100 dark:border-slate-800">
                     {o.status === 'PLACED' && (
                       <button
                         onClick={() => updateOrderStatus(o.order_id, 'PREPARING')}
-                        className="w-full py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-slate-950 font-extrabold text-xs shadow-md"
+                        className="w-full py-3 rounded-2xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-slate-950 font-black text-xs shadow-lg shadow-amber-500/20 active:scale-95 transition-all cursor-pointer"
                       >
                         Accept & Start Prep
                       </button>
@@ -1529,7 +1621,7 @@ export default function ChefSite({ user, onLogin, onLogout }) {
                     {o.status === 'PREPARING' && (
                       <button
                         onClick={() => updateOrderStatus(o.order_id, 'READY')}
-                        className="w-full py-2 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-extrabold text-xs shadow-md"
+                        className="w-full py-3 rounded-2xl bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white font-black text-xs shadow-lg shadow-emerald-500/25 active:scale-95 transition-all cursor-pointer"
                       >
                         Mark Ready for Driver Pickup
                       </button>
@@ -1545,44 +1637,60 @@ export default function ChefSite({ user, onLogin, onLogout }) {
       {/* Tab: Stock Inventory CRUD */}
       {activeTab === 'inventory' && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          <div className="lg:col-span-2 glass-card rounded-2xl p-6 border border-slate-300 dark:border-slate-800 space-y-4">
-            <h2 className="text-xl font-bold text-slate-900 dark:text-white border-b border-slate-300 dark:border-slate-800 pb-3">Kitchen Raw Ingredient Stock & Inventory</h2>
-            <div className="overflow-x-auto">
+          <div className="lg:col-span-2 glass-card rounded-3xl p-6 sm:p-7 border border-slate-200/80 dark:border-slate-800 bg-white/95 dark:bg-slate-900/95 space-y-5 shadow-xl shadow-slate-200/40 dark:shadow-none backdrop-blur-xl relative overflow-hidden">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800/80 pb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-emerald-500 to-teal-500 text-white flex items-center justify-center shadow-lg shadow-emerald-500/20 shrink-0">
+                  <Package className="w-5 h-5 text-white" />
+                </div>
+                <div>
+                  <h2 className="text-xl sm:text-2xl font-black font-display text-slate-900 dark:text-white tracking-tight">Kitchen Raw Ingredient Inventory</h2>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">Track stock levels, units, and automatic reorder thresholds</p>
+                </div>
+              </div>
+              <span className="px-3.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-700 dark:text-emerald-400 text-xs font-black shadow-sm">
+                {inventory.length} Ingredients Registered
+              </span>
+            </div>
+
+            <div className="overflow-x-auto rounded-2xl border border-slate-200/80 dark:border-slate-800">
               <table className="w-full text-left text-xs">
-                <thead className="bg-slate-100 dark:bg-slate-900 text-slate-700 dark:text-slate-400 uppercase text-[10px] tracking-wider">
+                <thead className="bg-slate-50 dark:bg-slate-950/70 text-slate-600 dark:text-slate-400 uppercase text-[10px] tracking-wider font-extrabold border-b border-slate-200/80 dark:border-slate-800">
                   <tr>
-                    <th className="p-3 rounded-l-xl">Ingredient</th>
-                    <th className="p-3">Current Stock</th>
-                    <th className="p-3">Reorder Threshold</th>
-                    <th className="p-3 rounded-r-xl text-right">Actions</th>
+                    <th className="p-3.5">Ingredient</th>
+                    <th className="p-3.5">Current Stock</th>
+                    <th className="p-3.5">Reorder Threshold</th>
+                    <th className="p-3.5 text-right">Actions</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-300 dark:divide-slate-800/60">
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
                   {inventory.map((inv) => {
                     const isLow = Number(inv.stock_quantity) <= Number(inv.reorder_level);
                     return (
-                      <tr key={inv.ingredient_id} className="hover:bg-slate-100 dark:hover:bg-slate-900/40">
-                        <td className="p-3 font-bold text-slate-900 dark:text-white">{inv.ingredient_name}</td>
-                        <td className="p-3">
-                          <span className={`font-mono font-extrabold px-2 py-0.5 rounded-md ${
-                            isLow ? 'bg-rose-500/20 text-rose-600 dark:text-rose-400 border border-rose-500/30' : 'text-emerald-600 dark:text-emerald-400'
+                      <tr key={inv.ingredient_id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/30 transition-colors">
+                        <td className="p-3.5 font-extrabold text-slate-900 dark:text-white">{inv.ingredient_name}</td>
+                        <td className="p-3.5">
+                          <span className={`font-mono font-black px-2.5 py-1 rounded-lg border text-xs shadow-sm ${
+                            isLow 
+                              ? 'bg-rose-50 text-rose-800 border-rose-300 dark:bg-rose-500/20 dark:text-rose-300 dark:border-rose-500/30' 
+                              : 'bg-emerald-50 text-emerald-800 border-emerald-300 dark:bg-emerald-500/20 dark:text-emerald-300 dark:border-emerald-500/30'
                           }`}>
                             {parseFloat(Number(inv.stock_quantity).toFixed(2))} {inv.unit}
                           </span>
                         </td>
-                        <td className="p-3 text-slate-600 dark:text-slate-400">{parseFloat(Number(inv.reorder_level).toFixed(2))} {inv.unit}</td>
-                        <td className="p-3 text-right">
+                        <td className="p-3.5 text-slate-600 dark:text-slate-400 font-bold">{parseFloat(Number(inv.reorder_level).toFixed(2))} {inv.unit}</td>
+                        <td className="p-3.5 text-right">
                           <div className="flex items-center justify-end gap-1.5">
                             <button
                               onClick={() => openEditIngredientModal(inv)}
-                              className="px-2.5 py-1 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 text-amber-500 border border-amber-500/20 font-bold text-[11px] transition-all flex items-center gap-1"
+                              className="px-2.5 py-1 rounded-xl bg-amber-50 hover:bg-amber-100 dark:bg-amber-500/10 dark:hover:bg-amber-500/20 text-amber-800 dark:text-amber-400 border border-amber-300 dark:border-amber-500/30 font-black text-[11px] transition-all flex items-center gap-1 shadow-sm active:scale-95 cursor-pointer"
                               title="Edit ingredient stock or reorder alert"
                             >
                               <Edit3 className="w-3.5 h-3.5" /> Edit
                             </button>
                             <button
                               onClick={() => handleDeleteIngredient(inv.ingredient_id)}
-                              className="px-2.5 py-1 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/20 font-bold text-[11px] transition-all flex items-center gap-1"
+                              className="px-2.5 py-1 rounded-xl bg-rose-50 hover:bg-rose-100 dark:bg-rose-500/10 dark:hover:bg-rose-500/20 text-rose-800 dark:text-rose-400 border border-rose-300 dark:border-rose-500/30 font-black text-[11px] transition-all flex items-center gap-1 shadow-sm active:scale-95 cursor-pointer"
                               title="Delete ingredient from inventory"
                             >
                               <Trash2 className="w-3.5 h-3.5" /> Delete
@@ -1598,18 +1706,24 @@ export default function ChefSite({ user, onLogin, onLogout }) {
           </div>
 
           {/* Add / Restock Ingredient with Standardized Dropdown Selection */}
-          <div className="glass-card rounded-2xl p-6 border border-slate-300 dark:border-slate-800 space-y-4">
-            <h3 className="text-base font-bold text-slate-900 dark:text-white border-b border-slate-300 dark:border-slate-800 pb-3">+ Add / Restock Ingredient</h3>
+          <div className="glass-card rounded-3xl p-6 sm:p-7 border border-slate-200/80 dark:border-slate-800 bg-white/95 dark:bg-slate-900/95 space-y-5 shadow-xl shadow-slate-200/40 dark:shadow-none backdrop-blur-xl h-fit sticky top-6">
+            <div className="border-b border-slate-100 dark:border-slate-800 pb-3">
+              <h3 className="text-base font-black font-display text-slate-900 dark:text-white flex items-center gap-2">
+                <Plus className="w-4 h-4 text-emerald-500" />
+                Add / Restock Ingredient
+              </h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">Register ingredients or increase bulk pantry stocks</p>
+            </div>
+            
             <form onSubmit={handleAddIngredient} className="space-y-4 text-xs">
-              
               {/* Standardized Ingredient Dropdown */}
               <div>
-                <label className="font-bold text-slate-700 dark:text-slate-300">Standardized Ingredient Selector</label>
+                <label className="font-extrabold text-slate-700 dark:text-slate-300">Standardized Ingredient Selector</label>
                 <select
                   onChange={(e) => {
                     if (e.target.value) setNewIngredient({ ...newIngredient, ingredient_name: e.target.value });
                   }}
-                  className="w-full mt-1.5 px-3.5 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 text-slate-900 dark:text-white outline-none focus:border-emerald-500 font-medium"
+                  className="w-full mt-1.5 px-3.5 py-2.5 rounded-xl bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700/80 text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 font-bold shadow-sm transition-all"
                 >
                   <option value="">-- Pick Standardized Ingredient --</option>
                   <option value="Artisanal Pasta Flour">Artisanal Pasta Flour</option>
@@ -1624,62 +1738,62 @@ export default function ChefSite({ user, onLogin, onLogout }) {
                   <option value="Garlic Cloves">Garlic Cloves</option>
                   <option value="Butter">Butter</option>
                 </select>
-                <p className="text-[10px] text-slate-500 mt-1">Prevents database casing inconsistencies (e.g. 'truffle oil' vs 'Truffle Oil').</p>
+                <p className="text-[10px] text-slate-500 mt-1 font-medium">Prevents database casing inconsistencies (e.g. 'truffle oil' vs 'Truffle Oil').</p>
               </div>
 
               <div>
-                <label className="font-semibold text-slate-700 dark:text-slate-300">Ingredient Name (Title Case)</label>
+                <label className="font-extrabold text-slate-700 dark:text-slate-300">Ingredient Name (Title Case)</label>
                 <input
                   type="text"
                   value={newIngredient.ingredient_name}
                   onChange={(e) => setNewIngredient({ ...newIngredient, ingredient_name: e.target.value })}
                   placeholder="e.g. Truffle Oil"
-                  className="w-full mt-1.5 px-3.5 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 text-slate-900 dark:text-white outline-none focus:border-emerald-500 font-bold"
+                  className="w-full mt-1.5 px-3.5 py-2.5 rounded-xl bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700/80 text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 font-bold shadow-sm transition-all"
                   required
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="font-semibold text-slate-700 dark:text-slate-300">Stock Qty</label>
+                  <label className="font-extrabold text-slate-700 dark:text-slate-300">Stock Qty</label>
                   <input
                     type="number"
                     step="0.1"
                     value={newIngredient.stock_quantity}
                     onChange={(e) => setNewIngredient({ ...newIngredient, stock_quantity: e.target.value })}
                     placeholder="50"
-                    className="w-full mt-1.5 px-3.5 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 text-slate-900 dark:text-white outline-none focus:border-emerald-500"
+                    className="w-full mt-1.5 px-3.5 py-2.5 rounded-xl bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700/80 text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 font-bold shadow-sm transition-all"
                     required
                   />
                 </div>
                 <div>
-                  <label className="font-semibold text-slate-700 dark:text-slate-300">Unit</label>
+                  <label className="font-extrabold text-slate-700 dark:text-slate-300">Unit</label>
                   <input
                     type="text"
                     value={newIngredient.unit}
                     onChange={(e) => setNewIngredient({ ...newIngredient, unit: e.target.value })}
                     placeholder="liters / kg / units"
-                    className="w-full mt-1.5 px-3.5 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 text-slate-900 dark:text-white outline-none focus:border-emerald-500"
+                    className="w-full mt-1.5 px-3.5 py-2.5 rounded-xl bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700/80 text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 font-bold shadow-sm transition-all"
                     required
                   />
                 </div>
               </div>
 
               <div>
-                <label className="font-semibold text-slate-700 dark:text-slate-300">Reorder Alert Level</label>
+                <label className="font-extrabold text-slate-700 dark:text-slate-300">Reorder Alert Level</label>
                 <input
                   type="number"
                   step="0.1"
                   value={newIngredient.reorder_level}
                   onChange={(e) => setNewIngredient({ ...newIngredient, reorder_level: e.target.value })}
                   placeholder="5"
-                  className="w-full mt-1.5 px-3.5 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 text-slate-900 dark:text-white outline-none focus:border-emerald-500"
+                  className="w-full mt-1.5 px-3.5 py-2.5 rounded-xl bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700/80 text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 font-bold shadow-sm transition-all"
                 />
               </div>
 
               <button
                 type="submit"
-                className="w-full py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-bold transition-all shadow-lg"
+                className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white font-black text-xs shadow-lg shadow-emerald-500/25 transition-all active:scale-95 cursor-pointer mt-1"
               >
                 Save Ingredient Stock
               </button>
@@ -1690,62 +1804,62 @@ export default function ChefSite({ user, onLogin, onLogout }) {
 
       {/* Edit Ingredient Modal */}
       {editingIngredient && (
-        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4">
-          <div className="glass-card rounded-3xl p-6 sm:p-8 border border-slate-300 dark:border-slate-800 max-w-md w-full space-y-5 shadow-2xl">
-            <div className="flex justify-between items-center border-b border-slate-300 dark:border-slate-800 pb-3">
-              <h3 className="font-black text-slate-900 dark:text-white text-lg flex items-center gap-2">
+        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 animate-fade-in">
+          <div className="glass-card bg-white dark:bg-slate-900 rounded-3xl p-6 sm:p-8 border border-slate-200/80 dark:border-slate-800 max-w-md w-full space-y-5 shadow-2xl">
+            <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-800 pb-3">
+              <h3 className="font-black font-display text-slate-900 dark:text-white text-lg flex items-center gap-2">
                 <Edit3 className="w-5 h-5 text-amber-500" />
                 Edit Ingredient #{editIngredientForm.ingredient_id}
               </h3>
-              <button onClick={() => setEditingIngredient(null)} className="text-slate-400 hover:text-slate-900 dark:hover:text-white p-1">
+              <button onClick={() => setEditingIngredient(null)} className="text-slate-400 hover:text-slate-900 dark:hover:text-white p-1 rounded-lg transition-colors cursor-pointer">
                 <X className="w-5 h-5" />
               </button>
             </div>
 
             <form onSubmit={handleSaveEditIngredient} className="space-y-4 text-xs">
               <div>
-                <label className="font-bold text-slate-700 dark:text-slate-300">Ingredient Name</label>
+                <label className="font-extrabold text-slate-700 dark:text-slate-300">Ingredient Name</label>
                 <input
                   type="text"
                   value={editIngredientForm.ingredient_name}
                   onChange={(e) => setEditIngredientForm({ ...editIngredientForm, ingredient_name: e.target.value })}
-                  className="w-full mt-1.5 px-3.5 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 text-slate-900 dark:text-white outline-none focus:border-amber-500 font-bold"
+                  className="w-full mt-1.5 px-3.5 py-2.5 rounded-xl bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700/80 text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 font-bold shadow-sm transition-all"
                   required
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="font-bold text-slate-700 dark:text-slate-300">Current Stock Quantity</label>
+                  <label className="font-extrabold text-slate-700 dark:text-slate-300">Current Stock Quantity</label>
                   <input
                     type="number"
                     step="0.01"
                     value={editIngredientForm.stock_quantity}
                     onChange={(e) => setEditIngredientForm({ ...editIngredientForm, stock_quantity: e.target.value })}
-                    className="w-full mt-1.5 px-3.5 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 text-slate-900 dark:text-white outline-none focus:border-amber-500 font-bold"
+                    className="w-full mt-1.5 px-3.5 py-2.5 rounded-xl bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700/80 text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 font-bold shadow-sm transition-all"
                     required
                   />
                 </div>
                 <div>
-                  <label className="font-bold text-slate-700 dark:text-slate-300">Unit</label>
+                  <label className="font-extrabold text-slate-700 dark:text-slate-300">Unit</label>
                   <input
                     type="text"
                     value={editIngredientForm.unit}
                     onChange={(e) => setEditIngredientForm({ ...editIngredientForm, unit: e.target.value })}
-                    className="w-full mt-1.5 px-3.5 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 text-slate-900 dark:text-white outline-none focus:border-amber-500 font-bold"
+                    className="w-full mt-1.5 px-3.5 py-2.5 rounded-xl bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700/80 text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 font-bold shadow-sm transition-all"
                     required
                   />
                 </div>
               </div>
 
               <div>
-                <label className="font-bold text-slate-700 dark:text-slate-300">Reorder Alert Threshold</label>
+                <label className="font-extrabold text-slate-700 dark:text-slate-300">Reorder Alert Threshold</label>
                 <input
                   type="number"
                   step="0.01"
                   value={editIngredientForm.reorder_level}
                   onChange={(e) => setEditIngredientForm({ ...editIngredientForm, reorder_level: e.target.value })}
-                  className="w-full mt-1.5 px-3.5 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 text-slate-900 dark:text-white outline-none focus:border-amber-500 font-bold"
+                  className="w-full mt-1.5 px-3.5 py-2.5 rounded-xl bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700/80 text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 font-bold shadow-sm transition-all"
                   required
                 />
               </div>
@@ -1754,13 +1868,13 @@ export default function ChefSite({ user, onLogin, onLogout }) {
                 <button
                   type="button"
                   onClick={() => setEditingIngredient(null)}
-                  className="flex-1 py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs"
+                  className="flex-1 py-3 rounded-2xl bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold text-xs border border-slate-200 dark:border-slate-700 transition-all shadow-sm cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 py-3 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-slate-950 font-black text-xs shadow-lg shadow-amber-500/20"
+                  className="flex-1 py-3 rounded-2xl bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 hover:from-amber-600 hover:to-orange-600 text-slate-950 font-black text-xs shadow-lg shadow-amber-500/25 transition-all active:scale-95 cursor-pointer"
                 >
                   Save Ingredient Details
                 </button>
@@ -1770,16 +1884,21 @@ export default function ChefSite({ user, onLogin, onLogout }) {
         </div>
       )}
 
-      {/* Tab: Organized Grouped Recipe Builder */}
-      {activeTab === 'recipes' && (
+    {/* Tab: Organized Grouped Recipe Builder */}
+    {activeTab === 'recipes' && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           <div className="lg:col-span-2 space-y-6">
-            <div className="flex justify-between items-center border-b border-slate-300 dark:border-slate-800 pb-3">
-              <div>
-                <h2 className="text-xl font-black text-slate-900 dark:text-white">Organized Dish Recipe Cards</h2>
-                <p className="text-xs text-slate-600 dark:text-slate-400">All required ingredients consolidated under each single recipe name</p>
+            <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-200/80 dark:border-slate-800 pb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-emerald-500 to-teal-500 text-white flex items-center justify-center shadow-lg shadow-emerald-500/20 shrink-0">
+                  <Utensils className="w-5 h-5 text-white" />
+                </div>
+                <div>
+                  <h2 className="text-xl sm:text-2xl font-black font-display text-slate-900 dark:text-white tracking-tight">Organized Dish Recipe Cards</h2>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">All required raw ingredients consolidated under each single recipe portion</p>
+                </div>
               </div>
-              <span className="px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-bold">
+              <span className="px-3.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-700 dark:text-emerald-400 text-xs font-black shadow-sm">
                 {dishes.length} Dish Recipes
               </span>
             </div>
@@ -1789,54 +1908,58 @@ export default function ChefSite({ user, onLogin, onLogout }) {
               {dishes.map((dish) => {
                 const dishRecipes = recipes.filter(r => Number(r.dish_id) === Number(dish.dish_id));
                 return (
-                  <div key={dish.dish_id} className="glass-card rounded-2xl p-5 border border-slate-300 dark:border-slate-800 space-y-3 shadow-lg">
-                    <div className="flex flex-wrap justify-between items-center border-b border-slate-300 dark:border-slate-800/80 pb-2.5">
-                      <div className="flex items-center gap-2">
-                        <Utensils className="w-4 h-4 text-emerald-500" />
-                        <h3 className="font-extrabold text-slate-900 dark:text-white text-base">{dish.name}</h3>
-                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400 font-bold">
+                  <div key={dish.dish_id} className="glass-card rounded-3xl p-6 border border-slate-200/80 dark:border-slate-800 bg-white/95 dark:bg-slate-900/95 space-y-4 shadow-xl shadow-slate-200/40 dark:shadow-none hover:border-slate-300 dark:hover:border-slate-700 transition-all">
+                    <div className="flex flex-wrap justify-between items-center border-b border-slate-100 dark:border-slate-800/80 pb-3 gap-2">
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-8 h-8 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
+                          <Utensils className="w-4 h-4" />
+                        </div>
+                        <h3 className="font-black font-display text-slate-900 dark:text-white text-base">{dish.name}</h3>
+                        <span className="text-xs px-2.5 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-extrabold border border-slate-200 dark:border-slate-700">
                           ₹{Number(dish.base_price).toFixed(2)}
                         </span>
                       </div>
-                      <span className="text-xs text-emerald-600 dark:text-emerald-400 font-bold bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-0.5 rounded-full">
+                      <span className="text-xs text-emerald-700 dark:text-emerald-400 font-black bg-emerald-500/10 border border-emerald-500/20 px-3 py-1 rounded-full shadow-sm">
                         {dishRecipes.length} Ingredient{dishRecipes.length !== 1 ? 's' : ''} Mapped
                       </span>
                     </div>
 
                     {dishRecipes.length === 0 ? (
-                      <p className="text-xs text-slate-400 italic py-2">No ingredient links mapped for this dish yet. Map ingredients using the form on the right.</p>
+                      <p className="text-xs text-slate-400 italic py-3 bg-slate-50 dark:bg-slate-950/40 rounded-2xl px-4 border border-dashed border-slate-200 dark:border-slate-800">No ingredient links mapped for this dish yet. Map ingredients using the form on the right.</p>
                     ) : (
-                      <div className="overflow-x-auto">
+                      <div className="overflow-x-auto rounded-2xl border border-slate-200/80 dark:border-slate-800">
                         <table className="w-full text-left text-xs">
-                          <thead className="bg-slate-100 dark:bg-slate-900/60 text-slate-500 text-[10px] uppercase font-bold">
+                          <thead className="bg-slate-50 dark:bg-slate-950/70 text-slate-600 dark:text-slate-400 text-[10px] uppercase font-extrabold tracking-wider border-b border-slate-200/80 dark:border-slate-800">
                             <tr>
-                              <th className="p-2.5 rounded-l-lg">Required Ingredient</th>
-                              <th className="p-2.5">Portion Quantity</th>
-                              <th className="p-2.5 rounded-r-lg text-right">Actions</th>
+                              <th className="p-3">Required Ingredient</th>
+                              <th className="p-3">Portion Quantity</th>
+                              <th className="p-3 text-right">Actions</th>
                             </tr>
                           </thead>
-                          <tbody className="divide-y divide-slate-300 dark:divide-slate-800/40">
+                          <tbody className="divide-y divide-slate-100 dark:divide-slate-800/40">
                             {dishRecipes.map((r) => (
-                              <tr key={r.recipe_id} className="hover:bg-slate-100 dark:hover:bg-slate-900/30 transition-colors">
-                                <td className="p-2.5 font-bold text-emerald-600 dark:text-emerald-400">{r.ingredient_name}</td>
-                                <td className="p-2.5 font-mono text-slate-800 dark:text-slate-200">
-                                  {parseFloat(Number(r.quantity_required).toFixed(2))} {r.unit}
+                              <tr key={r.recipe_id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/30 transition-colors">
+                                <td className="p-3 font-extrabold text-slate-900 dark:text-white">{r.ingredient_name}</td>
+                                <td className="p-3">
+                                  <span className="font-mono font-bold text-slate-800 dark:text-slate-200 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-md border border-slate-200 dark:border-slate-700">
+                                    {parseFloat(Number(r.quantity_required).toFixed(2))} {r.unit}
+                                  </span>
                                 </td>
-                                <td className="p-2.5 text-right">
+                                <td className="p-3 text-right">
                                   <div className="flex items-center justify-end gap-1.5">
                                     <button
                                       onClick={() => openEditRecipeModal(r)}
-                                      className="px-2 py-1 rounded-md bg-amber-500/10 hover:bg-amber-500/20 text-amber-500 border border-amber-500/20 font-bold text-[10px] transition-all flex items-center gap-1"
+                                      className="px-2.5 py-1 rounded-xl bg-amber-50 hover:bg-amber-100 dark:bg-amber-500/10 dark:hover:bg-amber-500/20 text-amber-800 dark:text-amber-400 border border-amber-300 dark:border-amber-500/30 font-black text-[11px] transition-all flex items-center gap-1 shadow-sm active:scale-95 cursor-pointer"
                                       title="Edit portion quantity required for recipe"
                                     >
-                                      <Edit3 className="w-3 h-3" /> Edit Qty
+                                      <Edit3 className="w-3.5 h-3.5" /> Edit Qty
                                     </button>
                                     <button
                                       onClick={() => handleDeleteRecipe(r.recipe_id)}
-                                      className="px-2 py-1 rounded-md bg-rose-500/10 hover:bg-rose-500/20 text-rose-500 border border-rose-500/20 font-bold text-[10px] transition-all flex items-center gap-1"
+                                      className="px-2.5 py-1 rounded-xl bg-rose-50 hover:bg-rose-100 dark:bg-rose-500/10 dark:hover:bg-rose-500/20 text-rose-800 dark:text-rose-400 border border-rose-300 dark:border-rose-500/30 font-black text-[11px] transition-all flex items-center gap-1 shadow-sm active:scale-95 cursor-pointer"
                                       title="Remove ingredient link from dish recipe"
                                     >
-                                      <Trash2 className="w-3 h-3" /> Remove Link
+                                      <Trash2 className="w-3.5 h-3.5" /> Remove
                                     </button>
                                   </div>
                                 </td>
@@ -1853,15 +1976,22 @@ export default function ChefSite({ user, onLogin, onLogout }) {
           </div>
 
           {/* Right Col: Map Dish to Ingredient Form */}
-          <div className="glass-card rounded-2xl p-6 border border-slate-300 dark:border-slate-800 space-y-4 h-fit sticky top-6">
-            <h3 className="text-base font-bold text-slate-900 dark:text-white border-b border-slate-300 dark:border-slate-800 pb-3">+ Map Dish to Ingredient</h3>
+          <div className="glass-card rounded-3xl p-6 sm:p-7 border border-slate-200/80 dark:border-slate-800 bg-white/95 dark:bg-slate-900/95 space-y-5 shadow-xl shadow-slate-200/40 dark:shadow-none backdrop-blur-xl h-fit sticky top-6">
+            <div className="border-b border-slate-100 dark:border-slate-800 pb-3">
+              <h3 className="text-base font-black font-display text-slate-900 dark:text-white flex items-center gap-2">
+                <Plus className="w-4 h-4 text-emerald-500" />
+                Map Dish to Ingredient
+              </h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">Define raw ingredient portion required per dish preparation</p>
+            </div>
+
             <form onSubmit={handleAddRecipe} className="space-y-4 text-xs">
               <div>
-                <label className="font-semibold text-slate-700 dark:text-slate-300">Select Dish Recipe</label>
+                <label className="font-extrabold text-slate-700 dark:text-slate-300">Select Dish Recipe</label>
                 <select
                   value={newRecipe.dish_id}
                   onChange={(e) => setNewRecipe({ ...newRecipe, dish_id: e.target.value })}
-                  className="w-full mt-1.5 px-3.5 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 text-slate-900 dark:text-white outline-none focus:border-emerald-500 font-bold"
+                  className="w-full mt-1.5 px-3.5 py-2.5 rounded-xl bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700/80 text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 font-bold shadow-sm transition-all"
                   required
                 >
                   <option value="">-- Choose Dish --</option>
@@ -1872,11 +2002,11 @@ export default function ChefSite({ user, onLogin, onLogout }) {
               </div>
 
               <div>
-                <label className="font-semibold text-slate-700 dark:text-slate-300">Select Ingredient</label>
+                <label className="font-extrabold text-slate-700 dark:text-slate-300">Select Ingredient</label>
                 <select
                   value={newRecipe.ingredient_id}
                   onChange={(e) => setNewRecipe({ ...newRecipe, ingredient_id: e.target.value })}
-                  className="w-full mt-1.5 px-3.5 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 text-slate-900 dark:text-white outline-none focus:border-emerald-500 font-bold"
+                  className="w-full mt-1.5 px-3.5 py-2.5 rounded-xl bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700/80 text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 font-bold shadow-sm transition-all"
                   required
                 >
                   <option value="">-- Choose Ingredient --</option>
@@ -1887,21 +2017,21 @@ export default function ChefSite({ user, onLogin, onLogout }) {
               </div>
 
               <div>
-                <label className="font-semibold text-slate-700 dark:text-slate-300">Quantity Required per Portion</label>
+                <label className="font-extrabold text-slate-700 dark:text-slate-300">Quantity Required per Portion</label>
                 <input
                   type="number"
                   step="0.01"
                   value={newRecipe.quantity_required}
                   onChange={(e) => setNewRecipe({ ...newRecipe, quantity_required: e.target.value })}
                   placeholder="e.g. 0.25"
-                  className="w-full mt-1.5 px-3.5 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 text-slate-900 dark:text-white outline-none focus:border-emerald-500 font-bold"
+                  className="w-full mt-1.5 px-3.5 py-2.5 rounded-xl bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700/80 text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 font-bold shadow-sm transition-all"
                   required
                 />
               </div>
 
               <button
                 type="submit"
-                className="w-full py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-bold transition-all shadow-lg"
+                className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white font-black text-xs shadow-lg shadow-emerald-500/25 transition-all active:scale-95 cursor-pointer mt-1"
               >
                 Save Recipe Junction Link
               </button>
@@ -1912,47 +2042,47 @@ export default function ChefSite({ user, onLogin, onLogout }) {
 
       {/* Edit Recipe Portion Modal */}
       {editingRecipe && (
-        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4">
-          <div className="glass-card rounded-3xl p-6 sm:p-8 border border-slate-300 dark:border-slate-800 max-w-md w-full space-y-5 shadow-2xl">
-            <div className="flex justify-between items-center border-b border-slate-300 dark:border-slate-800 pb-3">
-              <h3 className="font-black text-slate-900 dark:text-white text-lg flex items-center gap-2">
+        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 animate-fade-in">
+          <div className="glass-card bg-white dark:bg-slate-900 rounded-3xl p-6 sm:p-8 border border-slate-200/80 dark:border-slate-800 max-w-md w-full space-y-5 shadow-2xl">
+            <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-800 pb-3">
+              <h3 className="font-black font-display text-slate-900 dark:text-white text-lg flex items-center gap-2">
                 <Edit3 className="w-5 h-5 text-amber-500" />
                 Edit Recipe Portion Quantity
               </h3>
-              <button onClick={() => setEditingRecipe(null)} className="text-slate-400 hover:text-slate-900 dark:hover:text-white p-1">
+              <button onClick={() => setEditingRecipe(null)} className="text-slate-400 hover:text-slate-900 dark:hover:text-white p-1 rounded-lg transition-colors cursor-pointer">
                 <X className="w-5 h-5" />
               </button>
             </div>
 
             <form onSubmit={handleSaveEditRecipe} className="space-y-4 text-xs">
               <div>
-                <label className="font-bold text-slate-700 dark:text-slate-300">Dish Name</label>
+                <label className="font-extrabold text-slate-700 dark:text-slate-300">Dish Name</label>
                 <input
                   type="text"
                   value={editRecipeForm.dish_name}
                   disabled
-                  className="w-full mt-1.5 px-3.5 py-2.5 rounded-xl bg-slate-200 dark:bg-slate-800 text-slate-500 font-bold cursor-not-allowed"
+                  className="w-full mt-1.5 px-3.5 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 font-bold border border-slate-200 dark:border-slate-700 cursor-not-allowed"
                 />
               </div>
 
               <div>
-                <label className="font-bold text-slate-700 dark:text-slate-300">Required Ingredient</label>
+                <label className="font-extrabold text-slate-700 dark:text-slate-300">Required Ingredient</label>
                 <input
                   type="text"
                   value={editRecipeForm.ingredient_name}
                   disabled
-                  className="w-full mt-1.5 px-3.5 py-2.5 rounded-xl bg-slate-200 dark:bg-slate-800 text-slate-500 font-bold cursor-not-allowed"
+                  className="w-full mt-1.5 px-3.5 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 font-bold border border-slate-200 dark:border-slate-700 cursor-not-allowed"
                 />
               </div>
 
               <div>
-                <label className="font-bold text-slate-700 dark:text-slate-300">Quantity Required per Portion ({editRecipeForm.unit})</label>
+                <label className="font-extrabold text-slate-700 dark:text-slate-300">Quantity Required per Portion ({editRecipeForm.unit})</label>
                 <input
                   type="number"
                   step="0.01"
                   value={editRecipeForm.quantity_required}
                   onChange={(e) => setEditRecipeForm({ ...editRecipeForm, quantity_required: e.target.value })}
-                  className="w-full mt-1.5 px-3.5 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 text-slate-900 dark:text-white outline-none focus:border-amber-500 font-bold"
+                  className="w-full mt-1.5 px-3.5 py-2.5 rounded-xl bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700/80 text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 font-bold shadow-sm transition-all"
                   required
                 />
               </div>
@@ -1961,13 +2091,13 @@ export default function ChefSite({ user, onLogin, onLogout }) {
                 <button
                   type="button"
                   onClick={() => setEditingRecipe(null)}
-                  className="flex-1 py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs"
+                  className="flex-1 py-3 rounded-2xl bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold text-xs border border-slate-200 dark:border-slate-700 transition-all shadow-sm cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 py-3 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-slate-950 font-black text-xs shadow-lg shadow-amber-500/20"
+                  className="flex-1 py-3 rounded-2xl bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 hover:from-amber-600 hover:to-orange-600 text-slate-950 font-black text-xs shadow-lg shadow-amber-500/25 transition-all active:scale-95 cursor-pointer"
                 >
                   Update Portion Qty
                 </button>
@@ -1980,32 +2110,41 @@ export default function ChefSite({ user, onLogin, onLogout }) {
       {/* Tab: Payout Earnings */}
       {activeTab === 'payouts' && (
         <div className="space-y-6">
-          <div className="glass-card rounded-2xl p-6 border border-slate-300 dark:border-slate-800 flex justify-between items-center shadow-lg">
-            <div>
+          <div className="relative overflow-hidden glass-card rounded-3xl p-7 sm:p-8 border border-emerald-500/25 bg-gradient-to-br from-emerald-500/10 via-teal-500/5 to-transparent dark:from-emerald-950/40 dark:via-slate-900 dark:to-slate-950 shadow-xl shadow-emerald-500/5 flex flex-wrap justify-between items-center gap-4">
+            <div className="space-y-1">
               <div className="flex items-center gap-2">
-                <span className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Total Chef Net Revenue (85% Split)</span>
+                <span className="text-xs font-black text-emerald-800 dark:text-emerald-400 uppercase tracking-wider">Total Chef Net Revenue (85% Split)</span>
                 {loadingPayouts && <RefreshCw className="w-3.5 h-3.5 animate-spin text-emerald-500" />}
               </div>
-              <h2 className="text-3xl font-black text-emerald-600 dark:text-emerald-400 mt-1">₹{payouts.total_earned}</h2>
+              <h2 className="text-4xl sm:text-5xl font-black font-display text-emerald-700 dark:text-emerald-400 tracking-tight">₹{payouts.total_earned}</h2>
             </div>
-            <div className="text-right space-y-1">
-              <span className="px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-xs font-bold inline-block">
+            <div className="text-right space-y-1.5">
+              <span className="px-3.5 py-1 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-700 dark:text-emerald-400 text-xs font-black inline-flex items-center gap-1.5 shadow-sm">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
                 Direct Escrow Payouts Active
               </span>
-              <p className="text-[11px] text-slate-400">Zero-lag cached balance with live background sync</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">Zero-lag cached balance with live background ledger sync</p>
             </div>
           </div>
 
-          <div className="glass-card rounded-2xl p-6 border border-slate-300 dark:border-slate-800 space-y-4 shadow-xl">
-            <div className="flex justify-between items-center border-b border-slate-300 dark:border-slate-800 pb-3">
-              <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                <span>Escrow Payout Ledger</span>
-                <span className="text-xs font-normal text-slate-500 dark:text-slate-400 font-mono">({payouts.payouts?.length || 0} transactions)</span>
-              </h3>
+          <div className="glass-card rounded-3xl p-6 sm:p-7 border border-slate-200/80 dark:border-slate-800 bg-white/95 dark:bg-slate-900/95 space-y-5 shadow-xl shadow-slate-200/40 dark:shadow-none">
+            <div className="flex flex-wrap justify-between items-center border-b border-slate-100 dark:border-slate-800 pb-3 gap-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
+                  <DollarSign className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-base font-black font-display text-slate-900 dark:text-white flex items-center gap-2">
+                    <span>Escrow Payout Ledger</span>
+                    <span className="text-xs font-bold text-slate-500 dark:text-slate-400 font-mono">({payouts.payouts?.length || 0} transactions)</span>
+                  </h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">Automatic disbursement audit trail for delivered customer orders</p>
+                </div>
+              </div>
               <button 
                 onClick={() => fetchPayouts(true)} 
                 disabled={loadingPayouts}
-                className="px-3 py-1 text-xs font-bold rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 hover:border-emerald-500/50 text-slate-700 dark:text-slate-300 flex items-center gap-1.5 transition-all cursor-pointer"
+                className="px-3.5 py-1.5 text-xs font-bold rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:border-emerald-500/50 text-slate-700 dark:text-slate-300 flex items-center gap-1.5 transition-all shadow-sm active:scale-95 cursor-pointer"
               >
                 <RefreshCw className={`w-3.5 h-3.5 ${loadingPayouts ? 'animate-spin text-emerald-500' : ''}`} />
                 <span>Refresh Ledger</span>
@@ -2021,35 +2160,35 @@ export default function ChefSite({ user, onLogin, onLogout }) {
                 <KitchenSkeletonRows rows={5} />
               </div>
             ) : (
-              <div className="overflow-x-auto">
+              <div className="overflow-x-auto rounded-2xl border border-slate-200/80 dark:border-slate-800">
                 <table className="w-full text-left text-xs">
-                  <thead className="bg-slate-100 dark:bg-slate-900 text-slate-700 dark:text-slate-400 uppercase text-[10px] tracking-wider">
+                  <thead className="bg-slate-50 dark:bg-slate-950/70 text-slate-600 dark:text-slate-400 uppercase text-[10px] tracking-wider font-extrabold border-b border-slate-200/80 dark:border-slate-800">
                     <tr>
-                      <th className="p-3 rounded-l-xl">Payout ID</th>
-                      <th className="p-3">Order ID</th>
-                      <th className="p-3">Order Status</th>
-                      <th className="p-3">Chef 85% Split</th>
-                      <th className="p-3 rounded-r-xl">Timestamp</th>
+                      <th className="p-3.5">Payout ID</th>
+                      <th className="p-3.5">Order ID</th>
+                      <th className="p-3.5">Order Status</th>
+                      <th className="p-3.5">Chef 85% Split</th>
+                      <th className="p-3.5">Disbursement Timestamp</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-300 dark:divide-slate-800/60">
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
                     {payouts.payouts && payouts.payouts.length > 0 ? (
                       payouts.payouts.map((p) => (
-                        <tr key={p.payout_id} className="hover:bg-slate-100 dark:hover:bg-slate-900/40 transition-colors">
-                          <td className="p-3 font-mono text-slate-500">#{p.payout_id}</td>
-                          <td className="p-3 font-bold text-slate-900 dark:text-white">Order #{p.order_id}</td>
-                          <td className="p-3">
-                            <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                        <tr key={p.payout_id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/30 transition-colors">
+                          <td className="p-3.5 font-mono text-slate-500 font-bold">#{p.payout_id}</td>
+                          <td className="p-3.5 font-extrabold text-slate-900 dark:text-white">Order #{p.order_id}</td>
+                          <td className="p-3.5">
+                            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-50 text-emerald-800 border border-emerald-300 dark:bg-emerald-500/15 dark:text-emerald-400 dark:border-emerald-500/30">
                               {p.order_status || 'COMPLETED'}
                             </span>
                           </td>
-                          <td className="p-3 font-black text-emerald-600 dark:text-emerald-400 text-sm">₹{Number(p.vendor_amount).toFixed(2)}</td>
-                          <td className="p-3 text-slate-600 dark:text-slate-400">{new Date(p.executed_at).toLocaleString()}</td>
+                          <td className="p-3.5 font-black text-emerald-700 dark:text-emerald-400 text-sm">₹{Number(p.vendor_amount).toFixed(2)}</td>
+                          <td className="p-3.5 text-slate-600 dark:text-slate-400 font-medium">{new Date(p.executed_at).toLocaleString()}</td>
                         </tr>
                       ))
                     ) : (
                       <tr>
-                        <td colSpan={5} className="py-8 text-center text-slate-400">
+                        <td colSpan={5} className="py-12 text-center text-slate-500 font-medium">
                           No escrow payouts recorded yet for this kitchen. Completed customer orders will appear here automatically.
                         </td>
                       </tr>
@@ -2065,42 +2204,63 @@ export default function ChefSite({ user, onLogin, onLogout }) {
       {/* Tab: Customer Reviews */}
       {activeTab === 'reviews' && (
         <div className="space-y-6">
-          <div className="glass-card rounded-2xl p-6 border border-slate-300 dark:border-slate-800 space-y-4">
-            <div className="flex justify-between items-center border-b border-slate-300 dark:border-slate-800 pb-3">
-              <div>
-                <h2 className="text-xl font-bold text-slate-900 dark:text-white">⭐ Kitchen Customer Ratings & Feedback</h2>
-                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Real-time reviews and NLP sentiment scoring from verified customers</p>
+          <div className="glass-card rounded-3xl p-6 sm:p-7 border border-slate-200/80 dark:border-slate-800 bg-white/95 dark:bg-slate-900/95 space-y-5 shadow-xl shadow-slate-200/40 dark:shadow-none">
+            <div className="flex flex-wrap justify-between items-center border-b border-slate-100 dark:border-slate-800 pb-3 gap-3">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-amber-500 to-orange-500 text-slate-950 flex items-center justify-center shadow-lg shadow-amber-500/20 shrink-0">
+                  <Star className="w-5 h-5 fill-slate-950 text-slate-950" />
+                </div>
+                <div>
+                  <h2 className="text-xl sm:text-2xl font-black font-display text-slate-900 dark:text-white tracking-tight">Kitchen Customer Ratings & Feedback</h2>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">Real-time reviews and NLP sentiment scoring from verified customers</p>
+                </div>
               </div>
-              <span className="px-3 py-1 rounded-full bg-emerald-500/10 text-emerald-500 text-xs font-bold border border-emerald-500/20">
+              <span className="px-3.5 py-1 rounded-full bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 text-xs font-black border border-emerald-500/20 shadow-sm">
                 {chefReviews.length} Verified Customer Reviews
               </span>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {chefReviews.map((r, i) => (
-                <div key={r.review_id || i} className="p-4 rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 space-y-3">
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <h4 className="font-bold text-slate-900 dark:text-white text-sm">{r.customer_name || 'Customer'}</h4>
-                      <p className="text-[11px] text-slate-500 dark:text-slate-400">Order #{r.order_id}</p>
+            {chefReviews.length === 0 ? (
+              <div className="text-center py-16 bg-slate-50 dark:bg-slate-950/40 rounded-2xl border border-dashed border-slate-200 dark:border-slate-800 space-y-2">
+                <p className="text-sm font-bold text-slate-700 dark:text-slate-300">No customer reviews yet</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400">Feedback from diners who enjoy your creations will appear here</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                {chefReviews.map((r, i) => (
+                  <div key={r.review_id || i} className="p-5 rounded-2xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200/80 dark:border-slate-800 space-y-3 shadow-sm hover:border-slate-300 dark:hover:border-slate-700 transition-all">
+                    <div className="flex justify-between items-start">
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-8 h-8 rounded-full bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 font-black text-xs flex items-center justify-center border border-emerald-500/20">
+                          {(r.customer_name || 'C').charAt(0).toUpperCase()}
+                        </div>
+                        <div>
+                          <h4 className="font-black text-slate-900 dark:text-white text-sm">{r.customer_name || 'Customer'}</h4>
+                          <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">Order #{r.order_id}</p>
+                        </div>
+                      </div>
+                      <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black border shadow-sm ${
+                        r.sentiment_label === 'POSITIVE' 
+                          ? 'bg-emerald-50 text-emerald-800 border-emerald-300 dark:bg-emerald-500/15 dark:text-emerald-400 dark:border-emerald-500/30' 
+                          : 'bg-rose-50 text-rose-800 border-rose-300 dark:bg-rose-500/15 dark:text-rose-400 dark:border-rose-500/30'
+                      }`}>
+                        {r.sentiment_label || 'POSITIVE'}
+                      </span>
                     </div>
-                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${
-                      r.sentiment_label === 'POSITIVE' ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20' : 'bg-rose-500/10 text-rose-500 border-rose-500/20'
-                    }`}>
-                      {r.sentiment_label || 'POSITIVE'}
-                    </span>
-                  </div>
 
-                  <div className="flex items-center gap-4 text-xs font-bold text-amber-500">
-                    <span>Chef Rating: {'⭐'.repeat(r.vendor_rating || 5)}</span>
-                  </div>
+                    <div className="flex items-center gap-1 text-amber-500 text-sm">
+                      {Array.from({ length: r.vendor_rating || 5 }).map((_, starIdx) => (
+                        <Star key={starIdx} className="w-4 h-4 fill-amber-400 text-amber-400" />
+                      ))}
+                    </div>
 
-                  <p className="text-xs text-slate-700 dark:text-slate-300 italic bg-slate-200/50 dark:bg-slate-800/50 p-2.5 rounded-lg border border-slate-300 dark:border-slate-700/50">
-                    "{r.comment || 'Delicious meal!'}"
-                  </p>
-                </div>
-              ))}
-            </div>
+                    <p className="text-xs text-slate-700 dark:text-slate-300 italic bg-white dark:bg-slate-900 p-3 rounded-xl border border-slate-200/80 dark:border-slate-800/80 shadow-inner">
+                      "{r.comment || 'Delicious meal!'}"
+                    </p>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -2108,15 +2268,17 @@ export default function ChefSite({ user, onLogin, onLogout }) {
       {/* Operating Hours Modal */}
       {showHoursModal && (
         <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fade-in">
-          <div className="glass-card rounded-3xl p-6 border border-slate-300 dark:border-slate-800 w-full max-w-md space-y-4 shadow-2xl bg-white dark:bg-slate-900">
-            <div className="flex justify-between items-center border-b border-slate-300 dark:border-slate-800 pb-3">
-              <div className="flex items-center gap-2">
-                <Clock className="w-5 h-5 text-amber-500" />
-                <h3 className="font-extrabold text-slate-900 dark:text-white">Operating Hours & Store Profile</h3>
+          <div className="glass-card rounded-3xl p-6 sm:p-7 border border-slate-200/80 dark:border-slate-800 w-full max-w-md space-y-4 shadow-2xl bg-white dark:bg-slate-900">
+            <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-800 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-xl bg-amber-500/10 text-amber-500 flex items-center justify-center">
+                  <Clock className="w-4 h-4" />
+                </div>
+                <h3 className="font-black font-display text-slate-900 dark:text-white text-base">Operating Hours & Store Profile</h3>
               </div>
               <button
                 onClick={() => setShowHoursModal(false)}
-                className="p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors"
+                className="p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -2124,62 +2286,62 @@ export default function ChefSite({ user, onLogin, onLogout }) {
 
             <form onSubmit={handleSaveHours} className="space-y-4 text-xs">
               <div>
-                <label className="font-bold text-slate-700 dark:text-slate-300">Display Operating Hours Text</label>
+                <label className="font-extrabold text-slate-700 dark:text-slate-300">Display Operating Hours Text</label>
                 <input
                   type="text"
                   value={hoursForm.operating_hours}
                   onChange={(e) => setHoursForm({ ...hoursForm, operating_hours: e.target.value })}
                   placeholder="e.g. 11:00 AM - 10:00 PM"
-                  className="w-full mt-1 px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white"
+                  className="w-full mt-1.5 px-3.5 py-2.5 rounded-xl bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white font-semibold outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 shadow-sm"
                   required
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="font-bold text-slate-700 dark:text-slate-300">Opening Time (24h)</label>
+                  <label className="font-extrabold text-slate-700 dark:text-slate-300">Opening Time (24h)</label>
                   <input
                     type="time"
                     value={hoursForm.open_time}
                     onChange={(e) => setHoursForm({ ...hoursForm, open_time: e.target.value })}
-                    className="w-full mt-1 px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white"
+                    className="w-full mt-1.5 px-3.5 py-2.5 rounded-xl bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white font-semibold outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 shadow-sm"
                     required
                   />
                 </div>
                 <div>
-                  <label className="font-bold text-slate-700 dark:text-slate-300">Closing Time (24h)</label>
+                  <label className="font-extrabold text-slate-700 dark:text-slate-300">Closing Time (24h)</label>
                   <input
                     type="time"
                     value={hoursForm.close_time}
                     onChange={(e) => setHoursForm({ ...hoursForm, close_time: e.target.value })}
-                    className="w-full mt-1 px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white"
+                    className="w-full mt-1.5 px-3.5 py-2.5 rounded-xl bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white font-semibold outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 shadow-sm"
                     required
                   />
                 </div>
               </div>
 
               <div>
-                <label className="font-bold text-slate-700 dark:text-slate-300">Kitchen Bio & Announcement</label>
+                <label className="font-extrabold text-slate-700 dark:text-slate-300">Kitchen Bio & Announcement</label>
                 <textarea
                   value={hoursForm.chef_bio}
                   onChange={(e) => setHoursForm({ ...hoursForm, chef_bio: e.target.value })}
                   rows={2}
                   placeholder="e.g. Specializing in artisanal hand-rolled pasta and wood-fired gourmet specialties."
-                  className="w-full mt-1 px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white"
+                  className="w-full mt-1.5 px-3.5 py-2.5 rounded-xl bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white font-medium outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 shadow-sm resize-none"
                 />
               </div>
 
-              <div className="flex gap-2 pt-2">
+              <div className="flex gap-2.5 pt-2">
                 <button
                   type="button"
                   onClick={() => setShowHoursModal(false)}
-                  className="w-1/2 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 font-bold hover:bg-slate-100 dark:hover:bg-slate-800"
+                  className="w-1/2 py-3 rounded-2xl border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 font-bold hover:bg-slate-100 dark:hover:bg-slate-800 transition-all cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="w-1/2 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-black shadow-lg shadow-emerald-500/20"
+                  className="w-1/2 py-3 rounded-2xl bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-600 hover:from-emerald-600 hover:to-teal-600 text-white font-black shadow-lg shadow-emerald-500/25 transition-all active:scale-95 cursor-pointer"
                 >
                   Save Timings
                 </button>
@@ -2192,22 +2354,22 @@ export default function ChefSite({ user, onLogin, onLogout }) {
       {/* Dynamic Store Closure Reason Modal */}
       {showCloseReasonModal && (
         <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fade-in">
-          <div className="glass-card rounded-3xl p-6 border border-slate-300 dark:border-slate-800 w-full max-w-md space-y-4 shadow-2xl bg-white dark:bg-slate-900">
-            <div className="flex justify-between items-center border-b border-slate-300 dark:border-slate-800 pb-3">
-              <div className="flex items-center gap-2 text-rose-500">
+          <div className="glass-card rounded-3xl p-6 sm:p-7 border border-slate-200/80 dark:border-slate-800 w-full max-w-md space-y-4 shadow-2xl bg-white dark:bg-slate-900">
+            <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-800 pb-3">
+              <div className="flex items-center gap-2.5 text-rose-500">
                 <Ban className="w-5 h-5" />
-                <h3 className="font-extrabold text-slate-900 dark:text-white">Close Kitchen & Set Reason</h3>
+                <h3 className="font-black font-display text-slate-900 dark:text-white text-base">Close Kitchen & Set Reason</h3>
               </div>
               <button
                 onClick={() => setShowCloseReasonModal(false)}
-                className="p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors"
+                className="p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
             <form onSubmit={handleConfirmCloseKitchen} className="space-y-4 text-xs">
-              <p className="text-slate-600 dark:text-slate-400">Select or type a closure reason to display to customers on the marketplace while your kitchen is offline:</p>
+              <p className="text-slate-600 dark:text-slate-400 font-medium">Select or type a closure reason to display to customers on the marketplace while your kitchen is offline:</p>
 
               <div className="space-y-2">
                 {[
@@ -2221,8 +2383,8 @@ export default function ChefSite({ user, onLogin, onLogout }) {
                     key={reasonOption}
                     className={`flex items-center gap-2.5 p-3 rounded-xl border cursor-pointer transition-all ${
                       selectedPresetReason === reasonOption
-                        ? 'bg-rose-500/10 border-rose-500/50 text-rose-600 dark:text-rose-400 font-bold'
-                        : 'bg-slate-100 dark:bg-slate-800/60 border-slate-300 dark:border-slate-800 text-slate-700 dark:text-slate-300'
+                        ? 'bg-rose-50 text-rose-800 border-rose-300 dark:bg-rose-500/15 dark:text-rose-300 dark:border-rose-500/40 font-black shadow-sm ring-1 ring-rose-500/20'
+                        : 'bg-white dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300'
                     }`}
                   >
                     <input
@@ -2239,29 +2401,29 @@ export default function ChefSite({ user, onLogin, onLogout }) {
 
               {selectedPresetReason === 'CUSTOM' && (
                 <div className="pt-1">
-                  <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">Custom Reason Message</label>
+                  <label className="font-extrabold text-slate-700 dark:text-slate-300 block mb-1">Custom Reason Message</label>
                   <input
                     type="text"
                     value={customReasonInput}
                     onChange={(e) => setCustomReasonInput(e.target.value)}
                     placeholder="e.g., Closed early for private wedding catering event."
-                    className="w-full px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white"
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white font-medium shadow-sm outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500"
                     required={selectedPresetReason === 'CUSTOM'}
                   />
                 </div>
               )}
 
-              <div className="flex gap-2 pt-3 border-t border-slate-300 dark:border-slate-800">
+              <div className="flex gap-2.5 pt-3 border-t border-slate-100 dark:border-slate-800">
                 <button
                   type="button"
                   onClick={() => setShowCloseReasonModal(false)}
-                  className="w-1/2 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 font-bold hover:bg-slate-100 dark:hover:bg-slate-800"
+                  className="w-1/2 py-3 rounded-2xl border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 font-bold hover:bg-slate-100 dark:hover:bg-slate-800 transition-all cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="w-1/2 py-2.5 rounded-xl bg-rose-500 hover:bg-rose-600 text-white font-black shadow-lg shadow-rose-500/20"
+                  className="w-1/2 py-3 rounded-2xl bg-gradient-to-r from-rose-500 to-red-600 hover:from-rose-600 hover:to-red-700 text-white font-black shadow-lg shadow-rose-500/25 transition-all active:scale-95 cursor-pointer"
                 >
                   Confirm Close Kitchen
                 </button>

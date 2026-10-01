@@ -3,36 +3,40 @@
 @tailwind utilities;
 
 :root, html.light {
-  /* Light Mode Semantic Variables */
+  /* Light Mode Semantic Variables - Warm, crisp, luxury culinary aesthetic */
   --bg-main: #f8fafc;
   --bg-surface: #ffffff;
-  --bg-elevated: #f1f5f9;
+  --bg-elevated: #ffffff;
   --bg-modal: #ffffff;
-  --border-subtle: #cbd5e1;
-  --border-accent: rgba(249, 115, 22, 0.35);
+  --border-subtle: #e2e8f0;
+  --border-accent: rgba(249, 115, 22, 0.4);
   --text-primary: #0f172a;
   --text-secondary: #475569;
   --accent-orange: #ea580c;
 }
 
 html.dark {
-  /* Dark Mode Semantic Elevation System */
-  --bg-main: #0b0f19;       /* Layer 0 (Lowest): Page backdrop */
-  --bg-surface: #151b2c;    /* Layer 1 (Middle): Component cards & containers */
-  --bg-elevated: #1e263d;   /* Layer 2 (Elevated): Sub-cards & interactive containers */
-  --bg-modal: #222c44;      /* Layer 3 (Highest): Modals, dropdowns & popups */
-  --border-subtle: rgba(255, 255, 255, 0.08); /* Faint low-contrast separator border */
-  --border-accent: rgba(249, 115, 22, 0.35);  /* Subtle accent border glow */
-  --text-primary: #f3f4f6;  /* Soft off-white to prevent eye strain */
-  --text-secondary: #9ca3af;/* Legible muted gray */
+  /* Dark Mode Semantic Elevation System - Obsidian, rich slate, ember glow */
+  --bg-main: #090d16;       /* Layer 0: Page backdrop */
+  --bg-surface: #111726;    /* Layer 1: Component cards & containers */
+  --bg-elevated: #182032;   /* Layer 2: Sub-cards & interactive containers */
+  --bg-modal: #1e273e;      /* Layer 3: Modals, dropdowns & popups */
+  --border-subtle: rgba(255, 255, 255, 0.08);
+  --border-accent: rgba(249, 115, 22, 0.4);
+  --text-primary: #f8fafc;
+  --text-secondary: #94a3b8;
   --accent-orange: #f97316;
 }
 
 body {
   background-color: var(--bg-main);
   color: var(--text-primary);
-  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
   transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+.font-display {
+  font-family: 'Outfit', 'Plus Jakarta Sans', sans-serif;
 }
 
 @layer utilities {
@@ -40,9 +44,12 @@ body {
     background-color: var(--bg-surface);
     backdrop-filter: blur(16px);
     border: 1px solid var(--border-subtle);
-    box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.15), inset 0 1px 0 0 rgba(255, 255, 255, 0.05);
+    box-shadow: 0 10px 25px -5px rgba(15, 23, 42, 0.05), 0 8px 10px -6px rgba(15, 23, 42, 0.03);
     position: relative;
-    transition: background-color 0.3s ease, border-color 0.3s ease;
+    transition: background-color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
+  }
+  html.dark .glass-card {
+    box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.5), inset 0 1px 0 0 rgba(255, 255, 255, 0.05);
   }
 
   .elevated-card {
@@ -53,7 +60,10 @@ body {
   .modal-surface {
     background-color: var(--bg-modal);
     border: 1px solid var(--border-subtle);
-    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5), 0 0 15px rgba(0, 0, 0, 0.3);
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25), 0 0 15px rgba(0, 0, 0, 0.1);
+  }
+  html.dark .modal-surface {
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.6), 0 0 25px rgba(0, 0, 0, 0.4);
   }
   
   /* Gradient Edge Accent Line on Top/Bottom of Cards */
@@ -139,6 +149,46 @@ body {
   }
   .glow-badge {
     box-shadow: 0 0 15px rgba(249, 115, 22, 0.4);
+  }
+
+  /* High-End Culinary Inputs */
+  .input-luxury {
+    background-color: #ffffff;
+    border: 1px solid #e2e8f0;
+    color: #0f172a;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  html.dark .input-luxury {
+    background-color: rgba(15, 23, 42, 0.85);
+    border: 1px solid #1e293b;
+    color: #f8fafc;
+  }
+  .input-luxury:focus {
+    border-color: #f97316;
+    box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.15);
+  }
+
+  /* High-Contrast Stock Status Badges */
+  .badge-stock-in {
+    background-color: #ecfdf5;
+    color: #065f46;
+    border: 1px solid #a7f3d0;
+  }
+  html.dark .badge-stock-in {
+    background-color: rgba(16, 185, 129, 0.15);
+    color: #34d399;
+    border: 1px solid rgba(16, 185, 129, 0.3);
+  }
+
+  .badge-stock-out {
+    background-color: #fff1f2;
+    color: #9f1239;
+    border: 1px solid #fecdd3;
+  }
+  html.dark .badge-stock-out {
+    background-color: rgba(244, 63, 94, 0.15);
+    color: #fb7185;
+    border: 1px solid rgba(244, 63, 94, 0.3);
   }
 }
 
