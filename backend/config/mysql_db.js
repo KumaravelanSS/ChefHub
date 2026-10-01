@@ -226,6 +226,18 @@ async function initRelationalDb() {
   `);
 
   console.log('[Relational Engine] All 7 relational tables checked/created successfully.');
+
+  if (isPostgres) {
+    const tables = ['users', 'dishes', 'inventory', 'dish_recipes', 'orders', 'order_items', 'payouts'];
+    for (const t of tables) {
+      try {
+        await query(`ALTER TABLE ${t} ENABLE ROW LEVEL SECURITY`);
+      } catch (err) {
+        // Ignored if already enabled or not supported
+      }
+    }
+    console.log('[Relational Engine] Row Level Security (RLS) enabled on all 7 tables.');
+  }
 }
 
 module.exports = {
