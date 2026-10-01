@@ -1134,26 +1134,48 @@ export default function ChefSite({ user, onLogin, onLogout }) {
 
       {/* Edit Dish Modal Window */}
       {editingDish && (
-        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4">
-          <div className="glass-card rounded-3xl p-6 sm:p-8 border border-slate-300 dark:border-slate-800 max-w-lg w-full space-y-5 shadow-2xl">
-            <div className="flex justify-between items-center border-b border-slate-300 dark:border-slate-800 pb-3">
-              <h3 className="font-black text-slate-900 dark:text-white text-lg flex items-center gap-2">
-                <Edit3 className="w-5 h-5 text-amber-500" />
-                Edit Dish #{editForm.dish_id}
-              </h3>
-              <button onClick={() => setEditingDish(null)} className="text-slate-400 hover:text-slate-900 dark:hover:text-white p-1">
+        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 overflow-hidden animate-fade-in">
+          <form 
+            onSubmit={handleSaveEditDish}
+            className="glass-card bg-white dark:bg-slate-950 rounded-3xl border border-slate-300 dark:border-slate-800 max-w-lg w-full max-h-[90vh] flex flex-col shadow-2xl overflow-hidden"
+          >
+            {/* STICKY TOP HEADER */}
+            <div className="flex justify-between items-center px-6 py-4 border-b border-slate-200 dark:border-slate-800 bg-white/95 dark:bg-slate-950/95 backdrop-blur-md shrink-0 z-10">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded-xl bg-amber-500/10 text-amber-500 border border-amber-500/20">
+                  <Edit3 className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="font-black text-slate-900 dark:text-white text-base flex items-center gap-1.5">
+                    Edit Dish #{editForm.dish_id}
+                    {editForm.name && (
+                      <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 truncate max-w-[160px]">
+                        · {editForm.name}
+                      </span>
+                    )}
+                  </h3>
+                  <p className="text-[10px] text-slate-500 dark:text-slate-400">Update pricing, live portions and availability</p>
+                </div>
+              </div>
+              <button 
+                type="button"
+                onClick={() => setEditingDish(null)} 
+                className="text-slate-400 hover:text-slate-900 dark:hover:text-white p-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-all"
+                title="Close Modal"
+              >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <form onSubmit={handleSaveEditDish} className="space-y-4 text-xs">
+            {/* SCROLLABLE FORM BODY */}
+            <div className="overflow-y-auto px-6 py-4 space-y-3.5 text-xs flex-1 custom-scrollbar">
               <div>
                 <label className="font-bold text-slate-700 dark:text-slate-300">Dish Name</label>
                 <input
                   type="text"
                   value={editForm.name}
                   onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
-                  className="w-full mt-1.5 px-3.5 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 text-slate-900 dark:text-white outline-none focus:border-amber-500"
+                  className="w-full mt-1 px-3.5 py-2 rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 text-slate-900 dark:text-white outline-none focus:border-amber-500 font-semibold"
                   required
                 />
               </div>
@@ -1165,7 +1187,7 @@ export default function ChefSite({ user, onLogin, onLogout }) {
                     type="text"
                     value={editForm.category}
                     onChange={(e) => setEditForm({ ...editForm, category: e.target.value })}
-                    className="w-full mt-1.5 px-3.5 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 text-slate-900 dark:text-white outline-none focus:border-amber-500"
+                    className="w-full mt-1 px-3.5 py-2 rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 text-slate-900 dark:text-white outline-none focus:border-amber-500"
                     required
                   />
                 </div>
@@ -1176,20 +1198,20 @@ export default function ChefSite({ user, onLogin, onLogout }) {
                     step="0.01"
                     value={editForm.base_price}
                     onChange={(e) => setEditForm({ ...editForm, base_price: e.target.value })}
-                    className="w-full mt-1.5 px-3.5 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 text-slate-900 dark:text-white outline-none focus:border-amber-500"
+                    className="w-full mt-1 px-3.5 py-2 rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 text-slate-900 dark:text-white outline-none focus:border-amber-500 font-bold"
                     required
                   />
                 </div>
               </div>
 
               {/* Portions in Stock Field with Steppers & Quick Chips */}
-              <div className="p-3.5 rounded-2xl bg-amber-500/5 dark:bg-amber-500/10 border border-amber-500/25 space-y-2.5">
+              <div className="p-3 rounded-2xl bg-amber-500/5 dark:bg-amber-500/10 border border-amber-500/25 space-y-2">
                 <div className="flex justify-between items-center">
                   <label className="font-extrabold text-slate-800 dark:text-slate-200 flex items-center gap-1.5 text-xs">
-                    <Package className="w-4 h-4 text-amber-500" />
-                    <span>Portions in Stock (Daily Stock Target)</span>
+                    <Package className="w-3.5 h-3.5 text-amber-500" />
+                    <span>Portions in Stock (Daily Availability Target)</span>
                   </label>
-                  <span className={`text-[10px] font-black px-2.5 py-0.5 rounded-full ${
+                  <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${
                     Number(editForm.daily_stock) > 5 
                       ? 'bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30' 
                       : Number(editForm.daily_stock) > 0 
@@ -1213,7 +1235,7 @@ export default function ChefSite({ user, onLogin, onLogout }) {
                         out_of_stock_reason: next === 0 ? 'Daily portions fully exhausted (0 remaining)' : (editForm.out_of_stock_reason === 'Daily portions fully exhausted (0 remaining)' ? 'In Stock' : editForm.out_of_stock_reason)
                       });
                     }}
-                    className="w-10 h-10 rounded-xl bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 font-black text-lg text-slate-900 dark:text-white flex items-center justify-center border border-slate-300 dark:border-slate-700 transition-all active:scale-95 shadow-sm"
+                    className="w-9 h-9 rounded-xl bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 font-black text-base text-slate-900 dark:text-white flex items-center justify-center border border-slate-300 dark:border-slate-700 transition-all active:scale-95 shadow-sm"
                     title="Decrease portions by 1"
                   >
                     -
@@ -1231,7 +1253,7 @@ export default function ChefSite({ user, onLogin, onLogout }) {
                         out_of_stock_reason: val === 0 ? 'Daily portions fully exhausted (0 remaining)' : (editForm.out_of_stock_reason === 'Daily portions fully exhausted (0 remaining)' ? 'In Stock' : editForm.out_of_stock_reason)
                       });
                     }}
-                    className="flex-1 px-3.5 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 text-slate-900 dark:text-white font-black text-center text-sm outline-none focus:border-amber-500 shadow-inner"
+                    className="flex-1 px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 text-slate-900 dark:text-white font-black text-center text-sm outline-none focus:border-amber-500 shadow-inner"
                     placeholder="e.g. 25"
                     required
                   />
@@ -1247,7 +1269,7 @@ export default function ChefSite({ user, onLogin, onLogout }) {
                         out_of_stock_reason: editForm.out_of_stock_reason === 'Daily portions fully exhausted (0 remaining)' ? 'In Stock' : editForm.out_of_stock_reason
                       });
                     }}
-                    className="w-10 h-10 rounded-xl bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 font-black text-lg text-slate-900 dark:text-white flex items-center justify-center border border-slate-300 dark:border-slate-700 transition-all active:scale-95 shadow-sm"
+                    className="w-9 h-9 rounded-xl bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 font-black text-base text-slate-900 dark:text-white flex items-center justify-center border border-slate-300 dark:border-slate-700 transition-all active:scale-95 shadow-sm"
                     title="Increase portions by 1"
                   >
                     +
@@ -1255,36 +1277,34 @@ export default function ChefSite({ user, onLogin, onLogout }) {
                 </div>
 
                 {/* Stock Quick Presets */}
-                <div className="space-y-1 pt-1">
-                  <span className="text-[10px] text-slate-500 dark:text-slate-400 font-bold">Quick Stock Presets:</span>
-                  <div className="flex flex-wrap gap-1.5">
-                    {[
-                      { label: '+5', calc: (c) => c + 5 },
-                      { label: '+10', calc: (c) => c + 10 },
-                      { label: '+20', calc: (c) => c + 20 },
-                      { label: 'Set 25', calc: () => 25 },
-                      { label: 'Set 50', calc: () => 50 },
-                      { label: 'Depleted (0)', calc: () => 0 }
-                    ].map((preset, idx) => (
-                      <button
-                        key={idx}
-                        type="button"
-                        onClick={() => {
-                          const cur = Number(editForm.daily_stock !== undefined && editForm.daily_stock !== null ? editForm.daily_stock : 20);
-                          const nextVal = Math.max(0, preset.calc(cur));
-                          setEditForm({
-                            ...editForm,
-                            daily_stock: nextVal,
-                            is_available: nextVal > 0,
-                            out_of_stock_reason: nextVal === 0 ? 'Daily portions fully exhausted (0 remaining)' : (editForm.out_of_stock_reason === 'Daily portions fully exhausted (0 remaining)' ? 'In Stock' : editForm.out_of_stock_reason)
-                          });
-                        }}
-                        className="px-2.5 py-1 rounded-lg bg-white dark:bg-slate-900 hover:bg-amber-500 hover:text-slate-950 text-slate-700 dark:text-slate-300 text-[10px] font-extrabold border border-slate-300 dark:border-slate-700 transition-all active:scale-95 shadow-sm"
-                      >
-                        {preset.label}
-                      </button>
-                    ))}
-                  </div>
+                <div className="flex items-center gap-1.5 flex-wrap pt-0.5">
+                  <span className="text-[10px] text-slate-500 dark:text-slate-400 font-semibold">Presets:</span>
+                  {[
+                    { label: '+5', calc: (c) => c + 5 },
+                    { label: '+10', calc: (c) => c + 10 },
+                    { label: '+20', calc: (c) => c + 20 },
+                    { label: 'Set 25', calc: () => 25 },
+                    { label: 'Set 50', calc: () => 50 },
+                    { label: 'Depleted (0)', calc: () => 0 }
+                  ].map((preset, idx) => (
+                    <button
+                      key={idx}
+                      type="button"
+                      onClick={() => {
+                        const cur = Number(editForm.daily_stock !== undefined && editForm.daily_stock !== null ? editForm.daily_stock : 20);
+                        const nextVal = Math.max(0, preset.calc(cur));
+                        setEditForm({
+                          ...editForm,
+                          daily_stock: nextVal,
+                          is_available: nextVal > 0,
+                          out_of_stock_reason: nextVal === 0 ? 'Daily portions fully exhausted (0 remaining)' : (editForm.out_of_stock_reason === 'Daily portions fully exhausted (0 remaining)' ? 'In Stock' : editForm.out_of_stock_reason)
+                        });
+                      }}
+                      className="px-2 py-0.5 rounded-lg bg-white dark:bg-slate-900 hover:bg-amber-500 hover:text-slate-950 text-slate-700 dark:text-slate-300 text-[10px] font-extrabold border border-slate-300 dark:border-slate-700 transition-all active:scale-95 shadow-sm"
+                    >
+                      {preset.label}
+                    </button>
+                  ))}
                 </div>
               </div>
 
@@ -1295,24 +1315,22 @@ export default function ChefSite({ user, onLogin, onLogout }) {
                   value={editForm.image_url}
                   onChange={(e) => setEditForm({ ...editForm, image_url: e.target.value })}
                   placeholder="https://images.unsplash.com/..."
-                  className="w-full mt-1.5 px-3.5 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 text-slate-900 dark:text-white outline-none focus:border-amber-500"
+                  className="w-full mt-1 px-3.5 py-2 rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 text-slate-900 dark:text-white outline-none focus:border-amber-500"
                 />
 
                 {/* Quick Presets */}
-                <div className="space-y-1 mt-2">
-                  <span className="text-[10px] text-slate-600 dark:text-slate-400 font-semibold">Quick Food Image Presets:</span>
-                  <div className="flex flex-wrap gap-1">
-                    {presetImages.map((p, idx) => (
-                      <button
-                        key={idx}
-                        type="button"
-                        onClick={() => setEditForm({ ...editForm, image_url: p.url })}
-                        className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-[10px] font-bold border border-slate-300 dark:border-slate-700"
-                      >
-                        {p.label}
-                      </button>
-                    ))}
-                  </div>
+                <div className="flex flex-wrap items-center gap-1 mt-1.5">
+                  <span className="text-[10px] text-slate-500 font-semibold mr-1">Presets:</span>
+                  {presetImages.map((p, idx) => (
+                    <button
+                      key={idx}
+                      type="button"
+                      onClick={() => setEditForm({ ...editForm, image_url: p.url })}
+                      className="px-1.5 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-[9px] font-bold border border-slate-300 dark:border-slate-700"
+                    >
+                      {p.label}
+                    </button>
+                  ))}
                 </div>
               </div>
 
@@ -1322,13 +1340,13 @@ export default function ChefSite({ user, onLogin, onLogout }) {
                   rows="2"
                   value={editForm.description}
                   onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
-                  className="w-full mt-1.5 px-3.5 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 text-slate-900 dark:text-white outline-none focus:border-amber-500"
+                  className="w-full mt-1 px-3.5 py-2 rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 text-slate-900 dark:text-white outline-none focus:border-amber-500"
                 />
               </div>
 
-              <div className="pt-2">
-                <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1.5">Stock Availability Status</label>
-                <div className="flex items-center gap-4 bg-slate-100 dark:bg-slate-900 p-3 rounded-xl border border-slate-300 dark:border-slate-800">
+              <div className="pt-1">
+                <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">Stock Availability Status</label>
+                <div className="flex items-center gap-4 bg-slate-100 dark:bg-slate-900 p-2.5 rounded-xl border border-slate-300 dark:border-slate-800">
                   <label className="flex items-center gap-2 text-xs text-emerald-600 dark:text-emerald-400 font-extrabold cursor-pointer">
                     <input
                       type="radio"
@@ -1341,7 +1359,7 @@ export default function ChefSite({ user, onLogin, onLogout }) {
                           ...editForm,
                           is_available: true,
                           daily_stock: nextStock,
-                          out_of_stock_reason: editForm.out_of_stock_reason === 'Daily portions fully exhausted (0 remaining)' ? 'In Stock' : editForm.out_of_stock_reason
+                          out_of_stock_reason: 'In Stock'
                         });
                       }}
                       className="accent-emerald-500"
@@ -1357,7 +1375,7 @@ export default function ChefSite({ user, onLogin, onLogout }) {
                         ...editForm,
                         is_available: false,
                         daily_stock: 0,
-                        out_of_stock_reason: editForm.out_of_stock_reason || 'Daily portions fully exhausted (0 remaining)'
+                        out_of_stock_reason: editForm.out_of_stock_reason === 'In Stock' ? 'Daily portions fully exhausted (0 remaining)' : (editForm.out_of_stock_reason || 'Daily portions fully exhausted (0 remaining)')
                       })}
                       className="accent-rose-500"
                     />
@@ -1366,61 +1384,70 @@ export default function ChefSite({ user, onLogin, onLogout }) {
                 </div>
               </div>
 
-              <div>
-                <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1.5">
-                  Out-of-Stock Reason (Customer Portal Banner Display)
-                </label>
-                
-                {/* Preset Pills GUI */}
-                <div className="mb-2 flex flex-wrap gap-1.5">
-                  {[
-                    'Daily portions fully exhausted (0 remaining)',
-                    'Raw ingredient shortage (Required ingredients depleted in stock)',
-                    'Kitchen prep closed for today',
-                    'Seasonal ingredient unavailable',
-                    'Chef maintenance & sanitation day'
-                  ].map((preset) => (
-                    <button
-                      key={preset}
-                      type="button"
-                      onClick={() => setEditForm({ ...editForm, out_of_stock_reason: preset })}
-                      className={`px-2 py-1 rounded-lg text-[10px] font-semibold border transition-all ${
-                        editForm.out_of_stock_reason === preset
-                          ? 'bg-amber-500 text-slate-950 font-black border-amber-500 shadow-sm'
-                          : 'bg-slate-100 dark:bg-slate-900 text-slate-600 dark:text-slate-400 border-slate-300 dark:border-slate-800 hover:border-amber-500/50'
-                      }`}
-                    >
-                      {preset}
-                    </button>
-                  ))}
+              {/* Conditional Out-of-Stock Reason banner display: ONLY show when dish is Out of Stock */}
+              {!editForm.is_available && (
+                <div className="p-3 rounded-2xl bg-rose-500/5 dark:bg-rose-500/10 border border-rose-500/20 space-y-2 animate-fade-in">
+                  <div className="flex items-center justify-between">
+                    <label className="font-extrabold text-rose-600 dark:text-rose-400 flex items-center gap-1.5 text-xs">
+                      <AlertTriangle className="w-3.5 h-3.5" />
+                      <span>Out-of-Stock Reason (Customer Portal Banner Display)</span>
+                    </label>
+                    <span className="text-[10px] text-rose-500 font-bold">Visible to customers</span>
+                  </div>
+                  
+                  {/* Preset Pills GUI */}
+                  <div className="flex flex-wrap gap-1">
+                    {[
+                      'Daily portions fully exhausted (0 remaining)',
+                      'Raw ingredient shortage (Required ingredients depleted in stock)',
+                      'Kitchen prep closed for today',
+                      'Seasonal ingredient unavailable',
+                      'Chef maintenance & sanitation day'
+                    ].map((preset) => (
+                      <button
+                        key={preset}
+                        type="button"
+                        onClick={() => setEditForm({ ...editForm, out_of_stock_reason: preset })}
+                        className={`px-2 py-0.5 rounded-lg text-[9px] font-semibold border transition-all ${
+                          editForm.out_of_stock_reason === preset
+                            ? 'bg-rose-500 text-white font-black border-rose-500 shadow-sm'
+                            : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 border-slate-300 dark:border-slate-800 hover:border-rose-500/50'
+                        }`}
+                      >
+                        {preset}
+                      </button>
+                    ))}
+                  </div>
+
+                  <textarea
+                    rows="2"
+                    value={editForm.out_of_stock_reason || ''}
+                    onChange={(e) => setEditForm({ ...editForm, out_of_stock_reason: e.target.value })}
+                    placeholder="Enter reason why dish is out of stock..."
+                    className="w-full px-3 py-1.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-800 text-slate-900 dark:text-white outline-none focus:border-rose-500 text-xs"
+                  />
                 </div>
+              )}
+            </div>
 
-                <textarea
-                  rows="2"
-                  value={editForm.out_of_stock_reason || ''}
-                  onChange={(e) => setEditForm({ ...editForm, out_of_stock_reason: e.target.value })}
-                  placeholder="Enter reason why dish is out of stock..."
-                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 text-slate-900 dark:text-white outline-none focus:border-amber-500 text-xs"
-                />
-              </div>
-
-              <div className="flex items-center gap-3 pt-3">
-                <button
-                  type="button"
-                  onClick={() => setEditingDish(null)}
-                  className="flex-1 py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="flex-1 py-3 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-slate-950 font-black text-xs shadow-lg shadow-amber-500/20"
-                >
-                  Update Dish Details
-                </button>
-              </div>
-            </form>
-          </div>
+            {/* STICKY BOTTOM FOOTER */}
+            <div className="flex items-center gap-3 px-6 py-3.5 border-t border-slate-200 dark:border-slate-800 bg-slate-50/95 dark:bg-slate-950/95 backdrop-blur-md shrink-0 z-10">
+              <button
+                type="button"
+                onClick={() => setEditingDish(null)}
+                className="flex-1 py-2.5 rounded-xl bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-extrabold text-xs transition-all"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-slate-950 font-black text-xs shadow-lg shadow-amber-500/20 transition-all active:scale-[0.98] flex items-center justify-center gap-1.5"
+              >
+                <CheckCircle2 className="w-4 h-4" />
+                Update Dish Details
+              </button>
+            </div>
+          </form>
         </div>
       )}
 
