@@ -347,6 +347,59 @@ export default function ChefSite({ user, onLogin, onLogout }) {
     }
   };
 
+  const handleAdjustStock = async (dish_id, delta) => {
+    // Optimistic update for 0-latency feedback
+    const previousDishes = [...dishes];
+    setDishes((prev) =>
+      prev.map((d) => {
+        if (d.dish_id === dish_id) {
+          const cur = Number(d.daily_stock !== undefined && d.daily_stock !== null ? d.daily_stock : 20);
+          const nextStock = Math.max(0, cur + delta);
+          return {
+            ...d,
+            daily_stock: nextStock,
+            is_available: nextStock > 0 ? 1 : 0,
+            out_of_stock_reason: nextStock === 0 ? 'Daily portions fully exhausted (0 remaining)' : (d.out_of_stock_reason === 'Daily portions fully exhausted (0 remaining)' ? 'In Stock' : d.out_of_stock_reason)
+          };
+        }
+        return d;
+      })
+    );
+
+    try {
+      const token = localStorage.getItem('chefhub_token');
+      const res = await fetch(`/api/vendor/dishes/${dish_id}/stock`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({ delta })
+      });
+      const data = await res.json();
+      if (data.success) {
+        setDishes((prev) =>
+          prev.map((d) =>
+            d.dish_id === dish_id
+              ? {
+                  ...d,
+                  daily_stock: data.daily_stock,
+                  is_available: data.is_available ? 1 : 0,
+                  out_of_stock_reason: data.out_of_stock_reason
+                }
+              : d
+          )
+        );
+      } else {
+        setDishes(previousDishes);
+        alert(data.message || 'Failed to adjust stock');
+      }
+    } catch (err) {
+      setDishes(previousDishes);
+      console.error('Adjust stock error:', err);
+    }
+  };
+
   const openEditModal = (dish) => {
     setEditingDish(dish);
     setEditForm({
@@ -802,15 +855,34 @@ export default function ChefSite({ user, onLogin, onLogout }) {
                         <td className="p-3 font-semibold text-slate-700 dark:text-slate-300">{d.category}</td>
                         <td className="p-3 font-black text-amber-600 dark:text-amber-400">₹{Number(d.base_price).toFixed(2)}</td>
                         
-                        {/* Daily Portion Stock Counter */}
+                        {/* Daily Portion Stock Counter & Dynamic Stepper */}
                         <td className="p-3">
-                          <span className={`px-2.5 py-1 rounded-lg text-xs font-black border ${
-                            Number(d.daily_stock) > 5 ? 'bg-teal-500/10 text-teal-600 dark:text-teal-400 border-teal-500/20' :
-                            Number(d.daily_stock) > 0 ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20' :
-                            'bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20'
-                          }`}>
-                            {d.daily_stock !== undefined ? `${d.daily_stock} left` : '20 left'}
-                          </span>
+                          <div className="flex items-center gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => handleAdjustStock(d.dish_id, -1)}
+                              disabled={Number(d.daily_stock) <= 0}
+                              className="w-6 h-6 rounded-lg bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-black text-xs flex items-center justify-center transition-all disabled:opacity-30 cursor-pointer"
+                              title="Decrease 1 portion"
+                            >
+                              -
+                            </button>
+                            <span className={`px-2 py-0.5 rounded-lg text-xs font-black font-mono border text-center min-w-[58px] ${
+                              Number(d.daily_stock) > 5 ? 'bg-teal-500/10 text-teal-600 dark:text-teal-400 border-teal-500/20' :
+                              Number(d.daily_stock) > 0 ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20' :
+                              'bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20'
+                            }`}>
+                              {d.daily_stock !== undefined ? `${d.daily_stock}` : '20'}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => handleAdjustStock(d.dish_id, +5)}
+                              className="px-1.5 h-6 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/30 text-emerald-600 dark:text-emerald-400 font-black text-[11px] flex items-center justify-center transition-all cursor-pointer"
+                              title="Add +5 portions"
+                            >
+                              +5
+                            </button>
+                          </div>
                         </td>
 
                         {/* Real-Time Stock Status Toggle Button */}
@@ -898,17 +970,89 @@ export default function ChefSite({ user, onLogin, onLogout }) {
                 </div>
               </div>
 
-              <div>
-                <label className="font-bold text-slate-700 dark:text-slate-300">Daily Stock Portions (Chef Morning Target)</label>
-                <input
-                  type="number"
-                  value={newDish.daily_stock}
-                  onChange={(e) => setNewDish({ ...newDish, daily_stock: e.target.value })}
-                  placeholder="20"
-                  className="w-full mt-1.5 px-3.5 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 text-slate-900 dark:text-white outline-none focus:border-emerald-500 font-bold"
-                  required
-                />
-                <p className="text-[10px] text-slate-500 mt-1">Number of portions Chef can prepare today. Auto-depletes when orders arrive.</p>
+              <div className="p-3.5 rounded-2xl bg-emerald-500/5 dark:bg-emerald-500/10 border border-emerald-500/25 space-y-2.5">
+                <div className="flex justify-between items-center">
+                  <label className="font-extrabold text-slate-800 dark:text-slate-200 flex items-center gap-1.5 text-xs">
+                    <Package className="w-4 h-4 text-emerald-500" />
+                    <span>Daily Stock Portions (Chef Morning Target)</span>
+                  </label>
+                  <span className={`text-[10px] font-black px-2.5 py-0.5 rounded-full ${
+                    Number(newDish.daily_stock) > 5 
+                      ? 'bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30' 
+                      : Number(newDish.daily_stock) > 0 
+                      ? 'bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/30' 
+                      : 'bg-rose-500/20 text-rose-600 dark:text-rose-400 border border-rose-500/30'
+                  }`}>
+                    {Number(newDish.daily_stock) > 0 ? `${newDish.daily_stock} portions` : 'Depleted (0)'}
+                  </span>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const cur = Number(newDish.daily_stock !== undefined && newDish.daily_stock !== null ? newDish.daily_stock : 20);
+                      const next = Math.max(0, cur - 1);
+                      setNewDish({ ...newDish, daily_stock: next, is_available: next > 0 });
+                    }}
+                    className="w-10 h-10 rounded-xl bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 font-black text-lg text-slate-900 dark:text-white flex items-center justify-center border border-slate-300 dark:border-slate-700 transition-all active:scale-95 shadow-sm"
+                    title="Decrease portions by 1"
+                  >
+                    -
+                  </button>
+                  <input
+                    type="number"
+                    min="0"
+                    value={newDish.daily_stock}
+                    onChange={(e) => {
+                      const val = Math.max(0, parseInt(e.target.value, 10) || 0);
+                      setNewDish({ ...newDish, daily_stock: val, is_available: val > 0 });
+                    }}
+                    placeholder="20"
+                    className="flex-1 px-3.5 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 text-slate-900 dark:text-white font-black text-center text-sm outline-none focus:border-emerald-500 shadow-inner"
+                    required
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const cur = Number(newDish.daily_stock !== undefined && newDish.daily_stock !== null ? newDish.daily_stock : 20);
+                      const next = cur + 1;
+                      setNewDish({ ...newDish, daily_stock: next, is_available: true });
+                    }}
+                    className="w-10 h-10 rounded-xl bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 font-black text-lg text-slate-900 dark:text-white flex items-center justify-center border border-slate-300 dark:border-slate-700 transition-all active:scale-95 shadow-sm"
+                    title="Increase portions by 1"
+                  >
+                    +
+                  </button>
+                </div>
+
+                {/* Quick Presets */}
+                <div className="space-y-1 pt-1">
+                  <span className="text-[10px] text-slate-500 dark:text-slate-400 font-bold">Quick Presets:</span>
+                  <div className="flex flex-wrap gap-1.5">
+                    {[
+                      { label: '+5', calc: (c) => c + 5 },
+                      { label: '+10', calc: (c) => c + 10 },
+                      { label: '+20', calc: (c) => c + 20 },
+                      { label: 'Set 25', calc: () => 25 },
+                      { label: 'Set 50', calc: () => 50 },
+                      { label: 'Depleted (0)', calc: () => 0 }
+                    ].map((preset, idx) => (
+                      <button
+                        key={idx}
+                        type="button"
+                        onClick={() => {
+                          const cur = Number(newDish.daily_stock !== undefined && newDish.daily_stock !== null ? newDish.daily_stock : 20);
+                          const nextVal = Math.max(0, preset.calc(cur));
+                          setNewDish({ ...newDish, daily_stock: nextVal, is_available: nextVal > 0 });
+                        }}
+                        className="px-2.5 py-1 rounded-lg bg-white dark:bg-slate-900 hover:bg-emerald-500 hover:text-slate-950 text-slate-700 dark:text-slate-300 text-[10px] font-extrabold border border-slate-300 dark:border-slate-700 transition-all active:scale-95 shadow-sm"
+                      >
+                        {preset.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
               </div>
 
               <div>
@@ -1038,142 +1182,109 @@ export default function ChefSite({ user, onLogin, onLogout }) {
                 </div>
               </div>
 
-              <div>
-                <label className="font-bold text-slate-700 dark:text-slate-300">Daily Stock Portions (Chef Morning Target)</label>
-                <input
-                  type="number"
-                  value={editForm.daily_stock}
-                  onChange={(e) => setEditForm({ ...editForm, daily_stock: e.target.value })}
-                  className="w-full mt-1.5 px-3.5 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 text-slate-900 dark:text-white outline-none focus:border-amber-500 font-bold"
-                  required
-                />
-                <p className="text-[10px] text-slate-500 mt-1">Update available portions for today's kitchen menu.</p>
-              </div>
+              {/* Portions in Stock Field with Steppers & Quick Chips */}
+              <div className="p-3.5 rounded-2xl bg-amber-500/5 dark:bg-amber-500/10 border border-amber-500/25 space-y-2.5">
+                <div className="flex justify-between items-center">
+                  <label className="font-extrabold text-slate-800 dark:text-slate-200 flex items-center gap-1.5 text-xs">
+                    <Package className="w-4 h-4 text-amber-500" />
+                    <span>Portions in Stock (Daily Stock Target)</span>
+                  </label>
+                  <span className={`text-[10px] font-black px-2.5 py-0.5 rounded-full ${
+                    Number(editForm.daily_stock) > 5 
+                      ? 'bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30' 
+                      : Number(editForm.daily_stock) > 0 
+                      ? 'bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/30' 
+                      : 'bg-rose-500/20 text-rose-600 dark:text-rose-400 border border-rose-500/30'
+                  }`}>
+                    {Number(editForm.daily_stock) > 0 ? `${editForm.daily_stock} portions ready` : 'Depleted (0 remaining)'}
+                  </span>
+                </div>
 
-              <div>
-                <label className="font-bold text-slate-700 dark:text-slate-300">Food Image URL</label>
-                <input
-                  type="url"
-                  value={editForm.image_url}
-                  onChange={(e) => setEditForm({ ...editForm, image_url: e.target.value })}
-                  placeholder="https://images.unsplash.com/..."
-                  className="w-full mt-1.5 px-3.5 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 text-slate-900 dark:text-white outline-none focus:border-amber-500"
-                />
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const cur = Number(editForm.daily_stock !== undefined && editForm.daily_stock !== null ? editForm.daily_stock : 20);
+                      const next = Math.max(0, cur - 1);
+                      setEditForm({
+                        ...editForm,
+                        daily_stock: next,
+                        is_available: next > 0,
+                        out_of_stock_reason: next === 0 ? 'Daily portions fully exhausted (0 remaining)' : (editForm.out_of_stock_reason === 'Daily portions fully exhausted (0 remaining)' ? 'In Stock' : editForm.out_of_stock_reason)
+                      });
+                    }}
+                    className="w-10 h-10 rounded-xl bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 font-black text-lg text-slate-900 dark:text-white flex items-center justify-center border border-slate-300 dark:border-slate-700 transition-all active:scale-95 shadow-sm"
+                    title="Decrease portions by 1"
+                  >
+                    -
+                  </button>
+                  <input
+                    type="number"
+                    min="0"
+                    value={editForm.daily_stock !== undefined && editForm.daily_stock !== null ? editForm.daily_stock : 20}
+                    onChange={(e) => {
+                      const val = Math.max(0, parseInt(e.target.value, 10) || 0);
+                      setEditForm({
+                        ...editForm,
+                        daily_stock: val,
+                        is_available: val > 0,
+                        out_of_stock_reason: val === 0 ? 'Daily portions fully exhausted (0 remaining)' : (editForm.out_of_stock_reason === 'Daily portions fully exhausted (0 remaining)' ? 'In Stock' : editForm.out_of_stock_reason)
+                      });
+                    }}
+                    className="flex-1 px-3.5 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 text-slate-900 dark:text-white font-black text-center text-sm outline-none focus:border-amber-500 shadow-inner"
+                    placeholder="e.g. 25"
+                    required
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const cur = Number(editForm.daily_stock !== undefined && editForm.daily_stock !== null ? editForm.daily_stock : 20);
+                      const next = cur + 1;
+                      setEditForm({
+                        ...editForm,
+                        daily_stock: next,
+                        is_available: true,
+                        out_of_stock_reason: editForm.out_of_stock_reason === 'Daily portions fully exhausted (0 remaining)' ? 'In Stock' : editForm.out_of_stock_reason
+                      });
+                    }}
+                    className="w-10 h-10 rounded-xl bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 font-black text-lg text-slate-900 dark:text-white flex items-center justify-center border border-slate-300 dark:border-slate-700 transition-all active:scale-95 shadow-sm"
+                    title="Increase portions by 1"
+                  >
+                    +
+                  </button>
+                </div>
 
-                {/* Quick Presets */}
-                <div className="space-y-1 mt-2">
-                  <span className="text-[10px] text-slate-600 dark:text-slate-400 font-semibold">Quick Food Image Presets:</span>
-                  <div className="flex flex-wrap gap-1">
-                    {presetImages.map((p, idx) => (
+                {/* Stock Quick Presets */}
+                <div className="space-y-1 pt-1">
+                  <span className="text-[10px] text-slate-500 dark:text-slate-400 font-bold">Quick Stock Presets:</span>
+                  <div className="flex flex-wrap gap-1.5">
+                    {[
+                      { label: '+5', calc: (c) => c + 5 },
+                      { label: '+10', calc: (c) => c + 10 },
+                      { label: '+20', calc: (c) => c + 20 },
+                      { label: 'Set 25', calc: () => 25 },
+                      { label: 'Set 50', calc: () => 50 },
+                      { label: 'Depleted (0)', calc: () => 0 }
+                    ].map((preset, idx) => (
                       <button
                         key={idx}
                         type="button"
-                        onClick={() => setEditForm({ ...editForm, image_url: p.url })}
-                        className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-[10px] font-bold border border-slate-300 dark:border-slate-700"
+                        onClick={() => {
+                          const cur = Number(editForm.daily_stock !== undefined && editForm.daily_stock !== null ? editForm.daily_stock : 20);
+                          const nextVal = Math.max(0, preset.calc(cur));
+                          setEditForm({
+                            ...editForm,
+                            daily_stock: nextVal,
+                            is_available: nextVal > 0,
+                            out_of_stock_reason: nextVal === 0 ? 'Daily portions fully exhausted (0 remaining)' : (editForm.out_of_stock_reason === 'Daily portions fully exhausted (0 remaining)' ? 'In Stock' : editForm.out_of_stock_reason)
+                          });
+                        }}
+                        className="px-2.5 py-1 rounded-lg bg-white dark:bg-slate-900 hover:bg-amber-500 hover:text-slate-950 text-slate-700 dark:text-slate-300 text-[10px] font-extrabold border border-slate-300 dark:border-slate-700 transition-all active:scale-95 shadow-sm"
                       >
-                        {p.label}
+                        {preset.label}
                       </button>
                     ))}
                   </div>
-                </div>
-              </div>
-
-              <div>
-                <label className="font-bold text-slate-700 dark:text-slate-300">Description</label>
-                <textarea
-                  rows="2"
-                  value={newDish.description}
-                  onChange={(e) => setNewDish({ ...newDish, description: e.target.value })}
-                  placeholder="Brief dish description..."
-                  className="w-full mt-1.5 px-3.5 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 text-slate-900 dark:text-white outline-none focus:border-emerald-500"
-                />
-              </div>
-
-              <div className="pt-2">
-                <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">Initial Stock Availability</label>
-                <div className="flex items-center gap-4">
-                  <label className="flex items-center gap-1.5 text-xs text-emerald-600 dark:text-emerald-400 font-bold cursor-pointer">
-                    <input
-                      type="radio"
-                      name="newDishStock"
-                      checked={newDish.is_available === true}
-                      onChange={() => setNewDish({ ...newDish, is_available: true })}
-                      className="accent-emerald-500"
-                    />
-                    <span>🟢 In Stock</span>
-                  </label>
-                  <label className="flex items-center gap-1.5 text-xs text-rose-600 dark:text-rose-400 font-bold cursor-pointer">
-                    <input
-                      type="radio"
-                      name="newDishStock"
-                      checked={newDish.is_available === false}
-                      onChange={() => setNewDish({ ...newDish, is_available: false })}
-                      className="accent-rose-500"
-                    />
-                    <span>🔴 Out of Stock</span>
-                  </label>
-                </div>
-              </div>
-
-              <button
-                type="submit"
-                className="w-full py-3.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-slate-950 font-black text-xs transition-all shadow-lg shadow-emerald-500/20"
-              >
-                + Save New Dish to Menu
-              </button>
-            </form>
-          </div>
-
-        </div>
-      )}
-
-      {/* Edit Dish Modal Window */}
-      {editingDish && (
-        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4">
-          <div className="glass-card rounded-3xl p-6 sm:p-8 border border-slate-300 dark:border-slate-800 max-w-lg w-full space-y-5 shadow-2xl">
-            <div className="flex justify-between items-center border-b border-slate-300 dark:border-slate-800 pb-3">
-              <h3 className="font-black text-slate-900 dark:text-white text-lg flex items-center gap-2">
-                <Edit3 className="w-5 h-5 text-amber-500" />
-                Edit Dish #{editForm.dish_id}
-              </h3>
-              <button onClick={() => setEditingDish(null)} className="text-slate-400 hover:text-slate-900 dark:hover:text-white p-1">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <form onSubmit={handleSaveEditDish} className="space-y-4 text-xs">
-              <div>
-                <label className="font-bold text-slate-700 dark:text-slate-300">Dish Name</label>
-                <input
-                  type="text"
-                  value={editForm.name}
-                  onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
-                  className="w-full mt-1.5 px-3.5 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 text-slate-900 dark:text-white outline-none focus:border-amber-500"
-                  required
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="font-bold text-slate-700 dark:text-slate-300">Category</label>
-                  <input
-                    type="text"
-                    value={editForm.category}
-                    onChange={(e) => setEditForm({ ...editForm, category: e.target.value })}
-                    className="w-full mt-1.5 px-3.5 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 text-slate-900 dark:text-white outline-none focus:border-amber-500"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="font-bold text-slate-700 dark:text-slate-300">Price (₹)</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    value={editForm.base_price}
-                    onChange={(e) => setEditForm({ ...editForm, base_price: e.target.value })}
-                    className="w-full mt-1.5 px-3.5 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 text-slate-900 dark:text-white outline-none focus:border-amber-500"
-                    required
-                  />
                 </div>
               </div>
 
@@ -1223,7 +1334,16 @@ export default function ChefSite({ user, onLogin, onLogout }) {
                       type="radio"
                       name="editDishStock"
                       checked={editForm.is_available === true}
-                      onChange={() => setEditForm({ ...editForm, is_available: true })}
+                      onChange={() => {
+                        const cur = Number(editForm.daily_stock !== undefined && editForm.daily_stock !== null ? editForm.daily_stock : 0);
+                        const nextStock = cur <= 0 ? 20 : cur;
+                        setEditForm({
+                          ...editForm,
+                          is_available: true,
+                          daily_stock: nextStock,
+                          out_of_stock_reason: editForm.out_of_stock_reason === 'Daily portions fully exhausted (0 remaining)' ? 'In Stock' : editForm.out_of_stock_reason
+                        });
+                      }}
                       className="accent-emerald-500"
                     />
                     <span>🟢 In Stock (Available for Order)</span>
@@ -1233,7 +1353,12 @@ export default function ChefSite({ user, onLogin, onLogout }) {
                       type="radio"
                       name="editDishStock"
                       checked={editForm.is_available === false}
-                      onChange={() => setEditForm({ ...editForm, is_available: false })}
+                      onChange={() => setEditForm({
+                        ...editForm,
+                        is_available: false,
+                        daily_stock: 0,
+                        out_of_stock_reason: editForm.out_of_stock_reason || 'Daily portions fully exhausted (0 remaining)'
+                      })}
                       className="accent-rose-500"
                     />
                     <span>🔴 Out of Stock</span>

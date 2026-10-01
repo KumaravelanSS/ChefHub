@@ -214,7 +214,10 @@ router.put('/dishes/:id', authenticateToken, requireRole('ADMIN'), async (req, r
         for (const cat of mongoMenu.categories) {
           if (cat.dishes) {
             const d = cat.dishes.find(x => Number(x.dish_id) === Number(dish_id));
-            if (d) d.is_available = availVal === 1;
+            if (d) {
+              d.is_available = availVal === 1;
+              d.daily_stock = stockVal;
+            }
           }
         }
         await MongoAdapter.findOrSeedVendorMenus([mongoMenu]);

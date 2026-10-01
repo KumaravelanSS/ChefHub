@@ -178,8 +178,22 @@ router.put('/dishes/:id', authenticateToken, requireRole('VENDOR'), async (req, 
     const vendor_id = req.user.user_id;
     const { name, category, base_price, daily_stock, description, image_url, is_available, out_of_stock_reason, dietary_tags } = req.body;
 
-    const availVal = (is_available === false || is_available === 0 || is_available === '0' || is_available === 'false') ? 0 : 1;
-    const defaultReason = availVal === 1 ? 'In Stock' : (out_of_stock_reason || 'Daily portions fully exhausted (0 remaining)');
+    let stockVal = null;
+    if (daily_stock !== undefined && daily_stock !== null && daily_stock !== '') {
+      stockVal = Math.max(0, parseInt(daily_stock, 10));
+    }
+
+    let availVal = (is_available === false || is_available === 0 || is_available === '0' || is_available === 'false') ? 0 : 1;
+    if (stockVal !== null && stockVal <= 0) {
+      availVal = 0;
+    } else if (stockVal !== null && stockVal > 0 && is_available === undefined) {
+      availVal = 1;
+    }
+
+    let defaultReason = availVal === 1 ? 'In Stock' : (out_of_stock_reason || 'Daily portions fully exhausted (0 remaining)');
+    if (availVal === 0 && stockVal !== null && stockVal <= 0) {
+      defaultReason = 'Daily portions fully exhausted (0 remaining)';
+    }
 
     // 1. Update MySQL `dishes`
     await query(`
@@ -196,8 +210,8 @@ router.put('/dishes/:id', authenticateToken, requireRole('VENDOR'), async (req, 
     `, [
       name || null,
       category || null,
-      base_price !== undefined ? Number(base_price) : null,
-      daily_stock !== undefined ? Number(daily_stock) : null,
+      base_price !== undefined && base_price !== '' ? Number(base_price) : null,
+      stockVal,
       availVal,
       defaultReason,
       description !== undefined ? description : null,
@@ -242,6 +256,7 @@ router.put('/dishes/:id', authenticateToken, requireRole('VENDOR'), async (req, 
         dish_id: Number(dish_id),
         name: name || 'Dish',
         price: Number(base_price || 0),
+        daily_stock: stockVal !== null ? stockVal : 20,
         is_available: availVal === 1,
         dietary_tags: Array.isArray(dietary_tags) ? dietary_tags : ['Fresh']
       };
@@ -253,14 +268,73 @@ router.put('/dishes/:id', authenticateToken, requireRole('VENDOR'), async (req, 
     if (base_price !== undefined) targetDish.price = Number(base_price);
     if (image_url !== undefined && image_url !== null) targetDish.image_url = image_url;
     targetDish.is_available = availVal === 1;
+    if (stockVal !== null) targetDish.daily_stock = stockVal;
     if (dietary_tags && Array.isArray(dietary_tags)) targetDish.dietary_tags = dietary_tags;
 
     await MongoAdapter.findOrSeedVendorMenus([mongoMenu]);
 
-    return res.json({ success: true, message: `Dish #${dish_id} updated successfully!`, is_available: availVal === 1 });
+    return res.json({ 
+      success: true, 
+      message: `Dish #${dish_id} updated successfully!`, 
+      dish_id: Number(dish_id),
+      daily_stock: stockVal,
+      is_available: availVal === 1 
+    });
   } catch (err) {
     console.error('Update dish error:', err);
     return res.status(500).json({ success: false, message: 'Failed to update dish.' });
+  }
+});
+
+// QUICK ADJUST DISH STOCK (INCREMENT, DECREMENT OR SET SPECIFIC STOCK NUMBER)
+router.patch('/dishes/:id/stock', authenticateToken, requireRole('VENDOR'), async (req, res) => {
+  try {
+    const dish_id = req.params.id;
+    const vendor_id = req.user.user_id;
+    const { daily_stock, delta } = req.body;
+
+    const current = await query('SELECT is_available, daily_stock FROM dishes WHERE dish_id = ? AND vendor_id = ?', [dish_id, vendor_id]);
+    if (!current || current.length === 0) {
+      return res.status(404).json({ success: false, message: 'Dish not found.' });
+    }
+
+    let newStock = Number(current[0].daily_stock !== null && current[0].daily_stock !== undefined ? current[0].daily_stock : 20);
+    if (daily_stock !== undefined && daily_stock !== null && daily_stock !== '') {
+      newStock = Math.max(0, parseInt(daily_stock, 10));
+    } else if (delta !== undefined) {
+      newStock = Math.max(0, newStock + Number(delta));
+    }
+
+    const newAvail = newStock > 0 ? 1 : 0;
+    const newReason = newAvail === 1 ? 'In Stock' : 'Daily portions fully exhausted (0 remaining)';
+
+    await query('UPDATE dishes SET is_available = ?, daily_stock = ?, out_of_stock_reason = ? WHERE dish_id = ? AND vendor_id = ?', [newAvail, newStock, newReason, dish_id, vendor_id]);
+
+    const mongoMenu = await MongoAdapter.findVendorMenu(vendor_id);
+    if (mongoMenu && mongoMenu.categories) {
+      for (const cat of mongoMenu.categories) {
+        if (cat.dishes) {
+          const targetDish = cat.dishes.find(d => Number(d.dish_id) === Number(dish_id));
+          if (targetDish) {
+            targetDish.is_available = newAvail === 1;
+            targetDish.daily_stock = newStock;
+          }
+        }
+      }
+      await MongoAdapter.findOrSeedVendorMenus([mongoMenu]);
+    }
+
+    return res.json({
+      success: true,
+      dish_id: Number(dish_id),
+      daily_stock: newStock,
+      is_available: newAvail === 1,
+      out_of_stock_reason: newReason,
+      message: `Stock updated to ${newStock} portions (${newAvail === 1 ? 'In Stock' : 'Out of Stock'}).`
+    });
+  } catch (err) {
+    console.error('Adjust stock error:', err);
+    return res.status(500).json({ success: false, message: 'Failed to adjust stock.' });
   }
 });
 
