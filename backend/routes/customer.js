@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { query } = require('../config/mysql_db');
+const { query, withTransaction } = require('../config/mysql_db');
 const { MongoAdapter } = require('../config/mongo_db');
 const { authenticateToken, requireRole } = require('../middleware/auth_rbac');
 const InventoryEngine = require('../services/inventory_engine');
@@ -154,80 +154,160 @@ router.post('/orders', authenticateToken, requireRole('CUSTOMER'), async (req, r
       }
     }
 
-    // 1. Relational Inventory Stock Check
-    const stockCheck = await InventoryEngine.verifyOrderStock(items);
-    if (!stockCheck.sufficient) {
-      return res.status(400).json({ success: false, message: stockCheck.message });
-    }
+    // =========================================================================
+    // ACID TRANSACTION WITH EXCLUSIVE ROW-LEVEL LOCKING (SELECT ... FOR UPDATE)
+    // Guarantees zero race conditions, prevents negative inventory, and ensures
+    // absolute isolation when concurrent customers purchase dishes simultaneously.
+    // =========================================================================
+    const transactionResult = await withTransaction(async (txQuery) => {
+      const dishIds = items.map(i => i.dish_id);
+      const placeholders = dishIds.map(() => '?').join(',');
 
-    // Calculate Total & Verify Daily Dish Stock
-    let totalAmount = 0;
-    const itemsProcessed = [];
-    for (const item of items) {
-      const dishes = await query('SELECT * FROM dishes WHERE dish_id = ?', [item.dish_id]);
-      if (!dishes || dishes.length === 0) {
-        return res.status(404).json({ success: false, message: `Dish ID ${item.dish_id} not found.` });
+      // 1. Lock and retrieve dish records with FOR UPDATE
+      const lockedDishes = await txQuery(
+        `SELECT dish_id, name, base_price, daily_stock, is_available 
+         FROM dishes 
+         WHERE dish_id IN (${placeholders}) 
+         FOR UPDATE`,
+        dishIds
+      );
+
+      const dishMap = new Map();
+      for (const d of lockedDishes) {
+        dishMap.set(Number(d.dish_id), d);
       }
-      const dish = dishes[0];
 
-      if (dish.is_available === 0 || (dish.daily_stock !== null && Number(dish.daily_stock) < Number(item.quantity))) {
-        return res.status(400).json({ success: false, message: `'${dish.name}' is out of stock or does not have enough portions left today (${dish.daily_stock || 0} remaining).` });
+      let totalAmount = 0;
+      const itemsProcessed = [];
+
+      for (const item of items) {
+        const dish = dishMap.get(Number(item.dish_id));
+        if (!dish) {
+          const err = new Error(`Dish ID #${item.dish_id} not found.`);
+          err.statusCode = 404;
+          throw err;
+        }
+
+        if (dish.is_available === 0 || (dish.daily_stock !== null && Number(dish.daily_stock) < Number(item.quantity))) {
+          const err = new Error(`'${dish.name}' is out of stock or does not have enough portions left today (${dish.daily_stock || 0} remaining).`);
+          err.statusCode = 400;
+          throw err;
+        }
+
+        const subtotal = Number(dish.base_price) * Number(item.quantity);
+        totalAmount += subtotal;
+        itemsProcessed.push({
+          dish_id: dish.dish_id,
+          dish_name: dish.name,
+          quantity: item.quantity,
+          price_at_purchase: dish.base_price,
+          subtotal
+        });
       }
 
-      const subtotal = Number(dish.base_price) * Number(item.quantity);
-      totalAmount += subtotal;
-      itemsProcessed.push({
-        dish_id: dish.dish_id,
-        dish_name: dish.name,
-        quantity: item.quantity,
-        price_at_purchase: dish.base_price,
-        subtotal
-      });
-    }
+      // 2. Lock and verify raw ingredients from inventory via dish_recipes junction table
+      const recipeRows = await txQuery(
+        `SELECT dr.dish_id, dr.ingredient_id, dr.quantity_required, i.ingredient_name, i.stock_quantity, i.reorder_level
+         FROM dish_recipes dr
+         JOIN inventory i ON dr.ingredient_id = i.ingredient_id
+         WHERE dr.dish_id IN (${placeholders})
+         FOR UPDATE`,
+        dishIds
+      );
 
-    // 2. Insert into MySQL/PostgreSQL `orders`
-    const orderRes = await query(`
-      INSERT INTO orders (customer_id, vendor_id, total_amount, escrow_status, payment_status, status)
-      VALUES (?, ?, ?, 'HOLDING', 'PAID', 'PLACED')
-    `, [customer_id, vendor_id, totalAmount]);
+      const ingredientNeeds = new Map();
+      for (const r of recipeRows) {
+        const item = items.find(i => Number(i.dish_id) === Number(r.dish_id));
+        const itemQty = item ? Number(item.quantity) : 1;
+        const requiredAmount = Number(r.quantity_required) * itemQty;
 
-    const order_id = orderRes.insertId;
+        if (!ingredientNeeds.has(r.ingredient_id)) {
+          ingredientNeeds.set(r.ingredient_id, {
+            ingredient_id: r.ingredient_id,
+            ingredient_name: r.ingredient_name,
+            current_stock: Number(r.stock_quantity),
+            reorder_level: Number(r.reorder_level),
+            total_required: 0
+          });
+        }
+        ingredientNeeds.get(r.ingredient_id).total_required += requiredAmount;
+      }
 
-    // 3. Insert into MySQL/PostgreSQL `order_items` & Deduct Daily Dish Stock
-    for (const item of itemsProcessed) {
-      await query(`
-        INSERT INTO order_items (order_id, dish_id, quantity, price_at_purchase, subtotal)
-        VALUES (?, ?, ?, ?, ?)
-      `, [order_id, item.dish_id, item.quantity, item.price_at_purchase, item.subtotal]);
-
-      // Deduct daily portion stock
-      await query('UPDATE dishes SET daily_stock = GREATEST(0, daily_stock - ?) WHERE dish_id = ?', [item.quantity, item.dish_id]);
-
-      // Auto mark out of stock if portion stock hits 0
-      const checkStock = await query('SELECT daily_stock FROM dishes WHERE dish_id = ?', [item.dish_id]);
-      if (checkStock.length > 0 && Number(checkStock[0].daily_stock) <= 0) {
-        await query("UPDATE dishes SET is_available = 0, out_of_stock_reason = 'Daily portions fully exhausted (0 remaining)' WHERE dish_id = ?", [item.dish_id]);
-
-        const mongoMenu = await MongoAdapter.findVendorMenu(vendor_id);
-        if (mongoMenu && mongoMenu.categories) {
-          for (const cat of mongoMenu.categories) {
-            if (cat.dishes) {
-              const d = cat.dishes.find(x => Number(x.dish_id) === Number(item.dish_id));
-              if (d) d.is_available = false;
-            }
-          }
-          await MongoAdapter.findOrSeedVendorMenus([mongoMenu]);
+      for (const [ingId, req] of ingredientNeeds) {
+        if (req.current_stock < req.total_required) {
+          const err = new Error(`Insufficient stock for ingredient '${req.ingredient_name}'. Required: ${req.total_required}, Available: ${req.current_stock}`);
+          err.statusCode = 400;
+          throw err;
         }
       }
-    }
 
-    // 4. Perform Atomic Relational Inventory Auto-Deduction in MySQL/PostgreSQL
-    const stockDeductions = await InventoryEngine.deductOrderStock(items);
+      // 3. Insert Master Order record into `orders`
+      const orderRes = await txQuery(
+        `INSERT INTO orders (customer_id, vendor_id, total_amount, escrow_status, payment_status, status)
+         VALUES (?, ?, ?, 'HOLDING', 'PAID', 'PLACED')`,
+        [customer_id, vendor_id, totalAmount]
+      );
+      const order_id = orderRes.insertId;
 
-    // 5. Create Escrow Payout Record in MySQL/PostgreSQL
-    const payout = await PayoutService.createOrderPayout(order_id, vendor_id, null, totalAmount);
+      // 4. Insert `order_items` & deduct dish portion stock
+      for (const item of itemsProcessed) {
+        await txQuery(
+          `INSERT INTO order_items (order_id, dish_id, quantity, price_at_purchase, subtotal)
+           VALUES (?, ?, ?, ?, ?)`,
+          [order_id, item.dish_id, item.quantity, item.price_at_purchase, item.subtotal]
+        );
 
-    // 6. Push Tracking Log to MongoDB
+        await txQuery(
+          `UPDATE dishes SET daily_stock = GREATEST(0, daily_stock - ?) WHERE dish_id = ?`,
+          [item.quantity, item.dish_id]
+        );
+
+        // Auto mark out-of-stock if daily portions hit 0
+        const checkStock = await txQuery(`SELECT daily_stock FROM dishes WHERE dish_id = ?`, [item.dish_id]);
+        if (checkStock.length > 0 && Number(checkStock[0].daily_stock) <= 0) {
+          await txQuery(
+            `UPDATE dishes SET is_available = 0, out_of_stock_reason = 'Daily portions fully exhausted (0 remaining)' WHERE dish_id = ?`,
+            [item.dish_id]
+          );
+        }
+      }
+
+      // 5. Deduct raw ingredient stock from `inventory`
+      const stockDeductions = [];
+      for (const [ingId, req] of ingredientNeeds) {
+        await txQuery(
+          `UPDATE inventory 
+           SET stock_quantity = stock_quantity - ?, updated_at = CURRENT_TIMESTAMP 
+           WHERE ingredient_id = ?`,
+          [req.total_required, ingId]
+        );
+
+        const newStock = req.current_stock - req.total_required;
+        stockDeductions.push({
+          ingredient_id: ingId,
+          ingredient_name: req.ingredient_name,
+          deducted: req.total_required,
+          new_stock: newStock,
+          low_stock_warning: newStock <= req.reorder_level
+        });
+      }
+
+      // 6. Create Escrow Payout ledger entry inside the same atomic transaction
+      const payout = await PayoutService.createOrderPayout(order_id, vendor_id, null, totalAmount, txQuery);
+
+      return {
+        order_id,
+        totalAmount,
+        payout,
+        stockDeductions
+      };
+    });
+
+    const { order_id, totalAmount, payout, stockDeductions } = transactionResult;
+
+    // Post-Transaction Asynchronous Document Sync (MongoDB updates & tracking)
+    InventoryEngine.autoSyncDishAvailability(vendor_id).catch(err => console.error('Menu sync error:', err));
+
     await MongoAdapter.pushTrackingLog(order_id, {
       event: 'ORDER_PLACED',
       timestamp: new Date(),
@@ -250,7 +330,8 @@ router.post('/orders', authenticateToken, requireRole('CUSTOMER'), async (req, r
     });
   } catch (err) {
     console.error('Create order error:', err);
-    return res.status(500).json({ success: false, message: err.message || 'Failed to place order.' });
+    const statusCode = err.statusCode || 500;
+    return res.status(statusCode).json({ success: false, message: err.message || 'Failed to place order.' });
   }
 });
 

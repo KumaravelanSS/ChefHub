@@ -80,13 +80,23 @@ const reviewAnalyticsSchema = new mongoose.Schema({
   created_at: { type: Date, default: Date.now }
 });
 
-// 5. System Audit Log Schema
+// 5. System Audit Log Schema (Native MongoDB Time-Series Collection)
 const systemAuditLogSchema = new mongoose.Schema({
-  log_id: { type: Number, required: true, unique: true },
+  timestamp: { type: Date, default: Date.now },
+  metadata: {
+    admin_user_id: Number,
+    action_type: String
+  },
+  log_id: { type: Number, required: true },
   admin_user_id: Number,
   action_type: String,
-  details_json: Object,
-  timestamp: { type: Date, default: Date.now }
+  details_json: Object
+}, {
+  timeseries: {
+    timeField: 'timestamp',
+    metaField: 'metadata',
+    granularity: 'seconds'
+  }
 });
 
 const VendorMenu = mongoose.model('VendorMenu', vendorMenuSchema);
@@ -236,12 +246,17 @@ const MongoAdapter = {
     });
   },
   async addAuditLog(admin_user_id, action_type, details_json) {
+    const timestamp = new Date();
     const logObj = {
       log_id: Date.now(),
-      admin_user_id,
-      action_type,
+      admin_user_id: Number(admin_user_id),
+      action_type: String(action_type),
       details_json,
-      timestamp: new Date()
+      timestamp,
+      metadata: {
+        admin_user_id: Number(admin_user_id),
+        action_type: String(action_type)
+      }
     };
     if (isMongoConnected) {
       await SystemAuditLog.create(logObj);

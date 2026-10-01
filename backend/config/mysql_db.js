@@ -89,6 +89,124 @@ async function query(sql, params = []) {
   }
 }
 
+/**
+ * Executes a callback inside an ACID transaction with support for PostgreSQL, SQLite, and MySQL.
+ * Provides transactional row-locking (e.g. SELECT ... FOR UPDATE) and guaranteed atomic COMMIT/ROLLBACK.
+ */
+async function withTransaction(callback) {
+  if (isPostgres) {
+    const pool = getPgPool();
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+
+      const txQuery = async (sql, params = []) => {
+        let paramIndex = 1;
+        let pgSql = sql.replace(/\?/g, () => `$${paramIndex++}`);
+        pgSql = pgSql.replace(/INTEGER PRIMARY KEY AUTOINCREMENT/gi, 'SERIAL PRIMARY KEY');
+        pgSql = pgSql.replace(/INTEGER PRIMARY KEY AUTO_INCREMENT/gi, 'SERIAL PRIMARY KEY');
+        pgSql = pgSql.replace(/DATETIME/gi, 'TIMESTAMP');
+
+        const isInsert = pgSql.trim().toUpperCase().startsWith('INSERT');
+        if (isInsert && !pgSql.toUpperCase().includes('RETURNING')) {
+          pgSql += ' RETURNING *';
+        }
+
+        const res = await client.query(pgSql, params);
+        if (isInsert && res.rows.length > 0) {
+          const firstRow = res.rows[0];
+          const keys = Object.keys(firstRow);
+          const idKey = keys.find(k => k.endsWith('_id')) || keys[0];
+          return { insertId: firstRow[idKey], rows: res.rows, affectedRows: res.rowCount };
+        }
+        return res.rows;
+      };
+
+      const result = await callback(txQuery);
+      await client.query('COMMIT');
+      return result;
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
+  } else if (isSqlite) {
+    const db = getSqliteDb();
+    // In SQLite, BEGIN IMMEDIATE acquires an exclusive reservation lock immediately,
+    // guaranteeing no other thread or connection can write concurrently.
+    await new Promise((resolve, reject) => {
+      db.run('BEGIN IMMEDIATE', (err) => (err ? reject(err) : resolve()));
+    });
+
+    try {
+      const txQuery = async (sql, params = []) => {
+        // Strip FOR UPDATE since SQLite uses file-level locking rather than row-level locks
+        const cleanSql = sql.replace(/\s+FOR\s+UPDATE/gi, '');
+        const trimmedSql = cleanSql.trim();
+        const isSelect = trimmedSql.toUpperCase().startsWith('SELECT') || trimmedSql.toUpperCase().startsWith('PRAGMA');
+
+        return new Promise((resolve, reject) => {
+          if (isSelect) {
+            db.all(cleanSql, params, (err, rows) => {
+              if (err) return reject(err);
+              resolve(rows);
+            });
+          } else {
+            db.run(cleanSql, params, function (err) {
+              if (err) return reject(err);
+              resolve({ insertId: this.lastID, affectedRows: this.changes });
+            });
+          }
+        });
+      };
+
+      const result = await callback(txQuery);
+      await new Promise((resolve, reject) => {
+        db.run('COMMIT', (err) => (err ? reject(err) : resolve()));
+      });
+      return result;
+    } catch (err) {
+      await new Promise((resolve) => {
+        db.run('ROLLBACK', () => resolve());
+      });
+      throw err;
+    }
+  } else {
+    // MySQL
+    if (!mysqlPool) {
+      const mysql = require('mysql2/promise');
+      mysqlPool = mysql.createPool({
+        host: process.env.MYSQL_HOST || 'localhost',
+        user: process.env.MYSQL_USER || 'root',
+        password: process.env.MYSQL_PASSWORD || '',
+        database: process.env.MYSQL_DATABASE || 'chefhub_db',
+        waitForConnections: true,
+        connectionLimit: 10,
+        queueLimit: 0
+      });
+    }
+
+    const connection = await mysqlPool.getConnection();
+    try {
+      await connection.beginTransaction();
+      const txQuery = async (sql, params = []) => {
+        const [results] = await connection.execute(sql, params);
+        return results;
+      };
+
+      const result = await callback(txQuery);
+      await connection.commit();
+      return result;
+    } catch (err) {
+      await connection.rollback();
+      throw err;
+    } finally {
+      connection.release();
+    }
+  }
+}
+
 async function initRelationalDb() {
   console.log(`[Relational Engine] Initializing storage mode: ${isSqlite ? 'SQLite' : isPostgres ? 'PostgreSQL (Supabase)' : 'MySQL'}`);
   
@@ -242,5 +360,6 @@ async function initRelationalDb() {
 
 module.exports = {
   query,
+  withTransaction,
   initRelationalDb
 };
