@@ -1,5 +1,6 @@
 const { query } = require('../config/mysql_db');
 const { MongoAdapter } = require('../config/mongo_db');
+const eventBroker = require('./event_broker');
 
 /**
  * Transactional Outbox Relay Service
@@ -114,6 +115,10 @@ class OutboxRelayService {
         if (payload.vendor_id) {
           const InventoryEngine = require('./inventory_engine');
           await InventoryEngine.autoSyncDishAvailability(payload.vendor_id);
+
+          // Publish real-time events to Kitchen Display System (KDS) & Customer tracking
+          eventBroker.publish(`vendor_${payload.vendor_id}`, 'ORDER_CREATED', { order_id: orderId, ...payload });
+          eventBroker.publish('global', 'ORDER_CREATED', { order_id: orderId, vendor_id: payload.vendor_id });
         }
         break;
       }
@@ -124,6 +129,10 @@ class OutboxRelayService {
         if (vendorId) {
           const InventoryEngine = require('./inventory_engine');
           await InventoryEngine.autoSyncDishAvailability(vendorId);
+
+          // Publish real-time stock updates to marketplace consumers
+          eventBroker.publish('global', 'DISH_STOCK_UPDATED', { vendor_id: vendorId, ...payload });
+          eventBroker.publish(`vendor_${vendorId}`, 'DISH_STOCK_UPDATED', payload);
         }
         break;
       }
@@ -136,6 +145,15 @@ class OutboxRelayService {
           location_note: payload.note || `Order status updated to ${payload.new_status}`,
           actor_role: payload.actor_role || 'SYSTEM'
         });
+
+        // Broadcast to customer order tracking stream
+        eventBroker.publish(`order_${orderId}`, 'ORDER_STATUS_CHANGED', { order_id: orderId, ...payload });
+        eventBroker.publish('global', 'ORDER_STATUS_CHANGED', { order_id: orderId, ...payload });
+
+        // If meal is ready, alert delivery rider pool
+        if (payload.new_status === 'KITCHEN_READY' || payload.new_status === 'READY') {
+          eventBroker.publish('rider', 'JOB_AVAILABLE', { order_id: orderId, status: 'READY', ...payload });
+        }
         break;
       }
 
@@ -145,6 +163,7 @@ class OutboxRelayService {
           payload.action_type || 'SYSTEM_ACTION',
           payload.details_json || payload
         );
+        eventBroker.publish('admin', 'AUDIT_LOG', payload);
         break;
       }
 

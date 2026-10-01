@@ -78,10 +78,38 @@ export default function ChefSite({ user, onLogin, onLogout }) {
     if (user && user.role === 'VENDOR') {
       fetchData().finally(() => setLoadingInitial(false));
       fetchPayouts(false);
+
+      // Real-Time Event Stream for Kitchen Display System (KDS)
+      let eventSource = null;
+      try {
+        const token = localStorage.getItem('chefhub_token');
+        const channel = `vendor_${user.user_id}`;
+        const url = token ? `/api/realtime/events?channel=${channel}&token=${encodeURIComponent(token)}` : `/api/realtime/events?channel=${channel}`;
+        eventSource = new EventSource(url);
+
+        eventSource.addEventListener('ORDER_CREATED', () => {
+          fetchData();
+        });
+
+        eventSource.addEventListener('ORDER_STATUS_CHANGED', () => {
+          fetchData();
+        });
+
+        eventSource.addEventListener('DISH_STOCK_UPDATED', () => {
+          fetchData();
+        });
+      } catch (e) {
+        // Fallback to background interval
+      }
+
       const interval = setInterval(() => {
         fetchData();
-      }, 10000);
-      return () => clearInterval(interval);
+      }, 15000);
+
+      return () => {
+        if (eventSource) eventSource.close();
+        clearInterval(interval);
+      };
     }
   }, [user]);
 

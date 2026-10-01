@@ -109,13 +109,39 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
     fetchVendors();
     fetchMyOrders();
 
-    // Real-Time Stock Auto-Polling (Zero-Reload Updates)
+    // 1. Enterprise Real-Time Push Stream via Server-Sent Events (SSE)
+    let eventSource = null;
+    try {
+      const token = localStorage.getItem('chefhub_token');
+      const url = token ? `/api/realtime/events?channel=global&token=${encodeURIComponent(token)}` : '/api/realtime/events?channel=global';
+      eventSource = new EventSource(url);
+
+      eventSource.addEventListener('DISH_STOCK_UPDATED', () => {
+        fetchVendors();
+      });
+
+      eventSource.addEventListener('ORDER_CREATED', () => {
+        fetchMyOrders();
+        fetchVendors();
+      });
+
+      eventSource.addEventListener('ORDER_STATUS_CHANGED', () => {
+        fetchMyOrders();
+      });
+    } catch (e) {
+      // EventSource fallback handled gracefully
+    }
+
+    // 2. Resilient Background Polling Fallback
     const stockPollInterval = setInterval(() => {
       fetchVendors();
       fetchMyOrders();
-    }, 6000);
+    }, 15000);
 
-    return () => clearInterval(stockPollInterval);
+    return () => {
+      if (eventSource) eventSource.close();
+      clearInterval(stockPollInterval);
+    };
   }, []);
 
   const fetchMyOrders = async () => {

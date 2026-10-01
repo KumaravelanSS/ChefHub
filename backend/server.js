@@ -14,6 +14,7 @@ const customerRoutes = require('./routes/customer');
 const vendorRoutes = require('./routes/vendor');
 const riderRoutes = require('./routes/rider');
 const adminRoutes = require('./routes/admin');
+const realtimeRoutes = require('./routes/realtime');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -93,6 +94,7 @@ app.use('/api/customer', customerRoutes);
 app.use('/api/vendor', vendorRoutes);
 app.use('/api/rider', riderRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/realtime', realtimeRoutes);
 
 // SPA Fallback for React Router (Customer, Chef, Rider, Admin Portals)
 if (staticPath) {
@@ -113,6 +115,7 @@ app.get('/api/health', (req, res) => {
     outbox_engine: 'ACTIVE',
     observability: 'WINSTON_STRUCTURED_LOGS',
     rate_limiting: 'TIERED_GATEWAY',
+    realtime_event_broker: 'ACTIVE (SSE_STREAM)',
     requestId: req.id,
     timestamp: new Date()
   });
@@ -137,6 +140,7 @@ async function startServer() {
       console.log(`   - 5 MongoDB Document Collections Initialized`);
       console.log(`   - Transactional Outbox Relay Engine: ACTIVE`);
       console.log(`   - Security & Observability Gateway: ACTIVE (Winston + Rate Limiter)`);
+      console.log(`   - Real-Time Event Broker (SSE Stream): ACTIVE`);
       console.log(`   - Single Master Admin Credentials: admin / admin`);
       console.log(`==================================================\n`);
     });
