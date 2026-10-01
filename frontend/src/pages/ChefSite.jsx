@@ -763,12 +763,12 @@ export default function ChefSite({ user, onLogin, onLogout }) {
               onClick={handleInitiateKitchenToggle}
               className={`px-3.5 py-1 rounded-full text-xs font-black flex items-center gap-2 transition-all shadow-md active:scale-95 cursor-pointer ${
                 storeProfile.is_open
-                  ? 'bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white shadow-emerald-500/25 ring-2 ring-emerald-400/30'
+                  ? 'bg-gradient-to-r from-emerald-400 to-teal-400 text-emerald-950 dark:text-emerald-950 font-black shadow-emerald-500/25 ring-2 ring-emerald-400/30'
                   : 'bg-gradient-to-r from-rose-500 to-red-600 hover:from-rose-600 hover:to-red-700 text-white shadow-rose-500/25 ring-2 ring-rose-400/30'
               }`}
               title="Click to toggle whether your kitchen is open to accept orders"
             >
-              <span className={`w-2 h-2 rounded-full ${storeProfile.is_open ? 'bg-white animate-pulse' : 'bg-rose-200'}`}></span>
+              <span className={`w-2 h-2 rounded-full ${storeProfile.is_open ? 'bg-emerald-950 animate-pulse' : 'bg-rose-200'}`}></span>
               {storeProfile.is_open ? 'STORE OPEN (Accepting Orders)' : 'STORE CLOSED (Offline)'}
             </button>
 
@@ -809,9 +809,8 @@ export default function ChefSite({ user, onLogin, onLogout }) {
           <div
             className="absolute top-1.5 bottom-1.5 rounded-xl transition-all duration-300 ease-out pointer-events-none z-0
                        bg-white border border-emerald-300/80 shadow-md shadow-emerald-500/10
-                       dark:bg-gradient-to-r dark:from-emerald-500/25 dark:via-teal-500/20 dark:to-emerald-500/15
-                       dark:border dark:border-emerald-400/60 dark:ring-1 dark:ring-emerald-400/30
-                       dark:shadow-[0_0_18px_rgba(52,211,153,0.22)] dark:backdrop-blur-md"
+                       dark:bg-emerald-400 dark:border dark:border-emerald-300 dark:ring-1 dark:ring-emerald-200/50
+                       dark:shadow-[0_0_22px_rgba(52,211,153,0.35)] dark:backdrop-blur-md"
             style={{
               transform: `translateX(${indicatorStyle.left}px)`,
               width: `${indicatorStyle.width}px`,
@@ -829,11 +828,11 @@ export default function ChefSite({ user, onLogin, onLogout }) {
                 onClick={() => setActiveTab(tab.id)}
                 className={`relative z-10 flex items-center gap-2 px-3.5 py-2 rounded-xl transition-colors duration-200 whitespace-nowrap cursor-pointer select-none ${
                   isActive
-                    ? 'text-emerald-900 dark:text-emerald-300 font-black'
+                    ? 'text-emerald-950 dark:text-emerald-950 font-black'
                     : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-emerald-200'
                 }`}
               >
-                <Icon className={`w-3.5 h-3.5 transition-colors ${isActive ? 'text-emerald-600 dark:text-emerald-400' : ''}`} />
+                <Icon className={`w-3.5 h-3.5 transition-colors ${isActive ? 'text-emerald-950 dark:text-emerald-950 stroke-[2.5]' : ''}`} />
                 <span>{tab.label}</span>
               </button>
             );

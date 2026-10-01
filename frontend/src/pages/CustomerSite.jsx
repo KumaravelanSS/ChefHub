@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { ShoppingBag, Star, Clock, MapPin, CheckCircle2, ChevronRight, X, AlertCircle, AlertTriangle, Sparkles, Send, Ban, Utensils, Flame, Heart, Search, Filter, Eye, EyeOff, CreditCard, ShieldCheck, Lock, Receipt, ArrowRight, Truck, QrCode, Building, Wallet, Download, RefreshCw } from 'lucide-react';
 import { KitchenLoadingScreen, KitchenDataLoader, KitchenSkeletonRows } from '../components/KitchenLoading';
 
@@ -79,6 +79,36 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
 
   const [orderStatusMsg, setOrderStatusMsg] = useState('');
   const [loadingVendors, setLoadingVendors] = useState(true);
+
+  // Animated sliding indicator for filter chips
+  const [filterIndicator, setFilterIndicator] = useState({ left: 0, width: 0, opacity: 0 });
+  const filterTabRefs = useRef({});
+
+  useEffect(() => {
+    if (filterTabRefs.current[selectedDiet]) {
+      const el = filterTabRefs.current[selectedDiet];
+      setFilterIndicator({
+        left: el.offsetLeft,
+        width: el.offsetWidth,
+        opacity: 1
+      });
+    }
+  }, [selectedDiet, favorites.size]);
+
+  useEffect(() => {
+    const handleResize = () => {
+      if (filterTabRefs.current[selectedDiet]) {
+        const el = filterTabRefs.current[selectedDiet];
+        setFilterIndicator({
+          left: el.offsetLeft,
+          width: el.offsetWidth,
+          opacity: 1
+        });
+      }
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, [selectedDiet]);
 
   useEffect(() => {
     if (user && user.role === 'CUSTOMER') {
@@ -685,8 +715,8 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
         )}
       </div>
 
-      {/* Live Search & Diet Filters Bar */}
-      <div className="glass-card rounded-2xl p-4 border flex flex-col sm:flex-row items-center justify-between gap-4 shadow-md">
+      {/* Live Search & Diet Filters Bar with Glass UI & Animated Sliding Indicator */}
+      <div className="glass-card rounded-2xl p-4 sm:p-5 border border-slate-200/80 dark:border-white/10 bg-white/70 dark:bg-slate-900/70 backdrop-blur-2xl flex flex-col sm:flex-row items-center justify-between gap-4 shadow-xl shadow-slate-200/30 dark:shadow-none relative">
         <div className="relative w-full sm:w-80">
           <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
           <input
@@ -694,37 +724,52 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Search dishes, ingredients, tiramisu..."
-            className="w-full pl-10 pr-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 text-slate-900 dark:text-white text-xs outline-none focus:border-amber-500 transition-colors"
+            className="w-full pl-10 pr-4 py-2 rounded-xl bg-white/80 dark:bg-slate-800/80 backdrop-blur-md border border-slate-200/90 dark:border-white/10 text-slate-900 dark:text-white text-xs outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 transition-all shadow-inner"
           />
           {searchQuery && (
-            <button onClick={() => setSearchQuery('')} className="absolute right-3 top-2.5 text-slate-400 hover:text-slate-900 dark:hover:text-white">
+            <button onClick={() => setSearchQuery('')} className="absolute right-3 top-2.5 text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors">
               <X className="w-4 h-4" />
             </button>
           )}
         </div>
 
-        <div className="flex items-center gap-2 overflow-x-auto w-full sm:w-auto pb-1 sm:pb-0">
-          <span className="text-[11px] font-bold text-slate-600 dark:text-slate-400 flex items-center gap-1 shrink-0">
-            <Filter className="w-3.5 h-3.5" /> Filter:
+        <div className="relative flex items-center gap-1 p-1 bg-slate-200/60 dark:bg-slate-850/80 backdrop-blur-md rounded-xl border border-slate-300/70 dark:border-slate-700/60 shadow-inner overflow-x-auto no-scrollbar max-w-full">
+          {/* Smooth Sliding Highlight Rectangle */}
+          <div
+            className="absolute top-1 bottom-1 rounded-lg transition-all duration-300 ease-out pointer-events-none z-0
+                       bg-gradient-to-r from-amber-500 to-orange-500 shadow-md shadow-amber-500/25 ring-1 ring-amber-300/40"
+            style={{
+              transform: `translateX(${filterIndicator.left}px)`,
+              width: `${filterIndicator.width}px`,
+              opacity: filterIndicator.opacity
+            }}
+          />
+
+          <span className="text-[11px] font-black text-slate-600 dark:text-slate-400 flex items-center gap-1 shrink-0 px-2 select-none">
+            <Filter className="w-3.5 h-3.5 text-amber-500" /> Filter:
           </span>
           {[
             { id: 'ALL', label: 'All Dishes' },
             { id: 'VEGAN', label: '🌿 Vegetarian' },
             { id: 'SPICY', label: '🌶️ Spicy' },
             { id: 'FAVORITES', label: `❤️ Favorites (${favorites.size})` }
-          ].map((chip) => (
-            <button
-              key={chip.id}
-              onClick={() => setSelectedDiet(chip.id)}
-              className={`px-3 py-1.5 rounded-xl text-xs font-extrabold transition-all shrink-0 ${
-                selectedDiet === chip.id
-                  ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20'
-                  : 'bg-slate-100 dark:bg-slate-900 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-800 border border-slate-300 dark:border-slate-800'
-              }`}
-            >
-              {chip.label}
-            </button>
-          ))}
+          ].map((chip) => {
+            const isActive = selectedDiet === chip.id;
+            return (
+              <button
+                key={chip.id}
+                ref={(el) => (filterTabRefs.current[chip.id] = el)}
+                onClick={() => setSelectedDiet(chip.id)}
+                className={`relative z-10 px-3.5 py-1.5 rounded-lg text-xs font-black transition-colors duration-200 shrink-0 cursor-pointer select-none ${
+                  isActive
+                    ? 'text-slate-950 font-black'
+                    : 'text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
+                }`}
+              >
+                {chip.label}
+              </button>
+            );
+          })}
         </div>
       </div>
 
@@ -743,10 +788,10 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
                   <button
                     key={v.vendor_id}
                     onClick={() => setSelectedVendor(v)}
-                    className={`glass-card p-4 rounded-2xl border text-left transition-all flex flex-col justify-between space-y-3 ${
+                    className={`p-4 rounded-2xl border text-left transition-all duration-300 flex flex-col justify-between space-y-3 backdrop-blur-xl hover:-translate-y-1 cursor-pointer ${
                       isSelected
-                        ? 'border-orange-500 bg-orange-500/10 text-slate-900 dark:text-white shadow-xl shadow-orange-500/20 ring-2 ring-orange-500/30'
-                        : 'border-slate-300 dark:border-slate-800 text-slate-700 dark:text-slate-400 hover:border-orange-400'
+                        ? 'border-orange-500/80 bg-orange-500/15 text-slate-900 dark:text-white shadow-xl shadow-orange-500/20 ring-2 ring-orange-500/40 backdrop-blur-2xl'
+                        : 'border-slate-200/90 dark:border-white/10 bg-white/70 dark:bg-slate-900/70 text-slate-700 dark:text-slate-400 hover:border-orange-400/60 hover:shadow-lg'
                     }`}
                   >
                     <div className="flex items-center gap-3">

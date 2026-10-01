@@ -214,13 +214,13 @@ export default function RiderSite({ user, onLogin }) {
         <div className="flex items-center gap-3">
           <button
             onClick={() => setShiftStatus(shiftStatus === 'ONLINE' ? 'OFFLINE' : 'ONLINE')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-xl border text-xs font-bold transition-all ${
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl backdrop-blur-xl border text-xs font-black transition-all duration-200 hover:-translate-y-0.5 active:translate-y-0 cursor-pointer shadow-sm ${
               shiftStatus === 'ONLINE'
-                ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30'
-                : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-slate-300 dark:border-slate-700'
+                ? 'bg-emerald-500/15 text-emerald-950 dark:text-emerald-300 border-emerald-500/40 shadow-emerald-500/20 ring-1 ring-emerald-400/30'
+                : 'bg-white/70 dark:bg-slate-800/70 text-slate-700 dark:text-slate-300 border-slate-200/90 dark:border-white/10 hover:border-slate-400'
             }`}
           >
-            <Power className="w-4 h-4" />
+            <Power className={`w-4 h-4 ${shiftStatus === 'ONLINE' ? 'text-emerald-500 animate-pulse' : 'text-slate-400'}`} />
             <span>Shift: {shiftStatus}</span>
           </button>
         </div>
@@ -236,11 +236,11 @@ export default function RiderSite({ user, onLogin }) {
           </h2>
 
           {jobs.length === 0 ? (
-            <p className="text-xs text-slate-500 dark:text-slate-400 text-center py-12 glass-card rounded-2xl">No available delivery jobs at this time.</p>
+            <p className="text-xs text-slate-500 dark:text-slate-400 text-center py-12 backdrop-blur-xl bg-white/70 dark:bg-slate-900/70 border border-slate-200/90 dark:border-white/10 rounded-3xl shadow-sm">No available delivery jobs at this time.</p>
           ) : (
             <div className="space-y-4">
               {jobs.map((job) => (
-                <div key={job.order_id} className="glass-card rounded-2xl p-5 border border-slate-300 dark:border-slate-800 space-y-4">
+                <div key={job.order_id} className="backdrop-blur-xl bg-white/75 dark:bg-slate-900/75 rounded-3xl p-5 sm:p-6 border border-slate-200/90 dark:border-white/10 space-y-4 shadow-xl shadow-slate-200/30 dark:shadow-none hover:-translate-y-0.5 transition-all duration-300">
                   <div className="flex justify-between items-start">
                     <div>
                       <span className="font-bold text-slate-900 dark:text-white text-base">Order #{job.order_id}</span>

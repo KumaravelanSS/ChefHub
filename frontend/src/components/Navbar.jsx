@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { UtensilsCrossed, ShieldAlert, Bike, ChefHat, ShoppingBag, LayoutGrid, LogOut, UserCheck, Sun, Moon, Menu, X, ArrowRightLeft } from 'lucide-react';
 
@@ -10,6 +10,91 @@ export default function Navbar({ currentUser, onLogout, theme, onToggleTheme }) 
 
   const isActive = (path) => location.pathname === path;
   const isCustomerPage = location.pathname === '/' || location.pathname === '/customer/login';
+
+  const navTabs = [
+    {
+      id: '/portals',
+      label: 'Launchpad',
+      icon: LayoutGrid,
+      path: '/portals',
+      activeColor: 'bg-gradient-to-r from-orange-500 to-amber-500 shadow-orange-500/25 ring-orange-300/40',
+      activeText: 'text-slate-950 dark:text-slate-950 font-black'
+    },
+    {
+      id: '/',
+      label: 'Customer Site',
+      icon: ShoppingBag,
+      path: '/',
+      activeColor: 'bg-gradient-to-r from-amber-500 to-orange-500 shadow-amber-500/25 ring-amber-300/40',
+      activeText: 'text-slate-950 dark:text-slate-950 font-black'
+    },
+    {
+      id: '/chef/login',
+      label: 'Chef Site',
+      icon: ChefHat,
+      path: '/chef/login',
+      activeColor: 'bg-gradient-to-r from-emerald-400 to-teal-400 shadow-emerald-500/25 ring-emerald-300/40',
+      activeText: 'text-emerald-950 dark:text-emerald-950 font-black'
+    },
+    {
+      id: '/rider/login',
+      label: 'Rider Site',
+      icon: Bike,
+      path: '/rider/login',
+      activeColor: 'bg-gradient-to-r from-sky-400 to-blue-500 shadow-sky-500/25 ring-sky-300/40',
+      activeText: 'text-sky-950 dark:text-sky-950 font-black'
+    },
+    {
+      id: '/admin/login',
+      label: 'Admin Site',
+      icon: ShieldAlert,
+      path: '/admin/login',
+      activeColor: 'bg-gradient-to-r from-rose-500 to-red-600 shadow-rose-500/25 ring-rose-300/40',
+      activeText: 'text-white font-black'
+    }
+  ];
+
+  const getActiveTabId = () => {
+    const p = location.pathname;
+    if (p === '/portals') return '/portals';
+    if (p.startsWith('/chef')) return '/chef/login';
+    if (p.startsWith('/rider')) return '/rider/login';
+    if (p.startsWith('/admin')) return '/admin/login';
+    if (p === '/' || p.startsWith('/customer')) return '/';
+    return null;
+  };
+
+  const activeTabId = getActiveTabId();
+  const [navIndicator, setNavIndicator] = useState({ left: 0, width: 0, opacity: 0 });
+  const navRefs = useRef({});
+
+  useEffect(() => {
+    if (activeTabId && navRefs.current[activeTabId]) {
+      const el = navRefs.current[activeTabId];
+      setNavIndicator({
+        left: el.offsetLeft,
+        width: el.offsetWidth,
+        opacity: 1
+      });
+    } else {
+      setNavIndicator(prev => ({ ...prev, opacity: 0 }));
+    }
+  }, [activeTabId, location.pathname]);
+
+  useEffect(() => {
+    const handleResize = () => {
+      if (activeTabId && navRefs.current[activeTabId]) {
+        const el = navRefs.current[activeTabId];
+        setNavIndicator({
+          left: el.offsetLeft,
+          width: el.offsetWidth,
+          opacity: 1
+        });
+      }
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, [activeTabId]);
 
   const handleSwitchPortalClick = (e) => {
     e.preventDefault();
@@ -60,7 +145,7 @@ export default function Navbar({ currentUser, onLogout, theme, onToggleTheme }) 
   const RoleIcon = roleInfo?.icon;
 
   return (
-    <header className="sticky top-0 z-50 glass-card border-b px-3 sm:px-6 py-2.5 transition-colors">
+    <header className="sticky top-0 z-50 backdrop-blur-2xl bg-white/80 dark:bg-slate-950/80 border-b border-slate-200/80 dark:border-white/10 px-3 sm:px-6 py-2.5 transition-colors shadow-sm">
       <div className="max-w-7xl mx-auto flex items-center justify-between gap-2">
         
         {/* Top Left: Logo & Brand + Dynamic Role Badge */}
@@ -86,75 +171,50 @@ export default function Navbar({ currentUser, onLogout, theme, onToggleTheme }) 
 
         {/* Center Navigation Bar: ONLY shown when NOT logged in */}
         {!currentUser ? (
-          <div className="hidden md:flex items-center gap-1 p-1 bg-slate-200/90 dark:bg-slate-900/90 rounded-xl border border-slate-300 dark:border-slate-800/80 shadow-inner">
-            <Link
-              to="/portals"
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-extrabold transition-all ${
-                isActive('/portals') 
-                  ? 'bg-orange-500 text-white shadow-md shadow-orange-500/20 font-black' 
-                  : 'text-slate-700 dark:text-slate-200 hover:text-orange-600 dark:hover:text-orange-400 hover:bg-orange-500/10'
-              }`}
-            >
-              <LayoutGrid className="w-3.5 h-3.5" />
-              Launchpad
-            </Link>
+          <div className="relative hidden md:flex items-center gap-1 p-1 backdrop-blur-2xl bg-white/70 dark:bg-slate-900/70 rounded-2xl border border-white/60 dark:border-white/10 shadow-lg shadow-black/5 dark:shadow-black/25">
+            {/* Smooth Sliding Highlight Rectangle */}
+            {activeTabId && (() => {
+              const currentActive = navTabs.find(t => t.id === activeTabId);
+              return (
+                <div
+                  className={`absolute top-1 bottom-1 rounded-xl transition-all duration-300 ease-out pointer-events-none z-0 shadow-md ring-1 backdrop-blur-md ${currentActive?.activeColor || 'bg-orange-500 ring-orange-300/40'}`}
+                  style={{
+                    transform: `translateX(${navIndicator.left}px)`,
+                    width: `${navIndicator.width}px`,
+                    opacity: navIndicator.opacity
+                  }}
+                />
+              );
+            })()}
 
-            <Link
-              to="/"
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-extrabold transition-all ${
-                isCustomerPage 
-                  ? 'bg-orange-500 text-white shadow-md shadow-orange-500/20 font-black' 
-                  : 'text-slate-700 dark:text-slate-200 hover:text-amber-600 dark:hover:text-amber-400 hover:bg-amber-500/10'
-              }`}
-            >
-              <ShoppingBag className="w-3.5 h-3.5 text-amber-500 dark:text-amber-400" />
-              Customer Site
-            </Link>
-
-            <Link
-              to="/chef/login"
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-extrabold transition-all ${
-                location.pathname.startsWith('/chef') 
-                  ? 'bg-orange-500 text-white shadow-md shadow-orange-500/20 font-black' 
-                  : 'text-slate-700 dark:text-slate-200 hover:text-emerald-600 dark:hover:text-emerald-400 hover:bg-emerald-500/10'
-              }`}
-            >
-              <ChefHat className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-              Chef Site
-            </Link>
-
-            <Link
-              to="/rider/login"
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-extrabold transition-all ${
-                location.pathname.startsWith('/rider') 
-                  ? 'bg-orange-500 text-white shadow-md shadow-orange-500/20 font-black' 
-                  : 'text-slate-700 dark:text-slate-200 hover:text-sky-600 dark:hover:text-sky-400 hover:bg-sky-500/10'
-              }`}
-            >
-              <Bike className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400" />
-              Rider Site
-            </Link>
-
-            <Link
-              to="/admin/login"
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-extrabold transition-all ${
-                location.pathname.startsWith('/admin') 
-                  ? 'bg-orange-500 text-white shadow-md shadow-orange-500/20 font-black' 
-                  : 'text-slate-700 dark:text-slate-200 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-500/10'
-              }`}
-            >
-              <ShieldAlert className="w-3.5 h-3.5 text-rose-600 dark:text-rose-400" />
-              Admin Site
-            </Link>
+            {navTabs.map((tab) => {
+              const Icon = tab.icon;
+              const isActiveTab = activeTabId === tab.id;
+              return (
+                <Link
+                  key={tab.id}
+                  to={tab.path}
+                  ref={(el) => (navRefs.current[tab.id] = el)}
+                  className={`relative z-10 flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-black transition-colors duration-200 select-none ${
+                    isActiveTab
+                      ? tab.activeText
+                      : 'text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
+                  }`}
+                >
+                  <Icon className={`w-3.5 h-3.5 transition-colors ${isActiveTab ? tab.activeText : 'opacity-80'}`} />
+                  <span>{tab.label}</span>
+                </Link>
+              );
+            })}
           </div>
         ) : (
           /* Switch Portal Quick Link for logged-in users */
           <button
             onClick={handleSwitchPortalClick}
-            className="hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-900 hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-800 dark:text-slate-200 text-xs font-extrabold border border-slate-300 dark:border-slate-800 transition-all"
+            className="hidden md:flex items-center gap-2 px-3.5 py-1.5 rounded-xl backdrop-blur-xl bg-white/70 dark:bg-slate-800/70 hover:bg-white/90 dark:hover:bg-slate-800/90 text-slate-800 dark:text-slate-100 text-xs font-black border border-slate-200/90 dark:border-white/10 hover:border-orange-500/50 shadow-sm shadow-slate-200/50 dark:shadow-none hover:shadow-orange-500/15 transition-all duration-200 hover:-translate-y-0.5 active:translate-y-0 cursor-pointer group"
             title="Switch Portal / View Launchpad"
           >
-            <ArrowRightLeft className="w-3.5 h-3.5 text-orange-500" />
+            <ArrowRightLeft className="w-3.5 h-3.5 text-orange-500 group-hover:rotate-180 transition-transform duration-300" />
             <span>Switch Portal</span>
           </button>
         )}
@@ -165,7 +225,7 @@ export default function Navbar({ currentUser, onLogout, theme, onToggleTheme }) 
           {/* Theme Toggle Button */}
           <button
             onClick={onToggleTheme}
-            className="p-2 rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 text-amber-500 hover:text-amber-600 dark:text-amber-400 font-bold text-xs transition-all flex items-center justify-center shadow-sm"
+            className="p-2 rounded-xl backdrop-blur-xl bg-white/70 dark:bg-slate-800/70 hover:bg-white/90 dark:hover:bg-slate-800/90 border border-slate-200/90 dark:border-white/10 text-amber-500 hover:text-amber-600 dark:text-amber-400 font-bold text-xs transition-all duration-200 hover:scale-105 active:scale-95 flex items-center justify-center shadow-sm shadow-slate-200/50 dark:shadow-none hover:shadow-amber-500/20 cursor-pointer"
             title={`Switch to ${theme === 'dark' ? 'Light' : 'Dark'} Mode`}
           >
             {theme === 'dark' ? (
@@ -187,17 +247,17 @@ export default function Navbar({ currentUser, onLogout, theme, onToggleTheme }) 
               {/* Logout Button */}
               <button
                 onClick={handleLogoutClick}
-                className="p-2 sm:px-3 sm:py-1.5 rounded-xl bg-slate-100 dark:bg-slate-900 hover:bg-rose-500 hover:text-white text-slate-800 dark:text-slate-200 text-xs font-bold border border-slate-300 dark:border-slate-800 hover:border-rose-600 transition-all shadow-sm flex items-center gap-1"
+                className="px-3.5 py-1.5 rounded-xl backdrop-blur-xl bg-white/70 dark:bg-slate-800/70 hover:bg-rose-500/15 dark:hover:bg-rose-500/20 text-slate-800 dark:text-slate-100 hover:text-rose-600 dark:hover:text-rose-400 text-xs font-black border border-slate-200/90 dark:border-white/10 hover:border-rose-500/50 shadow-sm shadow-slate-200/50 dark:shadow-none hover:shadow-rose-500/20 transition-all duration-200 hover:-translate-y-0.5 active:translate-y-0 flex items-center gap-1.5 cursor-pointer group"
                 title="Log out of session"
               >
-                <LogOut className="w-4 h-4" />
+                <LogOut className="w-3.5 h-3.5 group-hover:-translate-x-0.5 transition-transform" />
                 <span className="hidden sm:inline">Logout</span>
               </button>
             </div>
           ) : (
             <Link
               to="/portals"
-              className="flex items-center gap-1 px-2.5 py-1.5 sm:px-3.5 sm:py-2 rounded-xl bg-gradient-to-r from-orange-500 to-amber-500 text-white text-xs font-black shadow-md shadow-orange-500/20 transition-all"
+              className="flex items-center gap-1 px-3 py-1.5 sm:px-4 sm:py-2 rounded-xl bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-slate-950 font-black text-xs shadow-md shadow-orange-500/25 ring-1 ring-orange-300/40 transition-all duration-200 hover:-translate-y-0.5 active:translate-y-0"
             >
               <UserCheck className="w-3.5 h-3.5" />
               <span className="hidden sm:inline">Login</span>

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { ShieldAlert, Users, DollarSign, Activity, Lock, Database, AlertCircle, Ban, CheckCircle2, KeyRound, UserPlus, Trash2, Eye, EyeOff, Edit3, X, Utensils, Package, Tag, AlertTriangle, RefreshCw } from 'lucide-react';
 import { KitchenLoadingScreen, KitchenDataLoader, KitchenSkeletonRows } from '../components/KitchenLoading';
 
@@ -11,6 +11,36 @@ export default function AdminSite({ user, onLogin }) {
   const [activeTab, setActiveTab] = useState('users');
   const [metrics, setMetrics] = useState(null);
   const [users, setUsers] = useState([]);
+
+  // Animated sliding indicator for Admin tab switcher
+  const [adminTabIndicator, setAdminTabIndicator] = useState({ left: 0, width: 0, opacity: 0 });
+  const adminTabRefs = useRef({});
+
+  useEffect(() => {
+    if (adminTabRefs.current[activeTab]) {
+      const el = adminTabRefs.current[activeTab];
+      setAdminTabIndicator({
+        left: el.offsetLeft,
+        width: el.offsetWidth,
+        opacity: 1
+      });
+    }
+  }, [activeTab, users.length]);
+
+  useEffect(() => {
+    const handleResize = () => {
+      if (adminTabRefs.current[activeTab]) {
+        const el = adminTabRefs.current[activeTab];
+        setAdminTabIndicator({
+          left: el.offsetLeft,
+          width: el.offsetWidth,
+          opacity: 1
+        });
+      }
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, [activeTab]);
   const [adminDishes, setAdminDishes] = useState([]);
   const [showPasswordsMap, setShowPasswordsMap] = useState({});
   const [auditLogs, setAuditLogs] = useState([]);
@@ -368,70 +398,46 @@ export default function AdminSite({ user, onLogin }) {
             <h1 className="text-3xl font-extrabold text-slate-900 dark:text-white mt-1">Platform Master Console</h1>
           </div>
 
-          {/* Tab Switcher */}
-          <div className="flex flex-wrap items-center gap-1.5 p-1 bg-slate-100 dark:bg-slate-900 rounded-xl border border-slate-300 dark:border-slate-800 text-xs font-bold shadow-inner">
-            <button
-              onClick={() => setActiveTab('users')}
-              className={`flex items-center gap-2 px-3.5 py-2 rounded-lg transition-all ${activeTab === 'users' ? 'bg-rose-500 text-white shadow-md' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-                }`}
-            >
-              <Users className="w-3.5 h-3.5" />
-              Global Users Table CRUD ({users.length})
-            </button>
+          {/* Tab Switcher with Glass UI & Smooth Sliding Rectangle */}
+          <div className="relative flex flex-wrap items-center gap-1 p-1.5 backdrop-blur-2xl bg-white/70 dark:bg-slate-900/70 rounded-2xl border border-slate-200/90 dark:border-white/10 text-xs font-bold shadow-inner">
+            {/* Smooth Sliding Highlight Rectangle */}
+            <div
+              className="absolute top-1.5 bottom-1.5 rounded-xl transition-all duration-300 ease-out pointer-events-none z-0
+                         bg-gradient-to-r from-rose-500 to-red-600 shadow-lg shadow-rose-500/25 ring-1 ring-rose-400/40"
+              style={{
+                transform: `translateX(${adminTabIndicator.left}px)`,
+                width: `${adminTabIndicator.width}px`,
+                opacity: adminTabIndicator.opacity
+              }}
+            />
 
-            <button
-              onClick={() => setActiveTab('dishes')}
-              className={`flex items-center gap-2 px-3.5 py-2 rounded-lg transition-all ${activeTab === 'dishes' ? 'bg-rose-500 text-white shadow-md' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-                }`}
-            >
-              <Utensils className="w-3.5 h-3.5" />
-              Dishes Stock & Out of Stock Reasons GUI ({adminDishes.length})
-            </button>
-
-            <button
-              onClick={() => setActiveTab('payouts')}
-              className={`flex items-center gap-2 px-3.5 py-2 rounded-lg transition-all ${activeTab === 'payouts' ? 'bg-rose-500 text-white shadow-md' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-                }`}
-            >
-              <DollarSign className="w-3.5 h-3.5" />
-              Escrow Payout Ledger ({adminPayouts.length})
-            </button>
-
-            <button
-              onClick={() => setActiveTab('reviews')}
-              className={`flex items-center gap-2 px-3.5 py-2 rounded-lg transition-all ${activeTab === 'reviews' ? 'bg-rose-500 text-white shadow-md' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-                }`}
-            >
-              <Tag className="w-3.5 h-3.5" />
-              Ratings & Reviews ({adminReviews.length})
-            </button>
-
-            <button
-              onClick={() => setActiveTab('metrics')}
-              className={`flex items-center gap-2 px-3.5 py-2 rounded-lg transition-all ${activeTab === 'metrics' ? 'bg-rose-500 text-white shadow-md' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-                }`}
-            >
-              <Activity className="w-3.5 h-3.5" />
-              Analytics Metrics
-            </button>
-
-            <button
-              onClick={() => setActiveTab('audits')}
-              className={`flex items-center gap-2 px-3.5 py-2 rounded-lg transition-all ${activeTab === 'audits' ? 'bg-rose-500 text-white shadow-md' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-                }`}
-            >
-              <Database className="w-3.5 h-3.5" />
-              System Audit Logs
-            </button>
-
-            <button
-              onClick={() => setActiveTab('settings')}
-              className={`flex items-center gap-2 px-3.5 py-2 rounded-lg transition-all ${activeTab === 'settings' ? 'bg-rose-500 text-white shadow-md' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-                }`}
-            >
-              <KeyRound className="w-3.5 h-3.5" />
-              Change Admin Credentials
-            </button>
+            {[
+              { id: 'users', label: `Global Users Table CRUD (${users.length})`, icon: Users },
+              { id: 'dishes', label: `Dishes Stock & Out of Stock Reasons GUI (${adminDishes.length})`, icon: Utensils },
+              { id: 'payouts', label: `Escrow Payout Ledger (${adminPayouts.length})`, icon: DollarSign },
+              { id: 'reviews', label: `Ratings & Reviews (${adminReviews.length})`, icon: Tag },
+              { id: 'metrics', label: 'Analytics Metrics', icon: Activity },
+              { id: 'audits', label: 'System Audit Logs', icon: Database },
+              { id: 'settings', label: 'Change Admin Credentials', icon: KeyRound }
+            ].map((tab) => {
+              const Icon = tab.icon;
+              const isActive = activeTab === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  ref={(el) => (adminTabRefs.current[tab.id] = el)}
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`relative z-10 flex items-center gap-2 px-3.5 py-2 rounded-xl transition-colors duration-200 cursor-pointer select-none ${
+                    isActive
+                      ? 'text-white font-black'
+                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                  }`}
+                >
+                  <Icon className={`w-3.5 h-3.5 transition-colors ${isActive ? 'text-white stroke-[2.5]' : ''}`} />
+                  <span>{tab.label}</span>
+                </button>
+              );
+            })}
           </div>
         </div>
 
