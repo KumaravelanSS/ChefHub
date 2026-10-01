@@ -343,10 +343,32 @@ async function initRelationalDb() {
     )
   `);
 
-  console.log('[Relational Engine] All 7 relational tables checked/created successfully.');
+  // 8. Transactional Outbox Events Table (Guarantees Relational -> NoSQL Eventual Consistency)
+  await query(`
+    CREATE TABLE IF NOT EXISTS outbox_events (
+      event_id INTEGER PRIMARY KEY ${isSqlite ? 'AUTOINCREMENT' : 'AUTO_INCREMENT'},
+      aggregate_type VARCHAR(100) NOT NULL,
+      aggregate_id VARCHAR(100) NOT NULL,
+      event_type VARCHAR(100) NOT NULL,
+      payload TEXT NOT NULL,
+      status VARCHAR(50) DEFAULT 'PENDING',
+      retry_count INTEGER DEFAULT 0,
+      error_message TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      processed_at DATETIME
+    )
+  `);
+
+  try {
+    await query(`CREATE INDEX IF NOT EXISTS idx_outbox_status ON outbox_events(status, created_at)`);
+  } catch (err) {
+    // Index optional
+  }
+
+  console.log('[Relational Engine] All 8 relational tables checked/created successfully (including outbox_events).');
 
   if (isPostgres) {
-    const tables = ['users', 'dishes', 'inventory', 'dish_recipes', 'orders', 'order_items', 'payouts'];
+    const tables = ['users', 'dishes', 'inventory', 'dish_recipes', 'orders', 'order_items', 'payouts', 'outbox_events'];
     for (const t of tables) {
       try {
         await query(`ALTER TABLE ${t} ENABLE ROW LEVEL SECURITY`);
@@ -354,7 +376,7 @@ async function initRelationalDb() {
         // Ignored if already enabled or not supported
       }
     }
-    console.log('[Relational Engine] Row Level Security (RLS) enabled on all 7 tables.');
+    console.log('[Relational Engine] Row Level Security (RLS) enabled on all 8 tables.');
   }
 }
 

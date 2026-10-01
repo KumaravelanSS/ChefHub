@@ -193,8 +193,15 @@ const MongoAdapter = {
   },
   async pushTrackingLog(order_id, eventObj) {
     if (isMongoConnected) {
+      // Idempotency check: don't append duplicate entries for the exact same event on this order
+      const existing = await OrderTrackingLog.findOne({
+        order_id: Number(order_id),
+        'timeline.event': eventObj.event
+      });
+      if (existing) return existing;
+
       return await OrderTrackingLog.findOneAndUpdate(
-        { order_id },
+        { order_id: Number(order_id) },
         { $push: { timeline: eventObj }, $setOnInsert: { estimated_delivery_time: '25-35 mins' } },
         { upsert: true, new: true }
       );
@@ -204,7 +211,10 @@ const MongoAdapter = {
         log = { order_id: Number(order_id), timeline: [], estimated_delivery_time: '25-35 mins' };
         memoryDocs.order_tracking_logs.push(log);
       }
-      log.timeline.push(eventObj);
+      const alreadyHas = log.timeline.some(t => t.event === eventObj.event);
+      if (!alreadyHas) {
+        log.timeline.push(eventObj);
+      }
       return log;
     }
   },

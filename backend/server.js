@@ -5,6 +5,7 @@ require('dotenv').config();
 const { initRelationalDb } = require('./config/mysql_db');
 const { initMongoDb } = require('./config/mongo_db');
 const seedDatabase = require('./seeders/seed_all');
+const outboxRelay = require('./services/outbox_relay');
 
 const authRoutes = require('./routes/auth');
 const customerRoutes = require('./routes/customer');
@@ -108,11 +109,15 @@ async function startServer() {
     // Run initial seed script
     await seedDatabase();
 
+    // Start Transactional Outbox Background Worker (Eliminates Dual-Write Desync)
+    outboxRelay.startWorker(2500);
+
     app.listen(PORT, () => {
       console.log(`\n==================================================`);
       console.log(`🚀 ChefHub DBMS Server Running on http://localhost:${PORT}`);
-      console.log(`   - 7 MySQL Relational Tables Initialized`);
+      console.log(`   - 8 Relational Tables (with outbox_events) Initialized`);
       console.log(`   - 5 MongoDB Document Collections Initialized`);
+      console.log(`   - Transactional Outbox Relay Engine: ACTIVE`);
       console.log(`   - Single Master Admin Credentials: admin / admin`);
       console.log(`==================================================\n`);
     });

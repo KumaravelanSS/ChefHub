@@ -5,6 +5,7 @@ const { MongoAdapter } = require('../config/mongo_db');
 const { authenticateToken, requireRole } = require('../middleware/auth_rbac');
 const InventoryEngine = require('../services/inventory_engine');
 const PayoutService = require('../services/payout_service');
+const outboxRelay = require('../services/outbox_relay');
 
 function checkIsVendorOpen(mongoMenu) {
   if (!mongoMenu) return { isOpen: true };
@@ -295,6 +296,22 @@ router.post('/orders', authenticateToken, requireRole('CUSTOMER'), async (req, r
       // 6. Create Escrow Payout ledger entry inside the same atomic transaction
       const payout = await PayoutService.createOrderPayout(order_id, vendor_id, null, totalAmount, txQuery);
 
+      // 7. Record Outbox Event in SQL inside the exact same atomic transaction
+      // Guarantees that the event is durably recorded in SQL if and only if the order commits
+      await outboxRelay.recordEvent(txQuery, {
+        aggregate_type: 'ORDER',
+        aggregate_id: order_id,
+        event_type: 'ORDER_CREATED',
+        payload: {
+          order_id,
+          customer_id,
+          vendor_id,
+          total_amount: totalAmount,
+          timestamp: new Date().toISOString(),
+          location_note: 'Order submitted and escrow payment secured'
+        }
+      });
+
       return {
         order_id,
         totalAmount,
@@ -305,7 +322,10 @@ router.post('/orders', authenticateToken, requireRole('CUSTOMER'), async (req, r
 
     const { order_id, totalAmount, payout, stockDeductions } = transactionResult;
 
-    // Post-Transaction Asynchronous Document Sync (MongoDB updates & tracking)
+    // Trigger immediate Outbox Relay processing (pushes mutations to MongoDB with 0ms latency)
+    outboxRelay.dispatchNow();
+
+    // Post-Transaction Asynchronous Document Sync (Immediate local fallback)
     InventoryEngine.autoSyncDishAvailability(vendor_id).catch(err => console.error('Menu sync error:', err));
 
     await MongoAdapter.pushTrackingLog(order_id, {

@@ -3,6 +3,7 @@ const router = express.Router();
 const { query } = require('../config/mysql_db');
 const { MongoAdapter } = require('../config/mongo_db');
 const { authenticateToken, requireRole } = require('../middleware/auth_rbac');
+const outboxRelay = require('../services/outbox_relay');
 
 // Get Available & Active Jobs for Rider
 router.get('/jobs', authenticateToken, requireRole('RIDER'), async (req, res) => {
@@ -47,12 +48,24 @@ router.patch('/orders/:id/accept', authenticateToken, requireRole('RIDER'), asyn
       assigned_order_id: Number(order_id)
     });
 
+    await outboxRelay.recordEvent(null, {
+      aggregate_type: 'ORDER',
+      aggregate_id: order_id,
+      event_type: 'ORDER_STATUS_CHANGED',
+      payload: {
+        new_status: 'OUT_FOR_DELIVERY',
+        actor_role: 'RIDER',
+        note: `Rider #${rider_id} picked up the meal and is en route!`
+      }
+    });
+    outboxRelay.dispatchNow();
+
     await MongoAdapter.pushTrackingLog(order_id, {
       event: 'OUT_FOR_DELIVERY',
       timestamp: new Date(),
       location_note: `Rider #${rider_id} picked up the meal and is en route!`,
       actor_role: 'RIDER'
-    });
+    }).catch(err => console.warn('[Mongo Tracking Log Sync Warning]', err.message));
 
     return res.json({ success: true, message: `Order #${order_id} accepted and picked up!` });
   } catch (err) {
@@ -88,12 +101,24 @@ router.patch('/orders/:id/complete', authenticateToken, requireRole('RIDER'), as
       total_deliveries_completed: completedCount
     });
 
+    await outboxRelay.recordEvent(null, {
+      aggregate_type: 'ORDER',
+      aggregate_id: order_id,
+      event_type: 'ORDER_STATUS_CHANGED',
+      payload: {
+        new_status: 'DELIVERED',
+        actor_role: 'RIDER',
+        note: 'Meal delivered safely. Escrow payouts disbursed to Vendor & Rider.'
+      }
+    });
+    outboxRelay.dispatchNow();
+
     await MongoAdapter.pushTrackingLog(order_id, {
       event: 'DELIVERED',
       timestamp: new Date(),
       location_note: 'Meal delivered safely. Escrow payouts disbursed to Vendor & Rider.',
       actor_role: 'RIDER'
-    });
+    }).catch(err => console.warn('[Mongo Tracking Log Sync Warning]', err.message));
 
     return res.json({ success: true, message: `Order #${order_id} marked as DELIVERED. Escrow disbursed!` });
   } catch (err) {

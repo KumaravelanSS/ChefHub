@@ -4,6 +4,7 @@ const { query } = require('../config/mysql_db');
 const { MongoAdapter } = require('../config/mongo_db');
 const { authenticateToken, requireRole } = require('../middleware/auth_rbac');
 const InventoryEngine = require('../services/inventory_engine');
+const outboxRelay = require('../services/outbox_relay');
 
 // Vendor Orders Queue
 router.get('/orders', authenticateToken, requireRole('VENDOR'), async (req, res) => {
@@ -53,12 +54,24 @@ router.patch('/orders/:id/status', authenticateToken, requireRole('VENDOR'), asy
       WHERE order_id = ? AND vendor_id = ?
     `, [status, order_id, vendor_id]);
 
+    await outboxRelay.recordEvent(null, {
+      aggregate_type: 'ORDER',
+      aggregate_id: order_id,
+      event_type: 'ORDER_STATUS_CHANGED',
+      payload: {
+        new_status: `KITCHEN_${status}`,
+        actor_role: 'VENDOR',
+        note: status === 'PREPARING' ? 'Chef started preparing your meal' : 'Meal is packed & ready for pickup'
+      }
+    });
+    outboxRelay.dispatchNow();
+
     await MongoAdapter.pushTrackingLog(order_id, {
       event: `KITCHEN_${status}`,
       timestamp: new Date(),
       location_note: status === 'PREPARING' ? 'Chef started preparing your meal' : 'Meal is packed & ready for pickup',
       actor_role: 'VENDOR'
-    });
+    }).catch(err => console.warn('[Mongo Tracking Log Sync Warning]', err.message));
 
     return res.json({ success: true, message: `Order #${order_id} marked as ${status}.` });
   } catch (err) {
@@ -131,6 +144,15 @@ router.post('/dishes', authenticateToken, requireRole('VENDOR'), async (req, res
     ]);
 
     const dish_id = result.insertId;
+
+    // Record Outbox Event for MongoDB menu synchronization
+    await outboxRelay.recordEvent(null, {
+      aggregate_type: 'DISH',
+      aggregate_id: dish_id,
+      event_type: 'DISH_UPDATED',
+      payload: { vendor_id, dish_id, name }
+    });
+    outboxRelay.dispatchNow();
 
     // 2. Add to MongoDB `vendors_menus`
     let mongoMenu = await MongoAdapter.findVendorMenu(vendor_id);
@@ -219,6 +241,15 @@ router.put('/dishes/:id', authenticateToken, requireRole('VENDOR'), async (req, 
       dish_id,
       vendor_id
     ]);
+
+    // Record Outbox Event for MongoDB menu synchronization
+    await outboxRelay.recordEvent(null, {
+      aggregate_type: 'DISH',
+      aggregate_id: dish_id,
+      event_type: 'DISH_UPDATED',
+      payload: { vendor_id, dish_id, daily_stock: stockVal, is_available: availVal }
+    });
+    outboxRelay.dispatchNow();
 
     // 2. Update MongoDB `vendors_menus`
     let mongoMenu = await MongoAdapter.findVendorMenu(vendor_id);
@@ -310,6 +341,14 @@ router.patch('/dishes/:id/stock', authenticateToken, requireRole('VENDOR'), asyn
 
     await query('UPDATE dishes SET is_available = ?, daily_stock = ?, out_of_stock_reason = ? WHERE dish_id = ? AND vendor_id = ?', [newAvail, newStock, newReason, dish_id, vendor_id]);
 
+    await outboxRelay.recordEvent(null, {
+      aggregate_type: 'DISH',
+      aggregate_id: dish_id,
+      event_type: 'DISH_STOCK_UPDATED',
+      payload: { vendor_id, dish_id, daily_stock: newStock, is_available: newAvail }
+    });
+    outboxRelay.dispatchNow();
+
     const mongoMenu = await MongoAdapter.findVendorMenu(vendor_id);
     if (mongoMenu && mongoMenu.categories) {
       for (const cat of mongoMenu.categories) {
@@ -359,6 +398,14 @@ router.patch('/dishes/:id/toggle-stock', authenticateToken, requireRole('VENDOR'
     const newReason = newAvail === 1 ? 'In Stock' : (out_of_stock_reason || 'Kitchen prep closed for today');
 
     await query('UPDATE dishes SET is_available = ?, daily_stock = ?, out_of_stock_reason = ? WHERE dish_id = ? AND vendor_id = ?', [newAvail, newDailyStock, newReason, dish_id, vendor_id]);
+
+    await outboxRelay.recordEvent(null, {
+      aggregate_type: 'DISH',
+      aggregate_id: dish_id,
+      event_type: 'DISH_STOCK_UPDATED',
+      payload: { vendor_id, dish_id, daily_stock: newDailyStock, is_available: newAvail }
+    });
+    outboxRelay.dispatchNow();
 
     const mongoMenu = await MongoAdapter.findVendorMenu(vendor_id);
     if (mongoMenu && mongoMenu.categories) {
