@@ -6,6 +6,8 @@ const { initRelationalDb } = require('./config/mysql_db');
 const { initMongoDb } = require('./config/mongo_db');
 const seedDatabase = require('./seeders/seed_all');
 const outboxRelay = require('./services/outbox_relay');
+const { logger, requestTracing, httpLogger } = require('./middleware/logger');
+const { authLimiter, telemetryLimiter, globalApiLimiter } = require('./middleware/rate_limiter');
 
 const authRoutes = require('./routes/auth');
 const customerRoutes = require('./routes/customer');
@@ -16,8 +18,19 @@ const adminRoutes = require('./routes/admin');
 const app = express();
 const PORT = process.env.PORT || 5000;
 
+// Enable reverse proxy trust (essential for Render / Cloudflare / Nginx rate limiting)
+app.set('trust proxy', 1);
+
+// Security & Observability Middlewares
+app.use(requestTracing);
+app.use(httpLogger);
 app.use(cors());
 app.use(express.json());
+
+// Route-Tiered Rate Limiting Gateway
+app.use('/api/auth', authLimiter);
+app.use('/api/rider/location', telemetryLimiter);
+app.use('/api', globalApiLimiter);
 
 const path = require('path');
 const fs = require('fs');
@@ -94,9 +107,13 @@ app.get('/api/health', (req, res) => {
   res.json({
     status: 'ONLINE',
     system: 'ChefHub Hyper-Local DBMS Ecosystem',
-    schemas_active: 12,
-    relational_tables: 7,
+    schemas_active: 13,
+    relational_tables: 8,
     mongo_collections: 5,
+    outbox_engine: 'ACTIVE',
+    observability: 'WINSTON_STRUCTURED_LOGS',
+    rate_limiting: 'TIERED_GATEWAY',
+    requestId: req.id,
     timestamp: new Date()
   });
 });
@@ -113,11 +130,13 @@ async function startServer() {
     outboxRelay.startWorker(2500);
 
     app.listen(PORT, () => {
+      logger.info(`ChefHub DBMS Server Running on http://localhost:${PORT}`);
       console.log(`\n==================================================`);
       console.log(`🚀 ChefHub DBMS Server Running on http://localhost:${PORT}`);
       console.log(`   - 8 Relational Tables (with outbox_events) Initialized`);
       console.log(`   - 5 MongoDB Document Collections Initialized`);
       console.log(`   - Transactional Outbox Relay Engine: ACTIVE`);
+      console.log(`   - Security & Observability Gateway: ACTIVE (Winston + Rate Limiter)`);
       console.log(`   - Single Master Admin Credentials: admin / admin`);
       console.log(`==================================================\n`);
     });

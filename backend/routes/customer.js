@@ -6,6 +6,7 @@ const { authenticateToken, requireRole } = require('../middleware/auth_rbac');
 const InventoryEngine = require('../services/inventory_engine');
 const PayoutService = require('../services/payout_service');
 const outboxRelay = require('../services/outbox_relay');
+const { checkoutLimiter } = require('../middleware/rate_limiter');
 
 function checkIsVendorOpen(mongoMenu) {
   if (!mongoMenu) return { isOpen: true };
@@ -127,7 +128,7 @@ router.get('/vendors', async (req, res) => {
 });
 
 // Create New Order
-router.post('/orders', authenticateToken, requireRole('CUSTOMER'), async (req, res) => {
+router.post('/orders', checkoutLimiter, authenticateToken, requireRole('CUSTOMER'), async (req, res) => {
   try {
     const { vendor_id, items } = req.body;
     const customer_id = req.user.user_id;
