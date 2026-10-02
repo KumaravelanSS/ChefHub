@@ -12,6 +12,9 @@ export default {
         display: ['"Outfit"', '"Plus Jakarta Sans"', 'system-ui', 'sans-serif'],
       },
       colors: {
+        slate: {
+          850: '#131b2e'
+        },
         brand: {
           50: '#fff7ed',
           100: '#ffedd5',
