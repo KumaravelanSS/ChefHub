@@ -13,31 +13,34 @@ export default function AdminSite({ user, onLogin }) {
   const [users, setUsers] = useState([]);
 
   // Animated sliding indicator for Admin tab switcher
-  const [adminTabIndicator, setAdminTabIndicator] = useState({ left: 0, width: 0, opacity: 0 });
+  const [adminTabIndicator, setAdminTabIndicator] = useState({ left: 0, top: 0, width: 0, height: 0, opacity: 0 });
   const adminTabRefs = useRef({});
 
-  useEffect(() => {
+  const updateAdminIndicator = () => {
     if (adminTabRefs.current[activeTab]) {
       const el = adminTabRefs.current[activeTab];
       setAdminTabIndicator({
         left: el.offsetLeft,
+        top: el.offsetTop,
         width: el.offsetWidth,
+        height: el.offsetHeight,
         opacity: 1
       });
     }
-  }, [activeTab, users.length]);
+  };
 
   useEffect(() => {
-    const handleResize = () => {
-      if (adminTabRefs.current[activeTab]) {
-        const el = adminTabRefs.current[activeTab];
-        setAdminTabIndicator({
-          left: el.offsetLeft,
-          width: el.offsetWidth,
-          opacity: 1
-        });
-      }
+    updateAdminIndicator();
+    const t1 = setTimeout(updateAdminIndicator, 60);
+    const t2 = setTimeout(updateAdminIndicator, 200);
+    return () => {
+      clearTimeout(t1);
+      clearTimeout(t2);
     };
+  }, [activeTab, users.length, adminDishes.length, adminPayouts.length, adminReviews.length]);
+
+  useEffect(() => {
+    const handleResize = () => updateAdminIndicator();
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, [activeTab]);
@@ -386,39 +389,45 @@ export default function AdminSite({ user, onLogin }) {
     // Logged-in Master Admin Console View
     return (
       <div className="max-w-7xl mx-auto px-4 lg:px-8 py-8 space-y-8">
-
-        {/* Header */}
-        <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-300 dark:border-slate-800/80 pb-6">
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="px-2.5 py-0.5 rounded-full bg-rose-500/10 border border-rose-500/20 text-rose-600 dark:text-rose-400 text-xs font-bold uppercase">
-                Single Master Admin
-              </span>
+        {/* Header & Full-Width Tab Switcher */}
+        <div className="space-y-4 border-b border-slate-300 dark:border-slate-800/80 pb-6">
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="px-2.5 py-0.5 rounded-full bg-rose-500/10 border border-rose-500/20 text-rose-600 dark:text-rose-400 text-xs font-bold uppercase">
+                  Single Master Admin
+                </span>
+                <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-xs font-bold flex items-center gap-1.5">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                  Master Node Active
+                </span>
+              </div>
+              <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-white mt-1">Platform Master Console</h1>
             </div>
-            <h1 className="text-3xl font-extrabold text-slate-900 dark:text-white mt-1">Platform Master Console</h1>
           </div>
 
-          {/* Tab Switcher with Glass UI & Smooth Sliding Rectangle */}
-          <div className="relative flex flex-wrap items-center gap-1 p-1.5 backdrop-blur-2xl bg-white/70 dark:bg-slate-900/70 rounded-2xl border border-slate-200/90 dark:border-white/10 text-xs font-bold shadow-inner">
+          {/* Clean Horizontal Sliding Segmented Control Bar */}
+          <div className="relative flex items-center gap-1.5 p-1.5 backdrop-blur-2xl bg-slate-200/80 dark:bg-slate-950/80 rounded-2xl border border-slate-300/80 dark:border-slate-800 text-xs font-bold shadow-inner overflow-x-auto no-scrollbar w-full">
             {/* Smooth Sliding Highlight Rectangle */}
             <div
-              className="absolute top-1.5 bottom-1.5 rounded-xl transition-all duration-300 ease-out pointer-events-none z-0
-                         bg-gradient-to-r from-rose-500 to-red-600 shadow-lg shadow-rose-500/25 ring-1 ring-rose-400/40"
+              className="absolute rounded-xl transition-all duration-300 ease-out pointer-events-none z-0
+                         bg-gradient-to-r from-rose-500 to-red-600 shadow-lg shadow-rose-500/30 ring-1 ring-rose-400/40"
               style={{
-                transform: `translateX(${adminTabIndicator.left}px)`,
+                transform: `translate3d(${adminTabIndicator.left}px, ${adminTabIndicator.top}px, 0)`,
                 width: `${adminTabIndicator.width}px`,
+                height: `${adminTabIndicator.height}px`,
                 opacity: adminTabIndicator.opacity
               }}
             />
 
             {[
-              { id: 'users', label: `Global Users Table CRUD (${users.length})`, icon: Users },
-              { id: 'dishes', label: `Dishes Stock & Out of Stock Reasons GUI (${adminDishes.length})`, icon: Utensils },
-              { id: 'payouts', label: `Escrow Payout Ledger (${adminPayouts.length})`, icon: DollarSign },
+              { id: 'users', label: `Users (${users.length})`, icon: Users },
+              { id: 'dishes', label: `Dishes & Stock (${adminDishes.length})`, icon: Utensils },
+              { id: 'payouts', label: `Escrow Ledger (${adminPayouts.length})`, icon: DollarSign },
               { id: 'reviews', label: `Ratings & Reviews (${adminReviews.length})`, icon: Tag },
-              { id: 'metrics', label: 'Analytics Metrics', icon: Activity },
-              { id: 'audits', label: 'System Audit Logs', icon: Database },
-              { id: 'settings', label: 'Change Admin Credentials', icon: KeyRound }
+              { id: 'metrics', label: 'Analytics', icon: Activity },
+              { id: 'audits', label: 'System Audits', icon: Database },
+              { id: 'settings', label: 'Admin Credentials', icon: KeyRound }
             ].map((tab) => {
               const Icon = tab.icon;
               const isActive = activeTab === tab.id;
@@ -427,7 +436,7 @@ export default function AdminSite({ user, onLogin }) {
                   key={tab.id}
                   ref={(el) => (adminTabRefs.current[tab.id] = el)}
                   onClick={() => setActiveTab(tab.id)}
-                  className={`relative z-10 flex items-center gap-2 px-3.5 py-2 rounded-xl transition-colors duration-200 cursor-pointer select-none ${
+                  className={`relative z-10 flex items-center gap-2 px-4 py-2.5 rounded-xl transition-colors duration-200 cursor-pointer select-none shrink-0 whitespace-nowrap ${
                     isActive
                       ? 'text-white font-black'
                       : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
