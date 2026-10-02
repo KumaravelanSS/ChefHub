@@ -19,6 +19,7 @@ async function seedDatabase() {
     { name: 'Chef Mario (Truffle & Pasta)', email: 'chef.mario@chefhub.com', password: hashedVendorPassword, plain_password: 'vendor123', role: 'VENDOR', phone: '+1555-0101' },
     { name: 'Chef Priya (Spice & Curry)', email: 'chef.priya@chefhub.com', password: hashedVendorPassword, plain_password: 'vendor123', role: 'VENDOR', phone: '+1555-0102' },
     { name: 'Chef Kenji (Tokyo Street Eats)', email: 'chef.kenji@chefhub.com', password: hashedVendorPassword, plain_password: 'vendor123', role: 'VENDOR', phone: '+1555-0103' },
+    { name: 'Chef Ramu', email: 'chef.ramu@chefhub.com', password: hashedVendorPassword, plain_password: 'vendor123', role: 'VENDOR', phone: '+1555-0104' },
     { name: 'Alex Customer', email: 'alex.customer@gmail.com', password: hashedCustomerPassword, plain_password: 'customer123', role: 'CUSTOMER', phone: '+1555-0201' },
     { name: 'Sarah Foodie', email: 'sarah.foodie@gmail.com', password: hashedCustomerPassword, plain_password: 'customer123', role: 'CUSTOMER', phone: '+1555-0202' },
     { name: 'David Rider', email: 'david.rider@chefhub.com', password: hashedRiderPassword, plain_password: 'rider123', role: 'RIDER', phone: '+1555-0301' },

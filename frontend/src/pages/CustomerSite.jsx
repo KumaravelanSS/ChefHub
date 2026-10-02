@@ -663,13 +663,26 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
     const status = String(order.status || '').toUpperCase();
     const isCancelled = status === 'CANCELLED';
 
+    // Parse base order placement time (from order.timestamp or order.created_at)
+    const orderTimeRaw = order.timestamp || order.created_at || new Date();
+    const baseDate = new Date(orderTimeRaw);
+    const validBaseTime = !isNaN(baseDate.getTime()) ? baseDate : new Date();
+
+    // Search order.tracking timeline array if provided
+    const trackingList = Array.isArray(order.tracking) ? order.tracking : [];
+    const getEventTimestamp = (patterns) => {
+      const match = trackingList.find(t => patterns.includes(String(t.event || '').toUpperCase()));
+      return match && match.timestamp ? new Date(match.timestamp) : null;
+    };
+
     if (isCancelled) {
+      const cancelTime = getEventTimestamp(['CANCELLED', 'ORDER_CANCELLED']) || (order.updated_at ? new Date(order.updated_at) : validBaseTime);
       return [
         {
           key: 'ORDER_PLACED',
           title: 'ORDER_PLACED',
           desc: 'Order submitted and escrow payment secured',
-          time: order.created_at || new Date().toISOString(),
+          time: getEventTimestamp(['ORDER_PLACED']) || validBaseTime,
           isDone: true,
           isActive: false
         },
@@ -677,7 +690,7 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
           key: 'CANCELLED',
           title: 'ORDER_CANCELLED',
           desc: 'Order was cancelled; payment refund initiated to original payment method',
-          time: order.updated_at || order.created_at || new Date().toISOString(),
+          time: cancelTime,
           isDone: true,
           isActive: true,
           isError: true
@@ -700,36 +713,47 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
 
     const currentStageIdx = stageMap[status] !== undefined ? stageMap[status] : 0;
 
+    // Sequential realistic timestamps for completed steps
+    const tPlaced = getEventTimestamp(['ORDER_PLACED']) || validBaseTime;
+    const tPrep = getEventTimestamp(['KITCHEN_PREPARING', 'PREPARING']) || new Date(validBaseTime.getTime() + 3 * 60000);
+    const tReady = getEventTimestamp(['KITCHEN_READY', 'READY', 'READY_FOR_PICKUP']) || new Date(validBaseTime.getTime() + 12 * 60000);
+    const tRider = getEventTimestamp(['RIDER_ACCEPTED', 'OUT_FOR_DELIVERY']) || new Date(validBaseTime.getTime() + 18 * 60000);
+    const tDelivered = getEventTimestamp(['DELIVERED']) || new Date(validBaseTime.getTime() + 30 * 60000);
+
     const baseStages = [
       {
         key: 'ORDER_PLACED',
         title: 'ORDER_PLACED',
         desc: 'Order submitted and escrow payment secured',
-        time: order.created_at || new Date().toISOString()
+        time: tPlaced
       },
       {
         key: 'KITCHEN_PREPARING',
         title: 'KITCHEN_PREPARING',
         desc: `${order.vendor_name || 'Chef'} started preparing your handcrafted meal`,
-        time: order.created_at || new Date().toISOString()
+        time: tPrep,
+        pendingLabel: 'Waiting for chef to accept & begin preparation'
       },
       {
         key: 'KITCHEN_READY',
         title: 'KITCHEN_READY',
         desc: 'Meal packed with thermal insulation & waiting for delivery pickup',
-        time: order.created_at || new Date().toISOString()
+        time: tReady,
+        pendingLabel: 'Pending culinary packaging'
       },
       {
         key: 'RIDER_ACCEPTED',
         title: 'RIDER_ACCEPTED',
         desc: `${order.rider_name || 'Courier'} picked up order and is en route`,
-        time: order.created_at || new Date().toISOString()
+        time: tRider,
+        pendingLabel: 'Courier will be dispatched upon kitchen completion'
       },
       {
         key: 'DELIVERED',
         title: 'DELIVERED',
         desc: 'Order delivered successfully to your doorstep',
-        time: order.created_at || new Date().toISOString()
+        time: tDelivered,
+        pendingLabel: 'Estimated delivery: ~25-35 mins'
       }
     ];
 
@@ -1823,17 +1847,23 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
                           {stage.desc}
                         </p>
 
-                        <span className="text-[10px] text-slate-400 dark:text-slate-500 font-mono block">
-                          {new Date(stage.time).toLocaleString('en-US', {
-                            month: 'numeric',
-                            day: 'numeric',
-                            year: 'numeric',
-                            hour: 'numeric',
-                            minute: '2-digit',
-                            second: '2-digit',
-                            hour12: true
-                          })}
-                        </span>
+                        {isDone ? (
+                          <span className="text-[10px] text-slate-500 dark:text-slate-400 font-mono block">
+                            {new Date(stage.time).toLocaleString('en-US', {
+                              month: 'numeric',
+                              day: 'numeric',
+                              year: 'numeric',
+                              hour: 'numeric',
+                              minute: '2-digit',
+                              second: '2-digit',
+                              hour12: true
+                            })}
+                          </span>
+                        ) : (
+                          <span className="text-[10px] text-slate-400 dark:text-slate-500 font-sans italic block">
+                            {stage.pendingLabel || 'Pending'}
+                          </span>
+                        )}
                       </div>
 
                     </div>
