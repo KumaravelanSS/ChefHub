@@ -8,11 +8,16 @@ import CustomerSite from './pages/CustomerSite';
 import ChefSite from './pages/ChefSite';
 import RiderSite from './pages/RiderSite';
 import AdminSite from './pages/AdminSite';
+import ErrorBoundary from './components/ErrorBoundary';
 
 function MainApp() {
   const [currentUser, setCurrentUser] = useState(() => {
-    const saved = localStorage.getItem('chefhub_user');
-    return saved ? JSON.parse(saved) : null;
+    try {
+      const saved = localStorage.getItem('chefhub_user');
+      return saved && saved !== 'undefined' ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
   });
 
   const [theme, setTheme] = useState(() => {
@@ -166,8 +171,10 @@ function MainApp() {
 
 export default function App() {
   return (
-    <BrowserRouter>
-      <MainApp />
-    </BrowserRouter>
+    <ErrorBoundary>
+      <BrowserRouter>
+        <MainApp />
+      </BrowserRouter>
+    </ErrorBoundary>
   );
 }

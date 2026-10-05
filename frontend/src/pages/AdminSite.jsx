@@ -12,38 +12,6 @@ export default function AdminSite({ user, onLogin }) {
   const [metrics, setMetrics] = useState(null);
   const [users, setUsers] = useState([]);
 
-  // Animated sliding indicator for Admin tab switcher
-  const [adminTabIndicator, setAdminTabIndicator] = useState({ left: 0, top: 0, width: 0, height: 0, opacity: 0 });
-  const adminTabRefs = useRef({});
-
-  const updateAdminIndicator = () => {
-    if (adminTabRefs.current[activeTab]) {
-      const el = adminTabRefs.current[activeTab];
-      setAdminTabIndicator({
-        left: el.offsetLeft,
-        top: el.offsetTop,
-        width: el.offsetWidth,
-        height: el.offsetHeight,
-        opacity: 1
-      });
-    }
-  };
-
-  useEffect(() => {
-    updateAdminIndicator();
-    const t1 = setTimeout(updateAdminIndicator, 60);
-    const t2 = setTimeout(updateAdminIndicator, 200);
-    return () => {
-      clearTimeout(t1);
-      clearTimeout(t2);
-    };
-  }, [activeTab, users.length, adminDishes.length, adminPayouts.length, adminReviews.length]);
-
-  useEffect(() => {
-    const handleResize = () => updateAdminIndicator();
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, [activeTab]);
   const [adminDishes, setAdminDishes] = useState([]);
   const [showPasswordsMap, setShowPasswordsMap] = useState({});
   const [auditLogs, setAuditLogs] = useState([]);
@@ -326,9 +294,9 @@ export default function AdminSite({ user, onLogin }) {
     if (!user || user.role !== 'ADMIN') {
       return (
         <div className="max-w-md mx-auto py-12 px-4">
-          <div className="glass-card rounded-3xl p-6 sm:p-8 border border-slate-200/80 dark:border-slate-800 bg-white/85 dark:bg-slate-900/90 backdrop-blur-2xl space-y-6 shadow-2xl">
+          <div className="glass-card rounded-2xl p-6 border border-slate-800 space-y-6 shadow-2xl">
             <div className="text-center space-y-2">
-              <div className="w-12 h-12 rounded-xl bg-rose-500/10 text-rose-400 border border-rose-500/20 flex items-center justify-center mx-auto shadow-md">
+              <div className="w-12 h-12 rounded-xl bg-rose-500/10 text-rose-400 border border-rose-500/20 flex items-center justify-center mx-auto">
                 <ShieldAlert className="w-6 h-6" />
               </div>
               <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Admin Master Console Site</h2>
@@ -349,7 +317,7 @@ export default function AdminSite({ user, onLogin }) {
                   type="text"
                   value={loginUsername}
                   onChange={(e) => setLoginUsername(e.target.value)}
-                  className="w-full mt-1.5 px-3.5 py-2.5 rounded-xl bg-white dark:bg-slate-950/70 border border-slate-300 dark:border-slate-700/80 text-slate-900 dark:text-white text-sm focus:border-rose-500 focus:ring-2 focus:ring-rose-500/20 outline-none transition-all shadow-inner"
+                  className="w-full mt-1.5 px-3.5 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 text-slate-900 dark:text-white text-sm focus:border-rose-500 outline-none"
                   required
                 />
               </div>
@@ -360,7 +328,7 @@ export default function AdminSite({ user, onLogin }) {
                     type={showLoginPassword ? "text" : "password"}
                     value={loginPassword}
                     onChange={(e) => setLoginPassword(e.target.value)}
-                    className="w-full px-3.5 py-2.5 pr-10 rounded-xl bg-white dark:bg-slate-950/70 border border-slate-300 dark:border-slate-700/80 text-slate-900 dark:text-white text-sm focus:border-rose-500 focus:ring-2 focus:ring-rose-500/20 outline-none transition-all shadow-inner"
+                    className="w-full px-3.5 py-2.5 pr-10 rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 text-slate-900 dark:text-white text-sm focus:border-rose-500 outline-none"
                     required
                   />
                   <button
@@ -388,73 +356,83 @@ export default function AdminSite({ user, onLogin }) {
 
     // Logged-in Master Admin Console View
     return (
-      <div className="max-w-7xl mx-auto px-4 lg:px-8 py-8 space-y-8">
-        {/* Header & Full-Width Tab Switcher */}
-        <div className="space-y-4 border-b border-slate-200/80 dark:border-slate-800/80 pb-6">
-          <div className="flex flex-wrap items-center justify-between gap-4">
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="px-2.5 py-0.5 rounded-full bg-rose-500/10 border border-rose-500/20 text-rose-600 dark:text-rose-400 text-xs font-bold uppercase">
-                  Single Master Admin
-                </span>
-                <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-xs font-bold flex items-center gap-1.5">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                  Master Node Active
-                </span>
-              </div>
-              <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-white mt-1">Platform Master Console</h1>
+      <div className="max-w-7xl mx-auto px-4 lg:px-8 py-8 space-y-6 animate-fade-in">
+
+        {/* Top Header Card */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200/80 dark:border-slate-800/80 pb-6">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <span className="px-2.5 py-0.5 rounded-full bg-rose-500/10 border border-rose-500/20 text-rose-600 dark:text-rose-400 text-[11px] font-black uppercase tracking-wider flex items-center gap-1.5">
+                <ShieldAlert className="w-3.5 h-3.5" /> Single Master Admin
+              </span>
+              <span className="px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-[10px] font-bold flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" /> Live Engine Active
+              </span>
             </div>
+            <h1 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white tracking-tight">
+              Platform Master Console
+            </h1>
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              Enterprise Control Center • Full User CRUD, Inventory Stock Maintenance, Escrow Ledgers & System Audits
+            </p>
           </div>
 
-          {/* Clean Horizontal Sliding Segmented Control Bar */}
-          <div className="relative flex items-center gap-1.5 p-1.5 backdrop-blur-2xl bg-slate-200/70 dark:bg-slate-900/90 rounded-2xl border border-slate-200/80 dark:border-slate-800/90 text-xs font-bold shadow-inner overflow-x-auto no-scrollbar w-full">
-            {/* Smooth Sliding Highlight Rectangle */}
-            <div
-              className="absolute rounded-xl transition-all duration-300 ease-out pointer-events-none z-0
-                         bg-gradient-to-r from-rose-500 to-red-600 shadow-lg shadow-rose-500/30 ring-1 ring-rose-400/40"
-              style={{
-                transform: `translate3d(${adminTabIndicator.left}px, ${adminTabIndicator.top}px, 0)`,
-                width: `${adminTabIndicator.width}px`,
-                height: `${adminTabIndicator.height}px`,
-                opacity: adminTabIndicator.opacity
-              }}
-            />
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => fetchData()}
+              className="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-900 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 font-bold text-xs transition-all flex items-center gap-1.5 cursor-pointer shadow-sm hover:shadow"
+              title="Refresh all admin tables and metrics"
+            >
+              <RefreshCw className="w-3.5 h-3.5 text-rose-500" />
+              <span>Refresh Data</span>
+            </button>
+          </div>
+        </div>
 
-            {[
-              { id: 'users', label: `Users (${users.length})`, icon: Users },
-              { id: 'dishes', label: `Dishes & Stock (${adminDishes.length})`, icon: Utensils },
-              { id: 'payouts', label: `Escrow Ledger (${adminPayouts.length})`, icon: DollarSign },
-              { id: 'reviews', label: `Ratings & Reviews (${adminReviews.length})`, icon: Tag },
-              { id: 'metrics', label: 'Analytics', icon: Activity },
-              { id: 'audits', label: 'System Audits', icon: Database },
-              { id: 'settings', label: 'Admin Credentials', icon: KeyRound }
-            ].map((tab) => {
-              const Icon = tab.icon;
-              const isActive = activeTab === tab.id;
-              return (
-                <button
-                  key={tab.id}
-                  ref={(el) => (adminTabRefs.current[tab.id] = el)}
-                  onClick={() => setActiveTab(tab.id)}
-                  className={`relative z-10 flex items-center gap-2 px-4 py-2.5 rounded-xl transition-colors duration-200 cursor-pointer select-none shrink-0 whitespace-nowrap ${
+        {/* Dedicated Navigation Bar: Clean Segmented Pills with Zero-Overlap */}
+        <div className="p-1.5 bg-slate-200/60 dark:bg-slate-950/80 backdrop-blur-2xl rounded-2xl border border-slate-300/70 dark:border-slate-800/80 shadow-inner flex flex-wrap items-center gap-1.5">
+          {[
+            { id: 'users', label: 'Users Registry', count: Array.isArray(users) ? users.length : 0, icon: Users },
+            { id: 'dishes', label: 'Dish Inventory', count: Array.isArray(adminDishes) ? adminDishes.length : 0, icon: Utensils },
+            { id: 'payouts', label: 'Escrow Payouts', count: Array.isArray(adminPayouts) ? adminPayouts.length : 0, icon: DollarSign },
+            { id: 'reviews', label: 'Reviews & Ratings', count: Array.isArray(adminReviews) ? adminReviews.length : 0, icon: Tag },
+            { id: 'metrics', label: 'Analytics Metrics', icon: Activity },
+            { id: 'audits', label: 'Audit Logs', count: Array.isArray(auditLogs) ? auditLogs.length : 0, icon: Database },
+            { id: 'settings', label: 'Admin Credentials', icon: KeyRound }
+          ].map((tab) => {
+            const Icon = tab.icon;
+            const isActive = activeTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs transition-all duration-200 cursor-pointer select-none ${
+                  isActive
+                    ? 'bg-gradient-to-r from-rose-500 via-rose-600 to-red-600 text-white font-black shadow-lg shadow-rose-500/25 ring-1 ring-rose-400/50 scale-[1.01]'
+                    : 'bg-white/60 dark:bg-slate-900/60 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-white dark:hover:bg-slate-800/90 border border-slate-200/60 dark:border-slate-800/60 font-bold'
+                }`}
+              >
+                <Icon className={`w-3.5 h-3.5 ${isActive ? 'text-white stroke-[2.5]' : 'text-slate-500 dark:text-slate-400'}`} />
+                <span>{tab.label}</span>
+                {tab.count !== undefined && (
+                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-black ${
                     isActive
-                      ? 'text-white font-black'
-                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-                  }`}
-                >
-                  <Icon className={`w-3.5 h-3.5 transition-colors ${isActive ? 'text-white stroke-[2.5]' : ''}`} />
-                  <span>{tab.label}</span>
-                </button>
-              );
-            })}
-          </div>
+                      ? 'bg-white/20 text-white'
+                      : 'bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300'
+                  }`}>
+                    {tab.count}
+                  </span>
+                )}
+              </button>
+            );
+          })}
         </div>
 
         {/* Tab: Global Users Table CRUD */}
         {activeTab === 'users' && (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            <div className="lg:col-span-2 glass-card rounded-3xl p-6 border border-slate-200/80 dark:border-slate-800 bg-white/85 dark:bg-slate-900/90 backdrop-blur-2xl shadow-xl shadow-slate-200/20 dark:shadow-none space-y-4">
-              <div className="flex justify-between items-center border-b border-slate-200 dark:border-slate-800/80 pb-3">
+            <div className="lg:col-span-2 glass-card rounded-2xl p-6 border border-slate-300 dark:border-slate-800 space-y-4">
+              <div className="flex justify-between items-center border-b border-slate-300 dark:border-slate-800 pb-3">
                 <div>
                   <h2 className="text-xl font-bold text-slate-900 dark:text-white">Global User Accounts Registry</h2>
                   <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">Full Admin CRUD & User Account Ban/Delete Controls</p>
@@ -463,7 +441,7 @@ export default function AdminSite({ user, onLogin }) {
 
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-xs">
-                  <thead className="bg-slate-100/90 dark:bg-slate-800/80 text-slate-700 dark:text-slate-300 uppercase text-[10px] tracking-wider font-bold">
+                  <thead className="bg-slate-100 dark:bg-slate-900 text-slate-700 dark:text-slate-400 uppercase text-[10px] tracking-wider">
                     <tr>
                       <th className="p-3 rounded-l-xl">User ID</th>
                       <th className="p-3">Name</th>
@@ -475,12 +453,12 @@ export default function AdminSite({ user, onLogin }) {
                       <th className="p-3 rounded-r-xl text-right">Actions</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-200/80 dark:divide-slate-800/60">
-                    {users.map((u) => {
+                  <tbody className="divide-y divide-slate-300 dark:divide-slate-800/60">
+                    {(Array.isArray(users) ? users : []).map((u) => {
                       const isPassVisible = showPasswordsMap[u.user_id];
                       const displayPassword = u.plain_password || (u.role === 'ADMIN' ? 'admin' : u.role === 'VENDOR' ? 'vendor123' : u.role === 'RIDER' ? 'rider123' : 'customer123');
                       return (
-                        <tr key={u.user_id} className="hover:bg-slate-100/70 dark:hover:bg-slate-800/50 transition-colors">
+                        <tr key={u.user_id} className="hover:bg-slate-100 dark:hover:bg-slate-900/40">
                           <td className="p-3 font-mono text-slate-500">#{u.user_id}</td>
                           <td className="p-3 font-bold text-slate-900 dark:text-white">{u.name}</td>
                           <td className="p-3 text-slate-700 dark:text-slate-300 font-mono text-[11px]">{u.email}</td>
@@ -556,15 +534,15 @@ export default function AdminSite({ user, onLogin }) {
               </div>
             </div>
 
-            {/* Add User Form Card */}
-            <div className="glass-card rounded-3xl p-6 border border-slate-200/80 dark:border-slate-800 bg-white/85 dark:bg-slate-900/90 backdrop-blur-2xl shadow-xl shadow-slate-200/20 dark:shadow-none space-y-4">
-              <h3 className="text-base font-bold text-slate-900 dark:text-white border-b border-slate-200 dark:border-slate-800/80 pb-3 flex items-center gap-2">
+            {/* Add User Form Modal */}
+            <div className="glass-card rounded-2xl p-6 border border-slate-300 dark:border-slate-800 space-y-4">
+              <h3 className="text-base font-bold text-slate-900 dark:text-white border-b border-slate-300 dark:border-slate-800 pb-3 flex items-center gap-2">
                 <UserPlus className="w-4 h-4 text-rose-500 dark:text-rose-400" />
                 <span>+ Create User Account (Admin CRUD)</span>
               </h3>
 
               {userMsg && (
-                <div className="p-3 rounded-xl bg-slate-100 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/80 text-slate-900 dark:text-white text-xs font-semibold">
+                <div className="p-3 rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 text-slate-900 dark:text-white text-xs font-semibold">
                   {userMsg}
                 </div>
               )}
@@ -577,7 +555,7 @@ export default function AdminSite({ user, onLogin }) {
                     value={newUser.name}
                     onChange={(e) => setNewUser({ ...newUser, name: e.target.value })}
                     placeholder="e.g. John Doe"
-                    className="w-full mt-1.5 px-3.5 py-2.5 rounded-xl bg-white dark:bg-slate-950/70 border border-slate-300 dark:border-slate-700/80 text-slate-900 dark:text-white outline-none focus:border-rose-500 focus:ring-2 focus:ring-rose-500/20 transition-all shadow-inner"
+                    className="w-full mt-1.5 px-3.5 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 text-slate-900 dark:text-white outline-none focus:border-rose-500"
                     required
                   />
                 </div>
@@ -589,7 +567,7 @@ export default function AdminSite({ user, onLogin }) {
                     value={newUser.email}
                     onChange={(e) => setNewUser({ ...newUser, email: e.target.value })}
                     placeholder="john@example.com"
-                    className="w-full mt-1.5 px-3.5 py-2.5 rounded-xl bg-white dark:bg-slate-950/70 border border-slate-300 dark:border-slate-700/80 text-slate-900 dark:text-white outline-none focus:border-rose-500 focus:ring-2 focus:ring-rose-500/20 transition-all shadow-inner"
+                    className="w-full mt-1.5 px-3.5 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 text-slate-900 dark:text-white outline-none focus:border-rose-500"
                     required
                   />
                 </div>
@@ -601,7 +579,7 @@ export default function AdminSite({ user, onLogin }) {
                     value={newUser.password}
                     onChange={(e) => setNewUser({ ...newUser, password: e.target.value })}
                     placeholder="••••••••"
-                    className="w-full mt-1.5 px-3.5 py-2.5 rounded-xl bg-white dark:bg-slate-950/70 border border-slate-300 dark:border-slate-700/80 text-slate-900 dark:text-white outline-none focus:border-rose-500 focus:ring-2 focus:ring-rose-500/20 transition-all shadow-inner"
+                    className="w-full mt-1.5 px-3.5 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 text-slate-900 dark:text-white outline-none focus:border-rose-500"
                     required
                   />
                 </div>
@@ -612,7 +590,7 @@ export default function AdminSite({ user, onLogin }) {
                     <select
                       value={newUser.role}
                       onChange={(e) => setNewUser({ ...newUser, role: e.target.value })}
-                      className="w-full mt-1.5 px-3.5 py-2.5 rounded-xl bg-white dark:bg-slate-950/70 border border-slate-300 dark:border-slate-700/80 text-slate-900 dark:text-white outline-none focus:border-rose-500 focus:ring-2 focus:ring-rose-500/20 transition-all"
+                      className="w-full mt-1.5 px-3.5 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 text-slate-900 dark:text-white outline-none focus:border-rose-500"
                     >
                       <option value="CUSTOMER">Customer</option>
                       <option value="VENDOR">Vendor (Chef)</option>
@@ -627,7 +605,7 @@ export default function AdminSite({ user, onLogin }) {
                       value={newUser.phone}
                       onChange={(e) => setNewUser({ ...newUser, phone: e.target.value })}
                       placeholder="+1555-0999"
-                      className="w-full mt-1.5 px-3.5 py-2.5 rounded-xl bg-white dark:bg-slate-950/70 border border-slate-300 dark:border-slate-700/80 text-slate-900 dark:text-white outline-none focus:border-rose-500 focus:ring-2 focus:ring-rose-500/20 transition-all shadow-inner"
+                      className="w-full mt-1.5 px-3.5 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 text-slate-900 dark:text-white outline-none focus:border-rose-500"
                     />
                   </div>
                 </div>
@@ -645,8 +623,8 @@ export default function AdminSite({ user, onLogin }) {
 
         {/* Tab: Dish Stock & Out of Stock Reasons GUI */}
         {activeTab === 'dishes' && (
-          <div className="glass-card rounded-3xl p-6 border border-slate-200/80 dark:border-slate-800 bg-white/85 dark:bg-slate-900/90 backdrop-blur-2xl shadow-xl shadow-slate-200/20 dark:shadow-none space-y-4">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200 dark:border-slate-800/80 pb-4">
+          <div className="glass-card rounded-2xl p-6 border border-slate-300 dark:border-slate-800 space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-300 dark:border-slate-800 pb-4">
               <div>
                 <h2 className="text-xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
                   <Utensils className="w-5 h-5 text-amber-500" />
@@ -663,7 +641,7 @@ export default function AdminSite({ user, onLogin }) {
 
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs">
-                <thead className="bg-slate-100/90 dark:bg-slate-800/80 text-slate-700 dark:text-slate-300 uppercase text-[10px] tracking-wider font-bold">
+                <thead className="bg-slate-100 dark:bg-slate-900 text-slate-700 dark:text-slate-400 uppercase text-[10px] tracking-wider">
                   <tr>
                     <th className="p-3 rounded-l-xl">Dish ID</th>
                     <th className="p-3">Dish Name</th>
@@ -675,11 +653,11 @@ export default function AdminSite({ user, onLogin }) {
                     <th className="p-3 rounded-r-xl text-right">Actions</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-200/80 dark:divide-slate-800/60">
-                  {adminDishes.map((d) => {
+                <tbody className="divide-y divide-slate-300 dark:divide-slate-800/60">
+                  {(Array.isArray(adminDishes) ? adminDishes : []).map((d) => {
                     const isOut = d.is_available === 0 || d.daily_stock <= 0;
                     return (
-                      <tr key={d.dish_id} className="hover:bg-slate-100/70 dark:hover:bg-slate-800/50 transition-colors">
+                      <tr key={d.dish_id} className="hover:bg-slate-100 dark:hover:bg-slate-900/40 transition-colors">
                         <td className="p-3 font-mono text-slate-500">#{d.dish_id}</td>
                         <td className="p-3 font-bold text-slate-900 dark:text-white flex items-center gap-2">
                           <img src={d.image_url} alt="" className="w-7 h-7 rounded-lg object-cover" />
@@ -730,30 +708,36 @@ export default function AdminSite({ user, onLogin }) {
         )}
 
         {/* Tab: System Analytics Metrics */}
-        {activeTab === 'metrics' && metrics && (
-          <div className="space-y-8">
+        {activeTab === 'metrics' && (
+          !metrics ? (
+            <div className="glass-card rounded-2xl p-8 border border-slate-300 dark:border-slate-800 text-center space-y-3">
+              <RefreshCw className="w-8 h-8 text-rose-500 animate-spin mx-auto" />
+              <p className="text-xs text-slate-400 font-bold">Aggregating live platform metrics & escrow analytics...</p>
+            </div>
+          ) : (
+          <div className="space-y-8 animate-fade-in">
 
             {/* Top Metric Cards */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-              <div className="glass-card rounded-2xl p-5 border border-slate-200/80 dark:border-slate-800 bg-white/85 dark:bg-slate-900/90 backdrop-blur-2xl shadow-lg space-y-2">
+              <div className="glass-card rounded-2xl p-5 border border-slate-300 dark:border-slate-800 space-y-2">
                 <span className="text-xs text-slate-600 dark:text-slate-400 font-semibold">Gross Gross Revenue</span>
                 <h3 className="text-2xl font-extrabold text-slate-900 dark:text-white">₹{Number(metrics.orders_summary?.gross_revenue || 0).toFixed(2)}</h3>
                 <span className="text-[11px] text-emerald-600 dark:text-emerald-400">100% Escrow Secured</span>
               </div>
 
-              <div className="glass-card rounded-2xl p-5 border border-slate-200/80 dark:border-slate-800 bg-white/85 dark:bg-slate-900/90 backdrop-blur-2xl shadow-lg space-y-2">
+              <div className="glass-card rounded-2xl p-5 border border-slate-300 dark:border-slate-800 space-y-2">
                 <span className="text-xs text-slate-600 dark:text-slate-400 font-semibold">Platform Commission (5%)</span>
                 <h3 className="text-2xl font-extrabold text-rose-500 dark:text-rose-400">₹{Number(metrics.financials?.total_platform_commission || 0).toFixed(2)}</h3>
                 <span className="text-[11px] text-slate-600 dark:text-slate-400">Net Platform Income</span>
               </div>
 
-              <div className="glass-card rounded-2xl p-5 border border-slate-200/80 dark:border-slate-800 bg-white/85 dark:bg-slate-900/90 backdrop-blur-2xl shadow-lg space-y-2">
+              <div className="glass-card rounded-2xl p-5 border border-slate-300 dark:border-slate-800 space-y-2">
                 <span className="text-xs text-slate-600 dark:text-slate-400 font-semibold">Total System Orders</span>
                 <h3 className="text-2xl font-extrabold text-amber-500 dark:text-amber-400">{metrics.orders_summary?.total_orders || 0}</h3>
                 <span className="text-[11px] text-slate-600 dark:text-slate-400">Across All Vendors</span>
               </div>
 
-              <div className="glass-card rounded-2xl p-5 border border-slate-200/80 dark:border-slate-800 bg-white/85 dark:bg-slate-900/90 backdrop-blur-2xl shadow-lg space-y-2">
+              <div className="glass-card rounded-2xl p-5 border border-slate-300 dark:border-slate-800 space-y-2">
                 <span className="text-xs text-slate-600 dark:text-slate-400 font-semibold">Customer Sentiment Score</span>
                 <h3 className="text-2xl font-extrabold text-emerald-600 dark:text-emerald-400">{metrics.sentiment_summary?.positive || 0} Positive</h3>
                 <span className="text-[11px] text-slate-600 dark:text-slate-400">Customer Review Stream</span>
@@ -761,11 +745,11 @@ export default function AdminSite({ user, onLogin }) {
             </div>
 
             {/* Recent Orders Overview */}
-            <div className="glass-card rounded-3xl p-6 border border-slate-200/80 dark:border-slate-800 bg-white/85 dark:bg-slate-900/90 backdrop-blur-2xl shadow-xl shadow-slate-200/20 dark:shadow-none space-y-4">
-              <h3 className="text-lg font-bold text-slate-900 dark:text-white border-b border-slate-200 dark:border-slate-800/80 pb-3">Platform Orders & Escrow Audit</h3>
+            <div className="glass-card rounded-2xl p-6 border border-slate-300 dark:border-slate-800 space-y-4">
+              <h3 className="text-lg font-bold text-slate-900 dark:text-white border-b border-slate-300 dark:border-slate-800 pb-3">Platform Orders & Escrow Audit</h3>
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-xs">
-                  <thead className="bg-slate-100/90 dark:bg-slate-800/80 text-slate-700 dark:text-slate-300 uppercase text-[10px] tracking-wider font-bold">
+                  <thead className="bg-slate-100 dark:bg-slate-900 text-slate-700 dark:text-slate-400 uppercase text-[10px] tracking-wider">
                     <tr>
                       <th className="p-3 rounded-l-xl">Order ID</th>
                       <th className="p-3">Customer</th>
@@ -775,9 +759,9 @@ export default function AdminSite({ user, onLogin }) {
                       <th className="p-3 rounded-r-xl">Order Lifecycle</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-200/80 dark:divide-slate-800/60">
+                  <tbody className="divide-y divide-slate-300 dark:divide-slate-800/60">
                     {metrics.recent_orders?.map((o) => (
-                      <tr key={o.order_id} className="hover:bg-slate-100/70 dark:hover:bg-slate-800/50 transition-colors">
+                      <tr key={o.order_id} className="hover:bg-slate-100 dark:hover:bg-slate-900/40">
                         <td className="p-3 font-mono text-slate-500">#{o.order_id}</td>
                         <td className="p-3 font-bold text-slate-900 dark:text-white">{o.customer_name}</td>
                         <td className="p-3 text-slate-700 dark:text-slate-300">{o.vendor_name}</td>
@@ -796,13 +780,14 @@ export default function AdminSite({ user, onLogin }) {
             </div>
 
           </div>
+          )
         )}
 
         {/* Tab: Escrow Payout Ledger */}
         {activeTab === 'payouts' && (
           <div className="space-y-6">
-            <div className="glass-card rounded-3xl p-6 border border-slate-200/80 dark:border-slate-800 bg-white/85 dark:bg-slate-900/90 backdrop-blur-2xl shadow-xl shadow-slate-200/20 dark:shadow-none space-y-4">
-              <div className="flex justify-between items-center border-b border-slate-200 dark:border-slate-800/80 pb-3">
+            <div className="glass-card rounded-2xl p-6 border border-slate-300 dark:border-slate-800 space-y-4">
+              <div className="flex justify-between items-center border-b border-slate-300 dark:border-slate-800 pb-3">
                 <div>
                   <h2 className="text-xl font-bold text-slate-900 dark:text-white">🔒 Escrow Revenue & Payout Ledger</h2>
                   <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Automated Split: 85% Vendor Net • 10% Rider Delivery • 5% Platform Admin Commission</p>
@@ -814,7 +799,7 @@ export default function AdminSite({ user, onLogin }) {
 
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-xs">
-                  <thead className="bg-slate-100/90 dark:bg-slate-800/80 text-slate-700 dark:text-slate-300 uppercase text-[10px] tracking-wider font-bold">
+                  <thead className="bg-slate-100 dark:bg-slate-900 text-slate-700 dark:text-slate-400 uppercase text-[10px] tracking-wider">
                     <tr>
                       <th className="p-3 rounded-l-xl">Payout ID</th>
                       <th className="p-3">Order ID</th>
@@ -826,7 +811,7 @@ export default function AdminSite({ user, onLogin }) {
                       <th className="p-3 rounded-r-xl">Escrow Status</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-200/80 dark:divide-slate-800/60">
+                  <tbody className="divide-y divide-slate-300 dark:divide-slate-800/60">
                     {adminPayouts.length === 0 ? (
                       <tr>
                         <td colSpan={8} className="p-4">
@@ -835,7 +820,7 @@ export default function AdminSite({ user, onLogin }) {
                         </td>
                       </tr>
                     ) : (
-                      adminPayouts.map((p) => (
+                      (Array.isArray(adminPayouts) ? adminPayouts : []).map((p) => (
                       <tr key={p.payout_id} className="hover:bg-slate-100 dark:hover:bg-slate-900/40">
                         <td className="p-3 font-mono text-slate-500">#{p.payout_id}</td>
                         <td className="p-3 font-mono font-bold text-slate-900 dark:text-white">#{p.order_id}</td>
@@ -875,8 +860,8 @@ export default function AdminSite({ user, onLogin }) {
         {/* Tab: Customer Ratings & Reviews */}
         {activeTab === 'reviews' && (
           <div className="space-y-6">
-            <div className="glass-card rounded-3xl p-6 border border-slate-200/80 dark:border-slate-800 bg-white/85 dark:bg-slate-900/90 backdrop-blur-2xl shadow-xl shadow-slate-200/20 dark:shadow-none space-y-4">
-              <div className="flex justify-between items-center border-b border-slate-200 dark:border-slate-800/80 pb-3">
+            <div className="glass-card rounded-2xl p-6 border border-slate-300 dark:border-slate-800 space-y-4">
+              <div className="flex justify-between items-center border-b border-slate-300 dark:border-slate-800 pb-3">
                 <div>
                   <h2 className="text-xl font-bold text-slate-900 dark:text-white">⭐ Customer Ratings & Feedback Audit</h2>
                   <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Customer Review Analytics & Sentiment Feedback</p>
@@ -887,8 +872,8 @@ export default function AdminSite({ user, onLogin }) {
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {adminReviews.map((r, i) => (
-                  <div key={r.review_id || i} className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/60 space-y-3 shadow-sm">
+                {(Array.isArray(adminReviews) ? adminReviews : []).map((r, i) => (
+                  <div key={r.review_id || i} className="p-4 rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 space-y-3">
                     <div className="flex justify-between items-start">
                       <div>
                         <h4 className="font-bold text-slate-900 dark:text-white text-sm">{r.customer_name || 'Customer'}</h4>
@@ -902,11 +887,11 @@ export default function AdminSite({ user, onLogin }) {
                     </div>
 
                     <div className="flex items-center gap-4 text-xs font-bold text-amber-500">
-                      <span>Chef: {'⭐'.repeat(r.vendor_rating || 5)}</span>
-                      <span>Rider: {'⭐'.repeat(r.rider_rating || 5)}</span>
+                      <span>Chef: {'⭐'.repeat(Math.max(1, Math.min(5, Math.floor(Number(r.vendor_rating) || 5))))}</span>
+                      <span>Rider: {'⭐'.repeat(Math.max(1, Math.min(5, Math.floor(Number(r.rider_rating) || 5))))}</span>
                     </div>
 
-                    <p className="text-xs text-slate-700 dark:text-slate-300 italic bg-slate-100 dark:bg-slate-900/60 p-2.5 rounded-xl border border-slate-200 dark:border-slate-700/60">
+                    <p className="text-xs text-slate-700 dark:text-slate-300 italic bg-slate-200/50 dark:bg-slate-800/50 p-2.5 rounded-lg border border-slate-300 dark:border-slate-700/50">
                       "{r.comment || 'Great experience!'}"
                     </p>
                   </div>
@@ -918,11 +903,11 @@ export default function AdminSite({ user, onLogin }) {
 
         {/* Tab: System Security Audit Logs */}
         {activeTab === 'audits' && (
-          <div className="glass-card rounded-3xl p-6 border border-slate-200/80 dark:border-slate-800 bg-white/85 dark:bg-slate-900/90 backdrop-blur-2xl shadow-xl shadow-slate-200/20 dark:shadow-none space-y-4">
-            <h2 className="text-xl font-bold text-slate-900 dark:text-white border-b border-slate-200 dark:border-slate-800/80 pb-3">System Security & Operational Audit Logs</h2>
+          <div className="glass-card rounded-2xl p-6 border border-slate-300 dark:border-slate-800 space-y-4">
+            <h2 className="text-xl font-bold text-slate-900 dark:text-white border-b border-slate-300 dark:border-slate-800 pb-3">System Security & Operational Audit Logs</h2>
             <div className="space-y-3 font-mono text-xs max-h-96 overflow-y-auto pr-1">
-              {auditLogs.map((log) => (
-                <div key={log.log_id} className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/60 space-y-1">
+              {(Array.isArray(auditLogs) ? auditLogs : []).map((log) => (
+                <div key={log.log_id} className="p-3.5 rounded-xl bg-slate-100 dark:bg-slate-900/80 border border-slate-300 dark:border-slate-800 space-y-1">
                   <div className="flex justify-between text-slate-600 dark:text-slate-400">
                     <span className="text-rose-600 dark:text-rose-400 font-bold">{log.action_type}</span>
                     <span className="text-slate-500 text-[10px]">{new Date(log.timestamp).toLocaleString()}</span>
@@ -936,14 +921,14 @@ export default function AdminSite({ user, onLogin }) {
 
         {/* Tab: Change Master Admin Credentials Settings */}
         {activeTab === 'settings' && (
-          <div className="max-w-xl mx-auto glass-card rounded-3xl p-6 border border-slate-200/80 dark:border-slate-800 bg-white/85 dark:bg-slate-900/90 backdrop-blur-2xl shadow-xl shadow-slate-200/20 dark:shadow-none space-y-6">
-            <div className="border-b border-slate-200 dark:border-slate-800/80 pb-3">
+          <div className="max-w-xl mx-auto glass-card rounded-2xl p-6 border border-slate-300 dark:border-slate-800 space-y-6">
+            <div className="border-b border-slate-300 dark:border-slate-800 pb-3">
               <h2 className="text-xl font-bold text-slate-900 dark:text-white">Change Master Admin Credentials</h2>
               <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">Update Master Administrator credentials and security password</p>
             </div>
 
             {adminUpdateMsg && (
-              <div className="p-3.5 rounded-xl bg-slate-100 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/80 text-slate-900 dark:text-white text-xs font-semibold">
+              <div className="p-3.5 rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 text-slate-900 dark:text-white text-xs font-semibold">
                 {adminUpdateMsg}
               </div>
             )}
@@ -956,7 +941,7 @@ export default function AdminSite({ user, onLogin }) {
                   value={newAdminUsername}
                   onChange={(e) => setNewAdminUsername(e.target.value)}
                   placeholder="e.g. master_admin"
-                  className="w-full mt-1.5 px-3.5 py-2.5 rounded-xl bg-white dark:bg-slate-950/70 border border-slate-300 dark:border-slate-700/80 text-slate-900 dark:text-white outline-none focus:border-rose-500 focus:ring-2 focus:ring-rose-500/20 transition-all shadow-inner"
+                  className="w-full mt-1.5 px-3.5 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 text-slate-900 dark:text-white outline-none focus:border-rose-500"
                   required
                 />
               </div>
@@ -968,7 +953,7 @@ export default function AdminSite({ user, onLogin }) {
                   value={newAdminPassword}
                   onChange={(e) => setNewAdminPassword(e.target.value)}
                   placeholder="••••••••"
-                  className="w-full mt-1.5 px-3.5 py-2.5 rounded-xl bg-white dark:bg-slate-950/70 border border-slate-300 dark:border-slate-700/80 text-slate-900 dark:text-white outline-none focus:border-rose-500 focus:ring-2 focus:ring-rose-500/20 transition-all shadow-inner"
+                  className="w-full mt-1.5 px-3.5 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 text-slate-900 dark:text-white outline-none focus:border-rose-500"
                   required
                 />
               </div>
@@ -986,8 +971,8 @@ export default function AdminSite({ user, onLogin }) {
         {/* Modal: Edit User Account (Admin CRUD Edit) */}
         {editingUser && (
           <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4">
-            <div className="glass-card rounded-3xl p-6 border border-slate-200/80 dark:border-slate-800 bg-white/95 dark:bg-slate-900/95 backdrop-blur-2xl max-w-md w-full space-y-4 shadow-2xl">
-              <div className="flex justify-between items-center border-b border-slate-200 dark:border-slate-800/80 pb-3">
+            <div className="glass-card rounded-2xl p-6 border border-slate-300 dark:border-slate-800 max-w-md w-full space-y-4 shadow-2xl">
+              <div className="flex justify-between items-center border-b border-slate-300 dark:border-slate-800 pb-3">
                 <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
                   <Edit3 className="w-4 h-4 text-sky-500" />
                   <span>Edit User Account #{editingUser.user_id}</span>
@@ -1004,7 +989,7 @@ export default function AdminSite({ user, onLogin }) {
                     type="text"
                     value={editingUser.name || ''}
                     onChange={(e) => setEditingUser({ ...editingUser, name: e.target.value })}
-                    className="w-full mt-1.5 px-3.5 py-2.5 rounded-xl bg-white dark:bg-slate-950/70 border border-slate-300 dark:border-slate-700/80 text-slate-900 dark:text-white outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20 transition-all shadow-inner"
+                    className="w-full mt-1.5 px-3.5 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 text-slate-900 dark:text-white outline-none focus:border-sky-500"
                     required
                   />
                 </div>
@@ -1015,7 +1000,7 @@ export default function AdminSite({ user, onLogin }) {
                     type="email"
                     value={editingUser.email || ''}
                     onChange={(e) => setEditingUser({ ...editingUser, email: e.target.value })}
-                    className="w-full mt-1.5 px-3.5 py-2.5 rounded-xl bg-white dark:bg-slate-950/70 border border-slate-300 dark:border-slate-700/80 text-slate-900 dark:text-white outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20 transition-all shadow-inner"
+                    className="w-full mt-1.5 px-3.5 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 text-slate-900 dark:text-white outline-none focus:border-sky-500"
                     required
                   />
                 </div>
@@ -1027,7 +1012,7 @@ export default function AdminSite({ user, onLogin }) {
                     value={editingUser.password || ''}
                     onChange={(e) => setEditingUser({ ...editingUser, password: e.target.value })}
                     placeholder="Enter new password to change"
-                    className="w-full mt-1.5 px-3.5 py-2.5 rounded-xl bg-white dark:bg-slate-950/70 border border-slate-300 dark:border-slate-700/80 text-slate-900 dark:text-white outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20 font-mono transition-all shadow-inner"
+                    className="w-full mt-1.5 px-3.5 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 text-slate-900 dark:text-white outline-none focus:border-sky-500 font-mono"
                   />
                 </div>
 
@@ -1037,7 +1022,7 @@ export default function AdminSite({ user, onLogin }) {
                     <select
                       value={editingUser.role || 'CUSTOMER'}
                       onChange={(e) => setEditingUser({ ...editingUser, role: e.target.value })}
-                      className="w-full mt-1.5 px-3.5 py-2.5 rounded-xl bg-white dark:bg-slate-950/70 border border-slate-300 dark:border-slate-700/80 text-slate-900 dark:text-white outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20 transition-all"
+                      className="w-full mt-1.5 px-3.5 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 text-slate-900 dark:text-white outline-none focus:border-sky-500"
                     >
                       <option value="CUSTOMER">Customer</option>
                       <option value="VENDOR">Vendor (Chef)</option>
@@ -1050,7 +1035,7 @@ export default function AdminSite({ user, onLogin }) {
                     <select
                       value={editingUser.status || 'ACTIVE'}
                       onChange={(e) => setEditingUser({ ...editingUser, status: e.target.value })}
-                      className="w-full mt-1.5 px-3.5 py-2.5 rounded-xl bg-white dark:bg-slate-950/70 border border-slate-300 dark:border-slate-700/80 text-slate-900 dark:text-white outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20 transition-all"
+                      className="w-full mt-1.5 px-3.5 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 text-slate-900 dark:text-white outline-none focus:border-sky-500"
                     >
                       <option value="ACTIVE">ACTIVE</option>
                       <option value="BANNED">BANNED</option>
@@ -1064,7 +1049,7 @@ export default function AdminSite({ user, onLogin }) {
                     type="text"
                     value={editingUser.phone || ''}
                     onChange={(e) => setEditingUser({ ...editingUser, phone: e.target.value })}
-                    className="w-full mt-1.5 px-3.5 py-2.5 rounded-xl bg-white dark:bg-slate-950/70 border border-slate-300 dark:border-slate-700/80 text-slate-900 dark:text-white outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20 transition-all shadow-inner"
+                    className="w-full mt-1.5 px-3.5 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 text-slate-900 dark:text-white outline-none focus:border-sky-500"
                   />
                 </div>
 
@@ -1072,7 +1057,7 @@ export default function AdminSite({ user, onLogin }) {
                   <button
                     type="button"
                     onClick={() => setEditingUser(null)}
-                    className="flex-1 py-2.5 rounded-xl bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-bold transition-all"
+                    className="flex-1 py-2.5 rounded-xl bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-bold"
                   >
                     Cancel
                   </button>
@@ -1091,8 +1076,8 @@ export default function AdminSite({ user, onLogin }) {
         {/* Modal: Edit Dish Stock & Out-of-Stock Reason GUI */}
         {editingAdminDish && (
           <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4">
-            <div className="glass-card rounded-3xl p-6 border border-slate-200/80 dark:border-slate-800 bg-white/95 dark:bg-slate-900/95 backdrop-blur-2xl max-w-lg w-full space-y-5 shadow-2xl">
-              <div className="flex justify-between items-center border-b border-slate-200 dark:border-slate-800/80 pb-3">
+            <div className="glass-card rounded-2xl p-6 border border-slate-300 dark:border-slate-800 max-w-lg w-full space-y-5 shadow-2xl">
+              <div className="flex justify-between items-center border-b border-slate-300 dark:border-slate-800 pb-3">
                 <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
                   <Utensils className="w-4 h-4 text-amber-500" />
                   <span>Edit Stock & Out-of-Stock Reason</span>
@@ -1102,7 +1087,7 @@ export default function AdminSite({ user, onLogin }) {
                 </button>
               </div>
 
-              <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/60 flex items-center gap-3">
+              <div className="p-3.5 rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex items-center gap-3">
                 <img src={editingAdminDish.image_url} alt="" className="w-12 h-12 rounded-xl object-cover" />
                 <div>
                   <h4 className="font-bold text-slate-900 dark:text-white text-sm">{adminDishForm.name}</h4>
@@ -1119,7 +1104,7 @@ export default function AdminSite({ user, onLogin }) {
                       min="0"
                       value={adminDishForm.daily_stock}
                       onChange={(e) => setAdminDishForm({ ...adminDishForm, daily_stock: e.target.value })}
-                      className="w-full px-3.5 py-2.5 rounded-xl bg-white dark:bg-slate-950/70 border border-slate-300 dark:border-slate-700/80 text-slate-900 dark:text-white font-mono font-bold outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 transition-all shadow-inner"
+                      className="w-full px-3.5 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 text-slate-900 dark:text-white font-mono font-bold outline-none focus:border-amber-500"
                       required
                     />
                   </div>
@@ -1161,7 +1146,7 @@ export default function AdminSite({ user, onLogin }) {
                         className={`px-2.5 py-1 rounded-lg text-[10px] font-semibold border transition-all ${
                           adminDishForm.out_of_stock_reason === preset
                             ? 'bg-amber-500 text-white border-amber-500 shadow-sm'
-                            : 'bg-slate-100 dark:bg-slate-800/80 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700/80 hover:border-amber-500/50'
+                            : 'bg-slate-100 dark:bg-slate-900 text-slate-600 dark:text-slate-400 border-slate-300 dark:border-slate-800 hover:border-amber-500/50'
                         }`}
                       >
                         {preset}
@@ -1174,7 +1159,7 @@ export default function AdminSite({ user, onLogin }) {
                     value={adminDishForm.out_of_stock_reason}
                     onChange={(e) => setAdminDishForm({ ...adminDishForm, out_of_stock_reason: e.target.value })}
                     placeholder="Enter custom reason why dish is unavailable..."
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-white dark:bg-slate-950/70 border border-slate-300 dark:border-slate-700/80 text-slate-900 dark:text-white outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 text-xs transition-all shadow-inner"
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 text-slate-900 dark:text-white outline-none focus:border-amber-500 text-xs"
                   />
                 </div>
 
@@ -1182,7 +1167,7 @@ export default function AdminSite({ user, onLogin }) {
                   <button
                     type="button"
                     onClick={() => setEditingAdminDish(null)}
-                    className="flex-1 py-2.5 rounded-xl bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-bold transition-all"
+                    className="flex-1 py-2.5 rounded-xl bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-bold"
                   >
                     Cancel
                   </button>
