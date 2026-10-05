@@ -16,15 +16,15 @@
 }
 
 html.dark {
-  /* Dark Mode Semantic Elevation System - Obsidian, rich slate, ember glow */
-  --bg-main: #090d16;       /* Layer 0: Page backdrop */
-  --bg-surface: #111726;    /* Layer 1: Component cards & containers */
-  --bg-elevated: #182032;   /* Layer 2: Sub-cards & interactive containers */
-  --bg-modal: #1e273e;      /* Layer 3: Modals, dropdowns & popups */
-  --border-subtle: rgba(255, 255, 255, 0.08);
-  --border-accent: rgba(249, 115, 22, 0.4);
-  --text-primary: #f8fafc;
-  --text-secondary: #94a3b8;
+  /* Dark Mode Semantic Elevation System - Rich Slate, Glassmorphism, Elevated Cards */
+  --bg-main: #0b1120;       /* Layer 0: Page backdrop - Deep Midnight Slate */
+  --bg-surface: #151f33;    /* Layer 1: Component cards & containers - Rich Elevated Slate */
+  --bg-elevated: #1e293b;   /* Layer 2: Sub-cards & interactive containers - Slate 800 */
+  --bg-modal: #22304d;      /* Layer 3: Modals, dropdowns & popups - Elevated Indigo-Slate */
+  --border-subtle: rgba(255, 255, 255, 0.12); /* Crisp, clean luminous glass borders */
+  --border-accent: rgba(249, 115, 22, 0.45);  /* Subtle ember accent glow */
+  --text-primary: #f8fafc;  /* Clean high-contrast white */
+  --text-secondary: #94a3b8;/* Muted legible slate */
   --accent-orange: #f97316;
 }
 
