@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { ShieldAlert, Users, DollarSign, Activity, Lock, Database, AlertCircle, Ban, CheckCircle2, KeyRound, UserPlus, Trash2, Eye, EyeOff, Edit3, X, Utensils, Package, Tag, AlertTriangle, RefreshCw } from 'lucide-react';
+import { ShieldAlert, Users, DollarSign, Activity, Lock, Database, AlertCircle, Ban, CheckCircle2, KeyRound, UserPlus, Trash2, Eye, EyeOff, Edit3, X, Utensils, Package, Tag, AlertTriangle, RefreshCw, Sparkles } from 'lucide-react';
 import { KitchenLoadingScreen, KitchenDataLoader, KitchenSkeletonRows } from '../components/KitchenLoading';
 
 export default function AdminSite({ user, onLogin }) {
@@ -24,6 +24,17 @@ export default function AdminSite({ user, onLogin }) {
       return [];
     }
   });
+
+  const [adminCoupons, setAdminCoupons] = useState([]);
+  const [newCouponForm, setNewCouponForm] = useState({
+    code: '',
+    description: '',
+    discount_type: 'PERCENT',
+    discount_val: '',
+    min_order: '200',
+    max_discount: '100'
+  });
+  const [couponMsg, setCouponMsg] = useState('');
 
   // Create User Form
   const [newUser, setNewUser] = useState({ name: '', email: '', password: '', role: 'CUSTOMER', phone: '' });
@@ -89,6 +100,10 @@ export default function AdminSite({ user, onLogin }) {
         const res = await fetch('/api/admin/users', { headers });
         const data = await res.json();
         if (data.success) setUsers(data.users);
+      } else if (activeTab === 'coupons') {
+        const res = await fetch('/api/admin/coupons', { headers });
+        const data = await res.json();
+        if (data.success) setAdminCoupons(data.coupons);
       } else if (activeTab === 'payouts') {
         const res = await fetch('/api/admin/payouts', { headers });
         const data = await res.json();
@@ -290,6 +305,58 @@ export default function AdminSite({ user, onLogin }) {
     }
   };
 
+  const handleCreateCoupon = async (e) => {
+    e.preventDefault();
+    setCouponMsg('');
+    try {
+      const token = localStorage.getItem('chefhub_token');
+      const res = await fetch('/api/admin/coupons', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify(newCouponForm)
+      });
+      const data = await res.json();
+      if (data.success) {
+        setCouponMsg('✅ Coupon created successfully!');
+        setNewCouponForm({ code: '', description: '', discount_type: 'PERCENT', discount_val: '', min_order: '200', max_discount: '100' });
+        fetchData();
+      } else {
+        setCouponMsg('❌ ' + (data.message || 'Failed to create coupon.'));
+      }
+    } catch (err) {
+      setCouponMsg('❌ Server connection error.');
+    }
+  };
+
+  const handleToggleCoupon = async (coupon_id) => {
+    try {
+      const token = localStorage.getItem('chefhub_token');
+      const res = await fetch(`/api/admin/coupons/${coupon_id}/toggle`, {
+        method: 'PATCH',
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (data.success) fetchData();
+    } catch (err) {
+      alert('Failed to toggle coupon status.');
+    }
+  };
+
+  const handleDeleteCoupon = async (coupon_id) => {
+    if (!window.confirm('Delete this coupon code from platform?')) return;
+    try {
+      const token = localStorage.getItem('chefhub_token');
+      const res = await fetch(`/api/admin/coupons/${coupon_id}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (data.success) fetchData();
+    } catch (err) {
+      alert('Failed to delete coupon.');
+    }
+  };
+
     // Dedicated Login View
     if (!user || user.role !== 'ADMIN') {
       return (
@@ -393,6 +460,7 @@ export default function AdminSite({ user, onLogin }) {
         <div className="p-1.5 bg-slate-200/60 dark:bg-slate-950/80 backdrop-blur-2xl rounded-2xl border border-slate-300/70 dark:border-slate-800/80 shadow-inner flex flex-wrap items-center gap-1.5">
           {[
             { id: 'users', label: 'Users Registry', count: Array.isArray(users) ? users.length : 0, icon: Users },
+            { id: 'coupons', label: 'Coupons & Promos', count: Array.isArray(adminCoupons) ? adminCoupons.length : 0, icon: Sparkles },
             { id: 'dishes', label: 'Dish Inventory', count: Array.isArray(adminDishes) ? adminDishes.length : 0, icon: Utensils },
             { id: 'payouts', label: 'Escrow Payouts', count: Array.isArray(adminPayouts) ? adminPayouts.length : 0, icon: DollarSign },
             { id: 'reviews', label: 'Reviews & Ratings', count: Array.isArray(adminReviews) ? adminReviews.length : 0, icon: Tag },
@@ -615,6 +683,193 @@ export default function AdminSite({ user, onLogin }) {
                   className="w-full py-2.5 rounded-xl bg-gradient-to-r from-rose-500 to-red-600 hover:from-rose-600 hover:to-red-700 text-white font-bold transition-all shadow-lg shadow-rose-500/20"
                 >
                   + Create User Account
+                </button>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* Tab: Coupons & Offers Management */}
+        {activeTab === 'coupons' && (
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <div className="lg:col-span-2 glass-card rounded-2xl p-6 border border-slate-300 dark:border-slate-800 space-y-4">
+              <div className="flex justify-between items-center border-b border-slate-300 dark:border-slate-800 pb-3">
+                <div>
+                  <h2 className="text-xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                    <Sparkles className="w-5 h-5 text-amber-500" />
+                    <span>Promotional Coupons & Discount Codes</span>
+                  </h2>
+                  <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">
+                    Manage active coupons, discount percentages, caps, and customer order validations
+                  </p>
+                </div>
+                <span className="px-3 py-1 rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 text-xs font-bold">
+                  {adminCoupons.length} Active Codes
+                </span>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-slate-100 dark:bg-slate-900 text-slate-700 dark:text-slate-400 uppercase text-[10px] tracking-wider">
+                    <tr>
+                      <th className="p-3 rounded-l-xl">Code</th>
+                      <th className="p-3">Discount</th>
+                      <th className="p-3">Min Order</th>
+                      <th className="p-3">Max Cap</th>
+                      <th className="p-3">Status</th>
+                      <th className="p-3 rounded-r-xl text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-300 dark:border-slate-800/60">
+                    {adminCoupons.map((c) => (
+                      <tr key={c.coupon_id} className="hover:bg-slate-100 dark:hover:bg-slate-900/40 transition-colors">
+                        <td className="p-3 font-mono font-black text-amber-500">
+                          {c.code}
+                          <p className="text-[10px] font-sans font-normal text-slate-500">{c.description}</p>
+                        </td>
+                        <td className="p-3 font-bold text-slate-900 dark:text-white">
+                          {c.discount_type === 'PERCENT' ? `${c.discount_val}% OFF` : `₹${c.discount_val} FLAT`}
+                        </td>
+                        <td className="p-3 font-mono text-slate-600 dark:text-slate-400">
+                          ₹{c.min_order || 0}
+                        </td>
+                        <td className="p-3 font-mono text-slate-600 dark:text-slate-400">
+                          {c.max_discount ? `₹${c.max_discount}` : 'No Cap'}
+                        </td>
+                        <td className="p-3">
+                          <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-extrabold ${
+                            c.is_active === 1
+                              ? 'bg-emerald-500/15 text-emerald-500 border border-emerald-500/30'
+                              : 'bg-rose-500/15 text-rose-500 border border-rose-500/30'
+                          }`}>
+                            {c.is_active === 1 ? 'ACTIVE' : 'DEACTIVATED'}
+                          </span>
+                        </td>
+                        <td className="p-3 text-right">
+                          <div className="flex items-center justify-end gap-2">
+                            <button
+                              onClick={() => handleToggleCoupon(c.coupon_id)}
+                              className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all border ${
+                                c.is_active === 1
+                                  ? 'bg-rose-500/10 hover:bg-rose-500/20 text-rose-500 border-rose-500/20'
+                                  : 'bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-500 border-emerald-500/20'
+                              }`}
+                            >
+                              {c.is_active === 1 ? 'Deactivate' : 'Activate'}
+                            </button>
+                            <button
+                              onClick={() => handleDeleteCoupon(c.coupon_id)}
+                              className="p-1 rounded-lg text-slate-400 hover:text-rose-500 hover:bg-rose-500/10 transition-colors"
+                              title="Delete coupon"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Create New Coupon Form */}
+            <div className="glass-card rounded-2xl p-6 border border-slate-300 dark:border-slate-800 space-y-4">
+              <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-amber-500" />
+                <span>Create New Promo Coupon</span>
+              </h3>
+
+              {couponMsg && (
+                <div className="p-3 rounded-xl bg-slate-100 dark:bg-slate-900 border text-xs font-bold">
+                  {couponMsg}
+                </div>
+              )}
+
+              <form onSubmit={handleCreateCoupon} className="space-y-3 text-xs">
+                <div>
+                  <label className="font-semibold text-slate-700 dark:text-slate-300">Coupon Code</label>
+                  <input
+                    type="text"
+                    value={newCouponForm.code}
+                    onChange={(e) => setNewCouponForm({ ...newCouponForm, code: e.target.value.toUpperCase() })}
+                    placeholder="e.g. FESTIVE30"
+                    className="w-full mt-1 px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 text-slate-900 dark:text-white font-mono font-bold uppercase outline-none focus:border-amber-500"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="font-semibold text-slate-700 dark:text-slate-300">Description</label>
+                  <input
+                    type="text"
+                    value={newCouponForm.description}
+                    onChange={(e) => setNewCouponForm({ ...newCouponForm, description: e.target.value })}
+                    placeholder="e.g. 30% Off on Weekend Gourmet Orders"
+                    className="w-full mt-1 px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 text-slate-900 dark:text-white outline-none focus:border-amber-500"
+                    required
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="font-semibold text-slate-700 dark:text-slate-300">Discount Type</label>
+                    <select
+                      value={newCouponForm.discount_type}
+                      onChange={(e) => setNewCouponForm({ ...newCouponForm, discount_type: e.target.value })}
+                      className="w-full mt-1 px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 text-slate-900 dark:text-white outline-none focus:border-amber-500 font-bold"
+                    >
+                      <option value="PERCENT">Percentage (%)</option>
+                      <option value="FLAT">Flat Rupee (₹)</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="font-semibold text-slate-700 dark:text-slate-300">Discount Value</label>
+                    <input
+                      type="number"
+                      step="any"
+                      min="1"
+                      value={newCouponForm.discount_val}
+                      onChange={(e) => setNewCouponForm({ ...newCouponForm, discount_val: e.target.value })}
+                      placeholder="e.g. 30 or 100"
+                      className="w-full mt-1 px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 text-slate-900 dark:text-white font-mono outline-none focus:border-amber-500"
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="font-semibold text-slate-700 dark:text-slate-300">Min Order (₹)</label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={newCouponForm.min_order}
+                      onChange={(e) => setNewCouponForm({ ...newCouponForm, min_order: e.target.value })}
+                      placeholder="e.g. 250"
+                      className="w-full mt-1 px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 text-slate-900 dark:text-white font-mono outline-none focus:border-amber-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="font-semibold text-slate-700 dark:text-slate-300">Max Cap (₹)</label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={newCouponForm.max_discount}
+                      onChange={(e) => setNewCouponForm({ ...newCouponForm, max_discount: e.target.value })}
+                      placeholder="e.g. 150"
+                      className="w-full mt-1 px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 text-slate-900 dark:text-white font-mono outline-none focus:border-amber-500"
+                    />
+                  </div>
+                </div>
+
+                <button
+                  type="submit"
+                  className="w-full py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white font-bold transition-all shadow-lg shadow-amber-500/20"
+                >
+                  + Create Platform Coupon
                 </button>
               </form>
             </div>

@@ -340,4 +340,105 @@ router.get('/payouts', authenticateToken, requireRole('ADMIN'), async (req, res)
   }
 });
 
+// ==========================================
+// ADMIN COUPONS & OFFERS MANAGEMENT (CRUD)
+// ==========================================
+
+// List all coupons
+router.get('/coupons', authenticateToken, requireRole('ADMIN'), async (req, res) => {
+  try {
+    const coupons = await query('SELECT * FROM coupons ORDER BY coupon_id DESC');
+    return res.json({ success: true, coupons });
+  } catch (err) {
+    console.error('Fetch admin coupons error:', err);
+    return res.status(500).json({ success: false, message: 'Failed to fetch promotional coupons.' });
+  }
+});
+
+// Create new promotional coupon
+router.post('/coupons', authenticateToken, requireRole('ADMIN'), async (req, res) => {
+  try {
+    const { code, description, discount_type, discount_val, min_order = 0, max_discount = null } = req.body;
+
+    if (!code || !description || !discount_type || discount_val === undefined) {
+      return res.status(400).json({ success: false, message: 'Code, Description, Discount Type, and Discount Value are required.' });
+    }
+
+    const cleanCode = code.trim().toUpperCase();
+    if (!['PERCENT', 'FLAT'].includes(discount_type)) {
+      return res.status(400).json({ success: false, message: 'Discount type must be PERCENT or FLAT.' });
+    }
+
+    const existing = await query('SELECT coupon_id FROM coupons WHERE UPPER(code) = ?', [cleanCode]);
+    if (existing.length > 0) {
+      return res.status(400).json({ success: false, message: `Coupon code '${cleanCode}' already exists.` });
+    }
+
+    const result = await query(`
+      INSERT INTO coupons (code, description, discount_type, discount_val, min_order, max_discount, is_active)
+      VALUES (?, ?, ?, ?, ?, ?, 1)
+    `, [cleanCode, description.trim(), discount_type, Number(discount_val), Number(min_order) || 0, max_discount ? Number(max_discount) : null]);
+
+    await MongoAdapter.addAuditLog(req.user.user_id, 'COUPON_CREATED', {
+      coupon_id: result.insertId,
+      code: cleanCode,
+      discount_type,
+      discount_val
+    });
+
+    return res.json({
+      success: true,
+      message: `Coupon '${cleanCode}' created successfully!`,
+      coupon_id: result.insertId
+    });
+  } catch (err) {
+    console.error('Create coupon error:', err);
+    return res.status(500).json({ success: false, message: 'Failed to create coupon.' });
+  }
+});
+
+// Toggle coupon active status
+router.patch('/coupons/:id/toggle', authenticateToken, requireRole('ADMIN'), async (req, res) => {
+  try {
+    const couponId = req.params.id;
+    const existing = await query('SELECT * FROM coupons WHERE coupon_id = ?', [couponId]);
+    if (existing.length === 0) {
+      return res.status(404).json({ success: false, message: 'Coupon not found.' });
+    }
+
+    const newStatus = existing[0].is_active === 1 ? 0 : 1;
+    await query('UPDATE coupons SET is_active = ? WHERE coupon_id = ?', [newStatus, couponId]);
+
+    await MongoAdapter.addAuditLog(req.user.user_id, 'COUPON_TOGGLED', {
+      coupon_id: couponId,
+      code: existing[0].code,
+      is_active: newStatus
+    });
+
+    return res.json({
+      success: true,
+      message: `Coupon '${existing[0].code}' is now ${newStatus === 1 ? 'ACTIVE' : 'DEACTIVATED'}.`,
+      is_active: newStatus
+    });
+  } catch (err) {
+    console.error('Toggle coupon error:', err);
+    return res.status(500).json({ success: false, message: 'Failed to toggle coupon status.' });
+  }
+});
+
+// Delete coupon
+router.delete('/coupons/:id', authenticateToken, requireRole('ADMIN'), async (req, res) => {
+  try {
+    const couponId = req.params.id;
+    await query('DELETE FROM coupons WHERE coupon_id = ?', [couponId]);
+
+    await MongoAdapter.addAuditLog(req.user.user_id, 'COUPON_DELETED', { coupon_id: couponId });
+
+    return res.json({ success: true, message: 'Coupon deleted successfully.' });
+  } catch (err) {
+    console.error('Delete coupon error:', err);
+    return res.status(500).json({ success: false, message: 'Failed to delete coupon.' });
+  }
+});
+
 module.exports = router;

@@ -48,16 +48,57 @@ function checkIsVendorOpen(mongoMenu) {
   return { isOpen: true };
 }
 
-// Public Browse Vendors & Menus
+const CHEF_LOCATIONS = {
+  'chef.mario@chefhub.com': { lat: 12.9784, lng: 77.6408, locality: 'Indiranagar, 100ft Road', city: 'Bengaluru' },
+  'chef.priya@chefhub.com': { lat: 12.9352, lng: 77.6245, locality: 'Koramangala, 5th Block', city: 'Bengaluru' },
+  'chef.kenji@chefhub.com': { lat: 12.9756, lng: 77.6066, locality: 'MG Road, Church Street', city: 'Bengaluru' },
+  'chef.ramu@chefhub.com': { lat: 12.9121, lng: 77.6446, locality: 'HSR Layout, Sector 1', city: 'Bengaluru' }
+};
+
+function calculateDistanceKm(lat1, lon1, lat2, lon2) {
+  if (!lat1 || !lon1 || !lat2 || !lon2) return 3.2;
+  const R = 6371; // Earth radius in km
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+    Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return Number((R * c).toFixed(1));
+}
+
+// Public Browse Vendors & Menus with Real-time Distance & 20km Radius Enforcement
 router.get('/vendors', async (req, res) => {
   try {
+    const userLat = req.query.lat ? parseFloat(req.query.lat) : 12.9716; // default UB City Bengaluru
+    const userLng = req.query.lng ? parseFloat(req.query.lng) : 77.5946;
+    const enforceRadius = req.query.enforce_radius === 'true';
+
     const vendors = await query(`
-      SELECT user_id AS vendor_id, name AS business_name, email, phone 
+      SELECT user_id AS vendor_id, name AS business_name, email, phone, primary_address, latitude, longitude 
       FROM users WHERE role = 'VENDOR' AND status = 'ACTIVE'
     `);
 
     const result = [];
     for (const v of vendors) {
+      // Determine Kitchen Coordinates
+      const loc = CHEF_LOCATIONS[v.email.toLowerCase()] || {
+        lat: v.latitude ? parseFloat(v.latitude) : 12.9716,
+        lng: v.longitude ? parseFloat(v.longitude) : 77.6408,
+        locality: v.primary_address || 'Artisanal Kitchen',
+        city: 'Bengaluru'
+      };
+
+      const distance_km = calculateDistanceKm(userLat, userLng, loc.lat, loc.lng);
+      const is_within_20km = distance_km <= 20.0;
+      const estimated_mins = Math.max(15, Math.round(distance_km * 3.5 + 15));
+
+      // If strict 20km radius filter requested and outside range, skip vendor
+      if (enforceRadius && !is_within_20km) {
+        continue;
+      }
+
       const mongoMenu = await MongoAdapter.findVendorMenu(v.vendor_id);
       const mysqlDishes = await query('SELECT * FROM dishes WHERE vendor_id = ? ORDER BY dish_id DESC', [v.vendor_id]);
 
@@ -104,6 +145,10 @@ router.get('/vendors', async (req, res) => {
 
       result.push({
         ...v,
+        distance_km,
+        is_within_20km,
+        estimated_delivery_mins: estimated_mins,
+        kitchen_location: loc,
         menu: {
           vendor_id: v.vendor_id,
           business_name: mongoMenu?.business_name || v.business_name,
@@ -127,14 +172,93 @@ router.get('/vendors', async (req, res) => {
   }
 });
 
+// Available Promotional Coupons List
+router.get('/coupons/available', async (req, res) => {
+  try {
+    const coupons = await query('SELECT coupon_id, code, description, discount_type, discount_val, min_order, max_discount FROM coupons WHERE is_active = 1 ORDER BY discount_val DESC');
+    return res.json({ success: true, coupons });
+  } catch (err) {
+    console.error('Fetch coupons error:', err);
+    return res.status(500).json({ success: false, message: 'Failed to fetch available coupons.' });
+  }
+});
+
+// Strict Coupon Code Validation
+router.post('/coupons/validate', async (req, res) => {
+  try {
+    const { coupon_code, order_subtotal = 0 } = req.body;
+    if (!coupon_code || !coupon_code.trim()) {
+      return res.status(400).json({ success: false, valid: false, message: 'Coupon code is required.' });
+    }
+
+    const subtotal = Number(order_subtotal);
+    const code = coupon_code.trim().toUpperCase();
+
+    const rows = await query('SELECT * FROM coupons WHERE UPPER(code) = ?', [code]);
+    if (!rows || rows.length === 0) {
+      return res.status(400).json({ success: false, valid: false, message: `Coupon '${code}' is invalid or does not exist.` });
+    }
+
+    const c = rows[0];
+    if (c.is_active === 0) {
+      return res.status(400).json({ success: false, valid: false, message: `Coupon '${code}' has expired or is currently deactivated.` });
+    }
+
+    const minOrder = Number(c.min_order || 0);
+    if (subtotal < minOrder) {
+      return res.status(400).json({
+        success: false,
+        valid: false,
+        message: `Coupon '${code}' requires a minimum order subtotal of ₹${minOrder}. (Current: ₹${subtotal.toFixed(2)})`
+      });
+    }
+
+    let discount = 0;
+    if (c.discount_type === 'PERCENT') {
+      discount = (subtotal * Number(c.discount_val)) / 100;
+      if (c.max_discount && discount > Number(c.max_discount)) {
+        discount = Number(c.max_discount);
+      }
+    } else {
+      // FLAT
+      discount = Math.min(Number(c.discount_val), subtotal);
+    }
+    discount = Math.round(discount * 100) / 100;
+
+    return res.json({
+      success: true,
+      valid: true,
+      message: `Coupon '${code}' applied successfully! ₹${discount.toFixed(2)} discount applied.`,
+      coupon: {
+        code: c.code,
+        description: c.description,
+        discount_amount: discount,
+        discount_type: c.discount_type,
+        discount_val: Number(c.discount_val),
+        final_subtotal: Math.max(0, subtotal - discount)
+      }
+    });
+  } catch (err) {
+    console.error('Validate coupon error:', err);
+    return res.status(500).json({ success: false, valid: false, message: 'Server error validating coupon.' });
+  }
+});
+
 // Create New Order
 router.post('/orders', checkoutLimiter, authenticateToken, requireRole('CUSTOMER'), async (req, res) => {
   try {
-    const { vendor_id, items } = req.body;
+    const { vendor_id, items, coupon_code, delivery_address } = req.body;
     const customer_id = req.user.user_id;
 
     if (!vendor_id || !items || !Array.isArray(items) || items.length === 0) {
       return res.status(400).json({ success: false, message: 'Vendor ID and non-empty items array are required.' });
+    }
+
+    // Retrieve user profile primary address if none provided in payload
+    let resolvedAddress = delivery_address;
+    if (!resolvedAddress) {
+      const userProfile = await query('SELECT primary_address FROM users WHERE user_id = ?', [customer_id]);
+      resolvedAddress = userProfile[0]?.primary_address || '124 Gourmet Boulevard, Suite 4B, Foodie City';
     }
 
     // Check store open status before placing order
@@ -153,6 +277,19 @@ router.post('/orders', checkoutLimiter, authenticateToken, requireRole('CUSTOMER
     for (const item of items) {
       if (item.quantity > 5) {
         return res.status(400).json({ success: false, message: 'Maximum order limit per dish is 5 items.' });
+      }
+    }
+
+    // Optional Coupon Validation
+    let discountAmount = 0;
+    let appliedCouponCode = null;
+    if (coupon_code && coupon_code.trim()) {
+      const cleanCode = coupon_code.trim().toUpperCase();
+      const couponRows = await query('SELECT * FROM coupons WHERE UPPER(code) = ? AND is_active = 1', [cleanCode]);
+      if (couponRows.length > 0) {
+        const c = couponRows[0];
+        appliedCouponCode = c.code;
+        // Calculation happens below after subtotal computed
       }
     }
 
@@ -179,7 +316,7 @@ router.post('/orders', checkoutLimiter, authenticateToken, requireRole('CUSTOMER
         dishMap.set(Number(d.dish_id), d);
       }
 
-      let totalAmount = 0;
+      let subtotalAmount = 0;
       const itemsProcessed = [];
 
       for (const item of items) {
@@ -197,7 +334,7 @@ router.post('/orders', checkoutLimiter, authenticateToken, requireRole('CUSTOMER
         }
 
         const subtotal = Number(dish.base_price) * Number(item.quantity);
-        totalAmount += subtotal;
+        subtotalAmount += subtotal;
         itemsProcessed.push({
           dish_id: dish.dish_id,
           dish_name: dish.name,
@@ -206,6 +343,27 @@ router.post('/orders', checkoutLimiter, authenticateToken, requireRole('CUSTOMER
           subtotal
         });
       }
+
+      // Calculate final coupon discount with computed subtotal
+      if (appliedCouponCode) {
+        const couponRows = await txQuery('SELECT * FROM coupons WHERE UPPER(code) = ? AND is_active = 1', [appliedCouponCode]);
+        if (couponRows.length > 0) {
+          const c = couponRows[0];
+          if (subtotalAmount >= Number(c.min_order || 0)) {
+            if (c.discount_type === 'PERCENT') {
+              discountAmount = (subtotalAmount * Number(c.discount_val)) / 100;
+              if (c.max_discount && discountAmount > Number(c.max_discount)) {
+                discountAmount = Number(c.max_discount);
+              }
+            } else {
+              discountAmount = Math.min(Number(c.discount_val), subtotalAmount);
+            }
+            discountAmount = Math.round(discountAmount * 100) / 100;
+          }
+        }
+      }
+
+      const totalAmount = Math.max(0, subtotalAmount - discountAmount);
 
       // 2. Lock and verify raw ingredients from inventory via dish_recipes junction table
       const recipeRows = await txQuery(
@@ -243,11 +401,11 @@ router.post('/orders', checkoutLimiter, authenticateToken, requireRole('CUSTOMER
         }
       }
 
-      // 3. Insert Master Order record into `orders`
+      // 3. Insert Master Order record into `orders` (with delivery_address, coupon_code, discount_amount)
       const orderRes = await txQuery(
-        `INSERT INTO orders (customer_id, vendor_id, total_amount, escrow_status, payment_status, status)
-         VALUES (?, ?, ?, 'HOLDING', 'PAID', 'PLACED')`,
-        [customer_id, vendor_id, totalAmount]
+        `INSERT INTO orders (customer_id, vendor_id, total_amount, escrow_status, payment_status, status, delivery_address, coupon_code, discount_amount)
+         VALUES (?, ?, ?, 'HOLDING', 'PAID', 'PLACED', ?, ?, ?)`,
+        [customer_id, vendor_id, totalAmount, resolvedAddress, appliedCouponCode, discountAmount]
       );
       const order_id = orderRes.insertId;
 
@@ -260,8 +418,8 @@ router.post('/orders', checkoutLimiter, authenticateToken, requireRole('CUSTOMER
         );
 
         await txQuery(
-          `UPDATE dishes SET daily_stock = GREATEST(0, daily_stock - ?) WHERE dish_id = ?`,
-          [item.quantity, item.dish_id]
+          `UPDATE dishes SET daily_stock = CASE WHEN daily_stock - ? < 0 THEN 0 ELSE daily_stock - ? END WHERE dish_id = ?`,
+          [item.quantity, item.quantity, item.dish_id]
         );
 
         // Auto mark out-of-stock if daily portions hit 0
@@ -436,11 +594,33 @@ router.get('/my-orders', authenticateToken, requireRole('CUSTOMER'), async (req,
 
       const review = await MongoAdapter.getReviewForOrder(o.order_id);
 
+      const vendUser = await query('SELECT email, primary_address, latitude, longitude FROM users WHERE user_id = ?', [o.vendor_id]);
+      const vEmail = vendUser[0]?.email?.toLowerCase() || '';
+      const chefLoc = CHEF_LOCATIONS[vEmail] || {
+        lat: vendUser[0]?.latitude ? parseFloat(vendUser[0].latitude) : 12.9784,
+        lng: vendUser[0]?.longitude ? parseFloat(vendUser[0].longitude) : 77.6408,
+        locality: vendUser[0]?.primary_address || 'Indiranagar Kitchen',
+        city: 'Bengaluru'
+      };
+
+      let riderLive = { lat: 12.9740, lng: 77.6200 };
+      if (o.rider_id) {
+        const rLogistics = await MongoAdapter.findRider(o.rider_id);
+        if (rLogistics && rLogistics.live_coordinates) {
+          riderLive = rLogistics.live_coordinates;
+        }
+      }
+
       result.push({
         ...o,
         items,
         tracking: timeline,
-        review: review || null
+        review: review || null,
+        chef_location: chefLoc,
+        rider_live_coords: riderLive,
+        coupon_code: o.coupon_code || null,
+        discount_amount: Number(o.discount_amount || 0),
+        delivery_address: o.delivery_address || '124 Gourmet Boulevard, Suite 4B, Foodie City'
       });
     }
 

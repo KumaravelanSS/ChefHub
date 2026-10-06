@@ -361,14 +361,74 @@ async function initRelationalDb() {
 
   try {
     await query(`CREATE INDEX IF NOT EXISTS idx_outbox_status ON outbox_events(status, created_at)`);
+  } catch (err) {}
+
+  try {
+    await query(`ALTER TABLE users ADD COLUMN primary_address TEXT`);
+  } catch (err) {}
+
+  try {
+    await query(`ALTER TABLE users ADD COLUMN latitude DECIMAL(10,6) DEFAULT 12.9716`);
+  } catch (err) {}
+
+  try {
+    await query(`ALTER TABLE users ADD COLUMN longitude DECIMAL(10,6) DEFAULT 77.5946`);
+  } catch (err) {}
+
+  try {
+    await query(`ALTER TABLE orders ADD COLUMN delivery_address TEXT`);
+  } catch (err) {}
+
+  try {
+    await query(`ALTER TABLE orders ADD COLUMN coupon_code VARCHAR(50)`);
+  } catch (err) {}
+
+  try {
+    await query(`ALTER TABLE orders ADD COLUMN discount_amount DECIMAL(10,2) DEFAULT 0`);
+  } catch (err) {}
+
+  // 9. Coupons Table (Strict Discount Codes & Promotions)
+  await query(`
+    CREATE TABLE IF NOT EXISTS coupons (
+      coupon_id INTEGER PRIMARY KEY ${isSqlite ? 'AUTOINCREMENT' : 'AUTO_INCREMENT'},
+      code VARCHAR(50) UNIQUE NOT NULL,
+      description VARCHAR(255) NOT NULL,
+      discount_type VARCHAR(20) NOT NULL CHECK (discount_type IN ('PERCENT', 'FLAT')),
+      discount_val DECIMAL(10,2) NOT NULL,
+      min_order DECIMAL(10,2) DEFAULT 0,
+      max_discount DECIMAL(10,2) DEFAULT NULL,
+      is_active INTEGER DEFAULT 1,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  // Seed default platform coupons if empty
+  try {
+    const existingCoupons = await query('SELECT count(*) as count FROM coupons');
+    const count = existingCoupons[0]?.count || 0;
+    if (count === 0) {
+      const defaultCoupons = [
+        ['CHEF50', '50% Flat Discount on gourmet dishes (up to ₹150 off)', 'PERCENT', 50.00, 250.00, 150.00, 1],
+        ['GOURMET20', '20% Off on artisanal kitchen orders above ₹200', 'PERCENT', 20.00, 200.00, 100.00, 1],
+        ['FIRSTBITE', 'Flat ₹100 Welcome Discount for new foodies', 'FLAT', 100.00, 300.00, 100.00, 1],
+        ['FREESHIP', 'Zero Delivery Fee - 100% Free Express Logistics', 'FLAT', 40.00, 150.00, 40.00, 1]
+      ];
+      for (const [code, desc, type, val, minO, maxD, act] of defaultCoupons) {
+        await query(
+          'INSERT INTO coupons (code, description, discount_type, discount_val, min_order, max_discount, is_active) VALUES (?, ?, ?, ?, ?, ?, ?)',
+          [code, desc, type, val, minO, maxD, act]
+        );
+      }
+      console.log('[Relational Engine] Seeded 4 platform promotional coupons (CHEF50, GOURMET20, FIRSTBITE, FREESHIP).');
+    }
   } catch (err) {
-    // Index optional
+    // Already populated or table locked
   }
 
-  console.log('[Relational Engine] All 8 relational tables checked/created successfully (including outbox_events).');
+  console.log('[Relational Engine] All 9 relational tables checked/created successfully (including outbox_events & coupons).');
 
   if (isPostgres) {
-    const tables = ['users', 'dishes', 'inventory', 'dish_recipes', 'orders', 'order_items', 'payouts', 'outbox_events'];
+    const tables = ['users', 'dishes', 'inventory', 'dish_recipes', 'orders', 'order_items', 'payouts', 'outbox_events', 'coupons'];
     for (const t of tables) {
       try {
         await query(`ALTER TABLE ${t} ENABLE ROW LEVEL SECURITY`);
@@ -376,7 +436,7 @@ async function initRelationalDb() {
         // Ignored if already enabled or not supported
       }
     }
-    console.log('[Relational Engine] Row Level Security (RLS) enabled on all 8 tables.');
+    console.log('[Relational Engine] Row Level Security (RLS) enabled on all 9 tables.');
   }
 }
 

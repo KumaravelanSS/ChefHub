@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { ChefHat, Package, Utensils, DollarSign, AlertTriangle, CheckCircle2, Clock, Plus, Trash2, AlertCircle, Edit3, Image as ImageIcon, X, Sparkles, Ban, Eye, EyeOff, Tag, RefreshCw, Star } from 'lucide-react';
 import { KitchenLoadingScreen, KitchenDataLoader, KitchenSkeletonRows } from '../components/KitchenLoading';
+import AuthModal from '../components/AuthModal';
 
 const presetImages = [
   { label: 'Pasta', url: 'https://images.unsplash.com/photo-1551183053-bf91a1d81141?auto=format&fit=crop&w=600&q=80' },
@@ -667,63 +668,12 @@ export default function ChefSite({ user, onLogin, onLogout }) {
   // Dedicated Login View
   if (!user || user.role !== 'VENDOR') {
     return (
-      <div className="max-w-md mx-auto py-12 px-4">
-        <div className="glass-card rounded-3xl p-8 border border-slate-800 space-y-6 shadow-2xl">
-          <div className="text-center space-y-2">
-            <div className="w-14 h-14 rounded-2xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center justify-center mx-auto shadow-lg shadow-emerald-500/10">
-              <ChefHat className="w-7 h-7" />
-            </div>
-            <h2 className="text-2xl font-black text-slate-900 dark:text-white">Chef Console Site</h2>
-            <p className="text-xs text-slate-600 dark:text-slate-400">Log in to manage kitchen orders, dish recipes & stock availability</p>
-          </div>
-
-          {loginError && (
-            <div className="p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-500 text-xs font-bold flex items-center gap-2">
-              <AlertCircle className="w-4 h-4 shrink-0" />
-              <span>{loginError}</span>
-            </div>
-          )}
-
-          <form onSubmit={handleLoginSubmit} className="space-y-4">
-            <div>
-              <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Chef Email</label>
-              <input
-                type="email"
-                value={loginEmail}
-                onChange={(e) => setLoginEmail(e.target.value)}
-                className="w-full mt-1.5 px-4 py-3 rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 text-slate-900 dark:text-white text-sm focus:border-emerald-500 outline-none transition-all"
-                required
-              />
-            </div>
-            <div>
-              <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Password</label>
-              <div className="relative mt-1.5">
-                <input
-                  type={showPassword ? "text" : "password"}
-                  value={loginPassword}
-                  onChange={(e) => setLoginPassword(e.target.value)}
-                  className="w-full px-4 py-3 pr-11 rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 text-slate-900 dark:text-white text-sm focus:border-emerald-500 outline-none transition-all"
-                  required
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors p-1"
-                  title={showPassword ? "Hide password" : "Show password"}
-                >
-                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                </button>
-              </div>
-            </div>
-
-            <button
-              type="submit"
-              className="w-full py-3.5 rounded-xl bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-600 hover:from-emerald-600 hover:to-teal-600 text-white font-extrabold text-sm shadow-xl shadow-emerald-500/20 transition-all"
-            >
-              Sign In to Chef Console
-            </button>
-          </form>
-        </div>
+      <div className="max-w-md mx-auto py-10 px-4">
+        <AuthModal 
+          initialRole="VENDOR" 
+          onSuccess={onLogin} 
+          isFloating={false} 
+        />
       </div>
     );
   }

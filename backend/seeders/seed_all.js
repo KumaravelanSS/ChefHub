@@ -13,30 +13,30 @@ async function seedDatabase() {
   const hashedCustomerPassword = await bcrypt.hash('customer123', 10);
   const hashedRiderPassword = await bcrypt.hash('rider123', 10);
 
-  // 1. Seed Users
+  // 1. Seed Users with Addresses & Coordinates
   const usersToSeed = [
-    { name: 'Master Admin', email: 'admin', password: hashedAdminPassword, plain_password: 'admin', role: 'ADMIN', phone: '+1800-CHEFHUB' },
-    { name: 'Chef Mario (Truffle & Pasta)', email: 'chef.mario@chefhub.com', password: hashedVendorPassword, plain_password: 'vendor123', role: 'VENDOR', phone: '+1555-0101' },
-    { name: 'Chef Priya (Spice & Curry)', email: 'chef.priya@chefhub.com', password: hashedVendorPassword, plain_password: 'vendor123', role: 'VENDOR', phone: '+1555-0102' },
-    { name: 'Chef Kenji (Tokyo Street Eats)', email: 'chef.kenji@chefhub.com', password: hashedVendorPassword, plain_password: 'vendor123', role: 'VENDOR', phone: '+1555-0103' },
-    { name: 'Chef Ramu', email: 'chef.ramu@chefhub.com', password: hashedVendorPassword, plain_password: 'vendor123', role: 'VENDOR', phone: '+1555-0104' },
-    { name: 'Alex Customer', email: 'alex.customer@gmail.com', password: hashedCustomerPassword, plain_password: 'customer123', role: 'CUSTOMER', phone: '+1555-0201' },
-    { name: 'Sarah Foodie', email: 'sarah.foodie@gmail.com', password: hashedCustomerPassword, plain_password: 'customer123', role: 'CUSTOMER', phone: '+1555-0202' },
-    { name: 'David Rider', email: 'david.rider@chefhub.com', password: hashedRiderPassword, plain_password: 'rider123', role: 'RIDER', phone: '+1555-0301' },
-    { name: 'Carlos Express', email: 'carlos.rider@chefhub.com', password: hashedRiderPassword, plain_password: 'rider123', role: 'RIDER', phone: '+1555-0302' }
+    { name: 'Master Admin', email: 'admin', password: hashedAdminPassword, plain_password: 'admin', role: 'ADMIN', phone: '+1800-CHEFHUB', address: 'ChefHub HQ, MG Road, Bengaluru', lat: 12.9756, lng: 77.6066 },
+    { name: 'Chef Mario (Truffle & Pasta)', email: 'chef.mario@chefhub.com', password: hashedVendorPassword, plain_password: 'vendor123', role: 'VENDOR', phone: '+1555-0101', address: '100ft Road, Indiranagar, Bengaluru', lat: 12.9784, lng: 77.6408 },
+    { name: 'Chef Priya (Spice & Curry)', email: 'chef.priya@chefhub.com', password: hashedVendorPassword, plain_password: 'vendor123', role: 'VENDOR', phone: '+1555-0102', address: '5th Block, Koramangala, Bengaluru', lat: 12.9352, lng: 77.6245 },
+    { name: 'Chef Kenji (Tokyo Street Eats)', email: 'chef.kenji@chefhub.com', password: hashedVendorPassword, plain_password: 'vendor123', role: 'VENDOR', phone: '+1555-0103', address: 'Church Street, MG Road, Bengaluru', lat: 12.9756, lng: 77.6066 },
+    { name: 'Chef Ramu', email: 'chef.ramu@chefhub.com', password: hashedVendorPassword, plain_password: 'vendor123', role: 'VENDOR', phone: '+1555-0104', address: 'Sector 1, HSR Layout, Bengaluru', lat: 12.9121, lng: 77.6446 },
+    { name: 'Alex Customer', email: 'alex.customer@gmail.com', password: hashedCustomerPassword, plain_password: 'customer123', role: 'CUSTOMER', phone: '+1555-0201', address: 'Flat 402, Prestige Oasis, Koramangala 5th Block, Bengaluru', lat: 12.9352, lng: 77.6245 },
+    { name: 'Sarah Foodie', email: 'sarah.foodie@gmail.com', password: hashedCustomerPassword, plain_password: 'customer123', role: 'CUSTOMER', phone: '+1555-0202', address: '124 Gourmet Boulevard, Suite 4B, UB City, Bengaluru', lat: 12.9716, lng: 77.5946 },
+    { name: 'David Rider', email: 'david.rider@chefhub.com', password: hashedRiderPassword, plain_password: 'rider123', role: 'RIDER', phone: '+1555-0301', address: 'Bengaluru Central Express Depot', lat: 12.9716, lng: 77.5946 },
+    { name: 'Carlos Express', email: 'carlos.rider@chefhub.com', password: hashedRiderPassword, plain_password: 'rider123', role: 'RIDER', phone: '+1555-0302', address: 'Bengaluru Central Express Depot', lat: 12.9716, lng: 77.5946 }
   ];
 
   for (const u of usersToSeed) {
     const existing = await query('SELECT user_id FROM users WHERE LOWER(email) = LOWER(?)', [u.email]);
     if (existing.length === 0) {
       await query(
-        "INSERT INTO users (name, email, password_hash, plain_password, role, phone, status) VALUES (?, ?, ?, ?, ?, ?, 'ACTIVE')",
-        [u.name, u.email, u.password, u.plain_password, u.role, u.phone]
+        "INSERT INTO users (name, email, password_hash, plain_password, role, phone, primary_address, latitude, longitude, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'ACTIVE')",
+        [u.name, u.email, u.password, u.plain_password, u.role, u.phone, u.address, u.lat, u.lng]
       );
     } else {
       await query(
-        'UPDATE users SET plain_password = ? WHERE user_id = ?',
-        [u.plain_password, existing[0].user_id]
+        'UPDATE users SET plain_password = ?, primary_address = COALESCE(primary_address, ?), latitude = COALESCE(latitude, ?), longitude = COALESCE(longitude, ?) WHERE user_id = ?',
+        [u.plain_password, u.address, u.lat, u.lng, existing[0].user_id]
       );
     }
   }
