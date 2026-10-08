@@ -93,7 +93,7 @@ export default function CustomerAuthPage({ onLogin, isModal = false }) {
       const data = await res.json();
       setLoading(false);
       if (data.success) {
-        if (data.user.role !== 'CUSTOMER') {
+        if (!isModal && data.user.role !== 'CUSTOMER') {
           setError('This is not a customer account. Use the correct portal.');
           return;
         }

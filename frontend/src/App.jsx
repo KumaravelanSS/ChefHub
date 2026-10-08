@@ -15,8 +15,14 @@ import ErrorBoundary from './components/ErrorBoundary';
 function MainApp() {
   const [currentUser, setCurrentUser] = useState(() => {
     try {
-      const saved = localStorage.getItem('chefhub_user');
-      return saved && saved !== 'undefined' ? JSON.parse(saved) : null;
+      const savedUser = localStorage.getItem('chefhub_user');
+      const savedToken = localStorage.getItem('chefhub_token');
+      if (!savedToken || savedToken === 'undefined' || !savedUser || savedUser === 'undefined') {
+        localStorage.removeItem('chefhub_user');
+        localStorage.removeItem('chefhub_token');
+        return null;
+      }
+      return JSON.parse(savedUser);
     } catch {
       return null;
     }
@@ -45,14 +51,18 @@ function MainApp() {
   };
 
   const handleLoginSuccess = (user, token) => {
-    localStorage.setItem('chefhub_token', token);
-    localStorage.setItem('chefhub_user', JSON.stringify(user));
-    setCurrentUser(user);
+    if (token && token !== 'undefined') {
+      localStorage.setItem('chefhub_token', token);
+    }
+    if (user && typeof user === 'object') {
+      localStorage.setItem('chefhub_user', JSON.stringify(user));
+      setCurrentUser(user);
+    }
 
-    if (user.role === 'CUSTOMER') navigate('/');
-    else if (user.role === 'VENDOR') navigate('/chef/dashboard');
-    else if (user.role === 'RIDER') navigate('/rider/dashboard');
-    else if (user.role === 'ADMIN') navigate('/admin/dashboard');
+    if (user?.role === 'CUSTOMER') navigate('/');
+    else if (user?.role === 'VENDOR') navigate('/chef/dashboard');
+    else if (user?.role === 'RIDER') navigate('/rider/dashboard');
+    else if (user?.role === 'ADMIN') navigate('/admin/dashboard');
   };
 
   const handleLogout = () => {

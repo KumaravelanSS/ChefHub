@@ -1082,7 +1082,8 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
   const grandTotal = Math.max(0, cartTotal - couponDiscountAmount + effectiveDeliveryFee);
 
   const handleOpenPaymentGateway = () => {
-    if (!user) {
+    const token = localStorage.getItem('chefhub_token');
+    if (!user || !token || token === 'undefined') {
       setShowAuthModal(true);
       return;
     }
@@ -1107,6 +1108,16 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
     if (e && e.preventDefault) e.preventDefault();
     const vendorToOrder = selectedVendor || vendors[0];
     if (!vendorToOrder) return;
+
+    const token = localStorage.getItem('chefhub_token');
+    if (!user || !token || token === 'undefined') {
+      setIsProcessingPayment(false);
+      setPaymentStage('IDLE');
+      setShowPaymentGatewayModal(false);
+      setShowAuthModal(true);
+      alert('🔒 Authentication Required: Please sign in to your account to complete payment.');
+      return;
+    }
 
     if (!isCurrentAreaServiced) {
       alert('📍 Cannot place order: Selected address is outside our 20km chef delivery coverage area. Please switch to a serviced delivery address.');
@@ -1189,6 +1200,15 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
 
       const data = await res.json();
       setIsProcessingPayment(false);
+
+      if (res.status === 401 || res.status === 403 || (!data.success && data.message && (data.message.toLowerCase().includes('token') || data.message.toLowerCase().includes('session') || data.message.toLowerCase().includes('authentication')))) {
+        localStorage.removeItem('chefhub_token');
+        setShowPaymentGatewayModal(false);
+        setPaymentStage('IDLE');
+        setShowAuthModal(true);
+        alert('🔒 Session Expired: Your login session has expired or is invalid. Please sign in again to complete your order.');
+        return;
+      }
 
       if (data.success) {
         if (paymentForm.paymentMethod === 'ESCROW_WALLET') {
@@ -3320,6 +3340,19 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
                 <p className="text-xs text-rose-500">
                   {paymentStageData?.error_reason || 'Authorization declined.'}
                 </p>
+                {paymentStageData?.error_reason && (paymentStageData.error_reason.toLowerCase().includes('token') || paymentStageData.error_reason.toLowerCase().includes('session')) && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowPaymentGatewayModal(false);
+                      setPaymentStage('IDLE');
+                      setShowAuthModal(true);
+                    }}
+                    className="mt-2 px-4 py-2 rounded-xl bg-orange-500 hover:bg-orange-600 text-white text-xs font-bold shadow-md cursor-pointer transition-colors"
+                  >
+                    Sign In to Refresh Session
+                  </button>
+                )}
               </div>
             )}
 
@@ -4323,8 +4356,8 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
             <div className="overflow-hidden rounded-3xl shadow-2xl border border-slate-200 dark:border-slate-800">
               <CustomerAuthPage
                 isModal={true}
-                onLogin={(loggedInUser) => {
-                  onLogin(loggedInUser);
+                onLogin={(loggedInUser, loggedInToken) => {
+                  onLogin(loggedInUser, loggedInToken);
                   setShowAuthModal(false);
                 }}
               />
