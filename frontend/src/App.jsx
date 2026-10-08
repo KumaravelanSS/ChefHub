@@ -56,10 +56,19 @@ function MainApp() {
   };
 
   const handleLogout = () => {
+    const currentPath = window.location.pathname;
     localStorage.removeItem('chefhub_token');
     localStorage.removeItem('chefhub_user');
     setCurrentUser(null);
-    navigate('/');
+    if (currentPath.startsWith('/chef')) {
+      navigate('/chef/login');
+    } else if (currentPath.startsWith('/rider')) {
+      navigate('/rider/login');
+    } else if (currentPath.startsWith('/admin')) {
+      navigate('/admin/login');
+    } else {
+      navigate('/');
+    }
   };
 
   return (
@@ -100,7 +109,7 @@ function MainApp() {
             path="/chef/dashboard"
             element={
               <ProtectedRoute user={currentUser} requiredRole="VENDOR" redirectPath="/chef/login">
-                <ChefSite user={currentUser} onLogin={handleLoginSuccess} />
+                <ChefSite user={currentUser} onLogin={handleLoginSuccess} onLogout={handleLogout} />
               </ProtectedRoute>
             }
           />
@@ -114,7 +123,7 @@ function MainApp() {
             path="/rider/dashboard"
             element={
               <ProtectedRoute user={currentUser} requiredRole="RIDER" redirectPath="/rider/login">
-                <RiderSite user={currentUser} onLogin={handleLoginSuccess} />
+                <RiderSite user={currentUser} onLogin={handleLoginSuccess} onLogout={handleLogout} />
               </ProtectedRoute>
             }
           />
@@ -122,13 +131,13 @@ function MainApp() {
           {/* Admin Control Master Site */}
           <Route
             path="/admin/login"
-            element={<AdminSite user={currentUser} onLogin={handleLoginSuccess} />}
+            element={<AdminSite user={currentUser} onLogin={handleLoginSuccess} onLogout={handleLogout} />}
           />
           <Route
             path="/admin/dashboard"
             element={
               <ProtectedRoute user={currentUser} requiredRole="ADMIN" redirectPath="/admin/login">
-                <AdminSite user={currentUser} onLogin={handleLoginSuccess} />
+                <AdminSite user={currentUser} onLogin={handleLoginSuccess} onLogout={handleLogout} />
               </ProtectedRoute>
             }
           />

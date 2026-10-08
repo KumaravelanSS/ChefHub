@@ -55,6 +55,19 @@ export default function Navbar({ currentUser, onLogout, theme, onToggleTheme }) 
     return null;
   };
 
+  const getTabPath = (tabId) => {
+    if (tabId === '/chef/login') {
+      return (currentUser?.role === 'VENDOR') ? '/chef/dashboard' : '/chef/login';
+    }
+    if (tabId === '/rider/login') {
+      return (currentUser?.role === 'RIDER') ? '/rider/dashboard' : '/rider/login';
+    }
+    if (tabId === '/admin/login') {
+      return (currentUser?.role === 'ADMIN') ? '/admin/dashboard' : '/admin/login';
+    }
+    return '/';
+  };
+
   const activeTabId = getActiveTabId();
   const [navIndicator, setNavIndicator] = useState({ left: 0, width: 0, opacity: 0 });
   const navRefs = useRef({});
@@ -160,55 +173,44 @@ export default function Navbar({ currentUser, onLogout, theme, onToggleTheme }) 
           )}
         </div>
 
-        {/* Center Navigation Bar: ONLY shown when NOT logged in */}
-        {!currentUser ? (
-          <div className="relative hidden md:flex items-center gap-1 p-1 backdrop-blur-2xl bg-white/70 dark:bg-slate-900/70 rounded-2xl border border-white/60 dark:border-white/10 shadow-lg shadow-black/5 dark:shadow-black/25">
-            {/* Smooth Sliding Highlight Rectangle */}
-            {activeTabId && (() => {
-              const currentActive = navTabs.find(t => t.id === activeTabId);
-              return (
-                <div
-                  className={`absolute top-1 bottom-1 rounded-xl transition-all duration-300 ease-out pointer-events-none z-0 shadow-md ring-1 backdrop-blur-md ${currentActive?.activeColor || 'bg-orange-500 ring-orange-300/40'}`}
-                  style={{
-                    transform: `translateX(${navIndicator.left}px)`,
-                    width: `${navIndicator.width}px`,
-                    opacity: navIndicator.opacity
-                  }}
-                />
-              );
-            })()}
+        {/* Center Navigation Bar: ALWAYS shown to allow switching portals at any time */}
+        <div className="relative hidden md:flex items-center gap-1 p-1 backdrop-blur-2xl bg-white/70 dark:bg-slate-900/70 rounded-2xl border border-white/60 dark:border-white/10 shadow-lg shadow-black/5 dark:shadow-black/25">
+          {/* Smooth Sliding Highlight Rectangle */}
+          {activeTabId && (() => {
+            const currentActive = navTabs.find(t => t.id === activeTabId);
+            return (
+              <div
+                className={`absolute top-1 bottom-1 rounded-xl transition-all duration-300 ease-out pointer-events-none z-0 shadow-md ring-1 backdrop-blur-md ${currentActive?.activeColor || 'bg-orange-500 ring-orange-300/40'}`}
+                style={{
+                  transform: `translateX(${navIndicator.left}px)`,
+                  width: `${navIndicator.width}px`,
+                  opacity: navIndicator.opacity
+                }}
+              />
+            );
+          })()}
 
-            {navTabs.map((tab) => {
-              const Icon = tab.icon;
-              const isActiveTab = activeTabId === tab.id;
-              return (
-                <Link
-                  key={tab.id}
-                  to={tab.path}
-                  ref={(el) => (navRefs.current[tab.id] = el)}
-                  className={`relative z-10 flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-black transition-colors duration-200 select-none ${
-                    isActiveTab
-                      ? tab.activeText
-                      : 'text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
-                  }`}
-                >
-                  <Icon className={`w-3.5 h-3.5 transition-colors ${isActiveTab ? tab.activeText : 'opacity-80'}`} />
-                  <span>{tab.label}</span>
-                </Link>
-              );
-            })}
-          </div>
-        ) : (
-          /* Switch Portal Quick Link for logged-in users */
-          <button
-            onClick={handleSwitchPortalClick}
-            className="hidden md:flex items-center gap-2 px-3.5 py-1.5 rounded-xl backdrop-blur-xl bg-white/70 dark:bg-slate-800/70 hover:bg-white/90 dark:hover:bg-slate-800/90 text-slate-800 dark:text-slate-100 text-xs font-black border border-slate-200/90 dark:border-white/10 hover:border-orange-500/50 shadow-sm shadow-slate-200/50 dark:shadow-none hover:shadow-orange-500/15 transition-all duration-200 hover:-translate-y-0.5 active:translate-y-0 cursor-pointer group"
-            title="Switch Portal"
-          >
-            <ArrowRightLeft className="w-3.5 h-3.5 text-orange-500 group-hover:rotate-180 transition-transform duration-300" />
-            <span>Switch Portal</span>
-          </button>
-        )}
+          {navTabs.map((tab) => {
+            const Icon = tab.icon;
+            const isActiveTab = activeTabId === tab.id;
+            const targetPath = getTabPath(tab.id);
+            return (
+              <Link
+                key={tab.id}
+                to={targetPath}
+                ref={(el) => (navRefs.current[tab.id] = el)}
+                className={`relative z-10 flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-black transition-colors duration-200 select-none ${
+                  isActiveTab
+                    ? tab.activeText
+                    : 'text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
+                }`}
+              >
+                <Icon className={`w-3.5 h-3.5 transition-colors ${isActiveTab ? tab.activeText : 'opacity-80'}`} />
+                <span>{tab.label}</span>
+              </Link>
+            );
+          })}
+        </div>
 
         {/* Top Right Controls */}
         <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
@@ -301,7 +303,7 @@ export default function Navbar({ currentUser, onLogout, theme, onToggleTheme }) 
               return (
                 <Link
                   key={tab.id}
-                  to={tab.path}
+                  to={getTabPath(tab.id)}
                   onClick={() => setMobileMenuOpen(false)}
                   className={`flex items-center gap-2 p-2.5 rounded-xl border transition-colors ${
                     isCurrent
