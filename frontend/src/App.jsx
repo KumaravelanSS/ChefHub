@@ -5,8 +5,11 @@ import ProtectedRoute from './components/ProtectedRoute';
 
 import LandingPortalsPage from './pages/LandingPortalsPage';
 import CustomerSite from './pages/CustomerSite';
+import CustomerAuthPage from './pages/CustomerAuthPage';
 import ChefSite from './pages/ChefSite';
+import ChefAuthPage from './pages/ChefAuthPage';
 import RiderSite from './pages/RiderSite';
+import RiderAuthPage from './pages/RiderAuthPage';
 import AdminSite from './pages/AdminSite';
 import ErrorBoundary from './components/ErrorBoundary';
 
@@ -95,20 +98,22 @@ function MainApp() {
             element={<LandingPortalsPage onQuickLogin={handleQuickLoginFromLaunchpad} />}
           />
 
-          {/* Customer Site */}
+          {/* Customer Marketplace */}
           <Route
             path="/"
             element={<CustomerSite user={currentUser} onLogin={handleLoginSuccess} onLogout={handleLogout} />}
           />
+
+          {/* Customer Auth Page - dedicated isolated login/register */}
           <Route
             path="/customer/login"
-            element={<CustomerSite user={currentUser} onLogin={handleLoginSuccess} onLogout={handleLogout} />}
+            element={<CustomerAuthPage onLogin={handleLoginSuccess} />}
           />
 
-          {/* Chef / Kitchen Site */}
+          {/* Chef Auth Page - dedicated isolated page */}
           <Route
             path="/chef/login"
-            element={<ChefSite user={currentUser} onLogin={handleLoginSuccess} />}
+            element={<ChefAuthPage onLogin={handleLoginSuccess} />}
           />
           <Route
             path="/chef/dashboard"
@@ -119,10 +124,10 @@ function MainApp() {
             }
           />
 
-          {/* Rider Fleet Site */}
+          {/* Rider Auth Page - dedicated isolated page */}
           <Route
             path="/rider/login"
-            element={<RiderSite user={currentUser} onLogin={handleLoginSuccess} />}
+            element={<RiderAuthPage onLogin={handleLoginSuccess} />}
           />
           <Route
             path="/rider/dashboard"

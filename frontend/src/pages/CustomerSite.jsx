@@ -7,7 +7,7 @@ import {
   Compass, ChefHat, Check, Info, SlidersHorizontal, ArrowUpDown
 } from 'lucide-react';
 import { KitchenLoadingScreen } from '../components/KitchenLoading';
-import AuthModal from '../components/AuthModal';
+import CustomerAuthPage from './CustomerAuthPage';
 import LiveDeliveryMap from '../components/LiveDeliveryMap';
 
 const DELIVERY_FEE = 40.00;
@@ -888,17 +888,9 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
     });
   }, [allDishesMarketplace, selectedChefFilter, enforceRadius, searchQuery, selectedCuisine, vegOnly, selectedDiet, favorites, sortBy]);
 
-  // Dedicated Login View using AuthModal
+  // Dedicated Login View
   if (!user || user.role !== 'CUSTOMER') {
-    return (
-      <div className="py-6 sm:py-10 px-4">
-        <AuthModal
-          initialRole="CUSTOMER"
-          onSuccess={(u, tok) => onLogin(u, tok)}
-          isFloating={false}
-        />
-      </div>
-    );
+    return <CustomerAuthPage onLogin={onLogin} />;
   }
 
   if (loadingVendors && vendors.length === 0) {
@@ -2082,7 +2074,9 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
                   chefLocation={activeTrackingOrder.chef_location || CHEF_AVATARS[activeTrackingOrder.vendor_email]?.coords || { lat: 12.9784, lng: 77.6408, locality: activeTrackingOrder.vendor_name }}
                   customerLocation={{ lat: currentCoords.lat, lng: currentCoords.lng, locality: primaryAddress }}
                   riderName={activeTrackingOrder.rider_name || 'David Rider'}
+                  riderPhone={activeTrackingOrder.rider_phone || '+91 98450 12890'}
                   vehicleType="Ather 450X EV Scooter"
+                  viewerRole="CUSTOMER"
                   isDarkMode={true}
                 />
               </div>

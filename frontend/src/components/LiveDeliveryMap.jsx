@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import { Bike, Navigation, MapPin, Clock, Gauge, ShieldCheck, Info, Play, Pause, RotateCcw, ExternalLink } from 'lucide-react';
+import { Bike, Navigation, MapPin, Clock, Gauge, ShieldCheck, Info, Play, Pause, RotateCcw, ExternalLink, Phone } from 'lucide-react';
 
 // Custom Map Tile URLs (Supports dark mode & crisp standard tiles)
 const TILE_LIGHT = 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png';
@@ -11,8 +11,12 @@ export default function LiveDeliveryMap({
   chefLocation = { lat: 12.9784, lng: 77.6408, locality: 'Indiranagar Kitchen' },
   customerLocation = { lat: 12.9352, lng: 77.6245, locality: 'Koramangala 5th Block' },
   riderName = 'David Rider',
+  riderPhone = '+91 98450 12890',
+  customerName = 'Alex Customer',
+  customerPhone = '+91 98765 43210',
   vehicleType = 'Ather 450X EV Scooter',
   isDarkMode = true,
+  viewerRole = 'CUSTOMER', // 'CUSTOMER' | 'RIDER' — controls what info is shown
   onArrival = null
 }) {
   const mapContainerRef = useRef(null);
@@ -237,31 +241,76 @@ export default function LiveDeliveryMap({
 
   return (
     <div className="w-full space-y-4">
-      {/* Top Real-Time Rider Telemetry Card */}
-      <div className="p-4 rounded-2xl bg-gradient-to-r from-blue-600/10 via-indigo-600/15 to-purple-600/10 border border-blue-500/25 backdrop-blur-xl flex flex-wrap items-center justify-between gap-3 shadow-lg">
+      {/* Top Real-Time Telemetry & Safety Card */}
+      <div className={`p-4 rounded-2xl backdrop-blur-xl flex flex-wrap items-center justify-between gap-3 shadow-lg border ${
+        viewerRole === 'RIDER'
+          ? 'bg-gradient-to-r from-emerald-600/10 via-teal-600/15 to-sky-600/10 border-emerald-500/25'
+          : 'bg-gradient-to-r from-blue-600/10 via-indigo-600/15 to-purple-600/10 border-blue-500/25'
+      }`}>
         <div className="flex items-center gap-3">
-          <div className="w-12 h-12 rounded-2xl bg-blue-500/20 text-blue-400 border border-blue-500/30 flex items-center justify-center font-black text-2xl shadow-md shadow-blue-500/20">
-            🚴
+          <div className={`w-12 h-12 rounded-2xl flex items-center justify-center font-black text-2xl shadow-md ${
+            viewerRole === 'RIDER'
+              ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 shadow-emerald-500/20'
+              : 'bg-blue-500/20 text-blue-400 border border-blue-500/30 shadow-blue-500/20'
+          }`}>
+            {viewerRole === 'RIDER' ? '🛵' : '🚴'}
           </div>
           <div>
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-black text-slate-900 dark:text-white">{riderName}</span>
-              <span className="px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-400 text-[10px] font-bold">
-                {vehicleType}
-              </span>
-            </div>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-              {simProgress >= 1 ? (
-                <span className="text-emerald-500 font-extrabold">🎉 Courier Arrived at Doorstep!</span>
-              ) : (
-                <span>En route to {customerLocation.locality || 'your delivery address'}</span>
-              )}
-            </p>
+            {viewerRole === 'RIDER' ? (
+              <>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-sm font-black text-slate-900 dark:text-white">Customer: {customerName}</span>
+                  <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-500 dark:text-emerald-400 text-[10px] font-extrabold uppercase">
+                    Drop-off Destination
+                  </span>
+                  {customerPhone && (
+                    <a
+                      href={`tel:${customerPhone}`}
+                      className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-600 dark:text-emerald-400 text-xs font-bold border border-emerald-500/30 transition shadow-sm"
+                      title="Call Customer"
+                    >
+                      <Phone className="w-3 h-3" />
+                      <span>{customerPhone}</span>
+                    </a>
+                  )}
+                </div>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                  <span className="font-semibold text-slate-700 dark:text-slate-300">Deliver to: </span>
+                  {customerLocation.locality || 'Customer Address'}
+                </p>
+              </>
+            ) : (
+              <>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-sm font-black text-slate-900 dark:text-white">{riderName}</span>
+                  <span className="px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-400 text-[10px] font-bold">
+                    {vehicleType}
+                  </span>
+                  {riderPhone && (
+                    <a
+                      href={`tel:${riderPhone}`}
+                      className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg bg-sky-500/15 hover:bg-sky-500/25 text-sky-600 dark:text-sky-400 text-xs font-bold border border-sky-500/30 transition shadow-sm"
+                      title="Call Delivery Partner"
+                    >
+                      <Phone className="w-3 h-3" />
+                      <span>{riderPhone}</span>
+                    </a>
+                  )}
+                </div>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                  {simProgress >= 1 ? (
+                    <span className="text-emerald-500 font-extrabold">🎉 Courier Arrived at Doorstep!</span>
+                  ) : (
+                    <span>En route to {customerLocation.locality || 'your delivery address'}</span>
+                  )}
+                </p>
+              </>
+            )}
           </div>
         </div>
 
         {/* Real-Time Metrics Counters */}
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-4 flex-wrap">
           <div className="text-right">
             <div className="flex items-center justify-end gap-1.5 text-xs font-bold text-slate-500 dark:text-slate-400">
               <Navigation className="w-3.5 h-3.5 text-blue-400" />
@@ -272,19 +321,37 @@ export default function LiveDeliveryMap({
             </div>
           </div>
 
-          <div className="h-8 w-px bg-slate-300 dark:bg-slate-700"></div>
+          <div className="h-8 w-px bg-slate-300 dark:bg-slate-700 hidden sm:block"></div>
 
-          <div className="text-right">
-            <div className="flex items-center justify-end gap-1.5 text-xs font-bold text-slate-500 dark:text-slate-400">
-              <Clock className="w-3.5 h-3.5 text-amber-400" />
-              <span>Estimated ETA</span>
-            </div>
-            <div className="text-lg font-black text-amber-500">
-              {simProgress >= 1 ? 'Now' : `~${remainingMins} min`}
-            </div>
-          </div>
-
-          <div className="h-8 w-px bg-slate-300 dark:bg-slate-700"></div>
+          {/* Arriving Time (ETA) - ONLY shown for consumer, NOT shown for delivery person (safety of riders) */}
+          {viewerRole !== 'RIDER' ? (
+            <>
+              <div className="text-right">
+                <div className="flex items-center justify-end gap-1.5 text-xs font-bold text-slate-500 dark:text-slate-400">
+                  <Clock className="w-3.5 h-3.5 text-amber-400" />
+                  <span>Estimated Arrival</span>
+                </div>
+                <div className="text-lg font-black text-amber-500">
+                  {simProgress >= 1 ? 'Arrived' : `~${remainingMins} min`}
+                </div>
+              </div>
+              <div className="h-8 w-px bg-slate-300 dark:bg-slate-700 hidden sm:block"></div>
+            </>
+          ) : (
+            <>
+              {/* Delivery Driver Safety Mode: No Speed Rush ETA Counter */}
+              <div className="text-right">
+                <div className="flex items-center justify-end gap-1 text-[11px] font-bold text-emerald-500">
+                  <ShieldCheck className="w-3.5 h-3.5" />
+                  <span>Rider Safety First</span>
+                </div>
+                <div className="text-xs font-extrabold text-slate-600 dark:text-slate-300 bg-emerald-500/10 px-2 py-1 rounded-lg border border-emerald-500/20">
+                  Safe Pace Navigation
+                </div>
+              </div>
+              <div className="h-8 w-px bg-slate-300 dark:bg-slate-700 hidden sm:block"></div>
+            </>
+          )}
 
           <div className="text-right hidden sm:block">
             <div className="flex items-center justify-end gap-1.5 text-xs font-bold text-slate-500 dark:text-slate-400">

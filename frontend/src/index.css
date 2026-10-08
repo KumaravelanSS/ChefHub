@@ -31,12 +31,18 @@ html.dark {
 body {
   background-color: var(--bg-main);
   color: var(--text-primary);
-  font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+  font-family: 'Nunito', 'Outfit', system-ui, -apple-system, sans-serif;
   transition: background-color 0.3s ease, color 0.3s ease;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 .font-display {
-  font-family: 'Outfit', 'Plus Jakarta Sans', sans-serif;
+  font-family: 'Playfair Display', 'Outfit', serif;
+}
+
+.font-sans {
+  font-family: 'Nunito', 'Outfit', system-ui, sans-serif;
 }
 
 @layer utilities {

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Bike, MapPin, CheckCircle2, DollarSign, Navigation, Power, AlertCircle, Eye, EyeOff } from 'lucide-react';
-import AuthModal from '../components/AuthModal';
+import { Bike, MapPin, CheckCircle2, DollarSign, Navigation, Power, AlertCircle, Eye, EyeOff, Phone } from 'lucide-react';
+import RiderAuthPage from './RiderAuthPage';
+import LiveDeliveryMap from '../components/LiveDeliveryMap';
 
 export default function RiderSite({ user, onLogin }) {
   const [loginEmail, setLoginEmail] = useState('david.rider@chefhub.com');
@@ -13,6 +14,7 @@ export default function RiderSite({ user, onLogin }) {
   const [riderReviews, setRiderReviews] = useState([]);
   const [shiftStatus, setShiftStatus] = useState('ONLINE');
   const [coords, setCoords] = useState({ lat: 12.9716, lng: 77.5946 });
+  const [activeMapJobId, setActiveMapJobId] = useState(null);
 
   useEffect(() => {
     if (user && user.role === 'RIDER') {
@@ -134,15 +136,7 @@ export default function RiderSite({ user, onLogin }) {
 
   // Dedicated Login View
   if (!user || user.role !== 'RIDER') {
-    return (
-      <div className="max-w-md mx-auto py-10 px-4">
-        <AuthModal 
-          initialRole="RIDER" 
-          onSuccess={onLogin} 
-          isFloating={false} 
-        />
-      </div>
-    );
+    return <RiderAuthPage onLogin={onLogin} />;
   }
 
   // Logged-in Rider Console View
@@ -206,7 +200,38 @@ export default function RiderSite({ user, onLogin }) {
                     <span className="text-slate-600 dark:text-slate-400">Total Order: <strong className="text-emerald-600 dark:text-emerald-400 font-extrabold">₹{Number(job.total_amount).toFixed(2)}</strong></span>
                   </div>
 
-                  <div className="pt-2 border-t border-slate-300 dark:border-slate-800">
+                  <div className="pt-2 border-t border-slate-300 dark:border-slate-800 space-y-2.5">
+                    {/* Live Route Simulation Map Toggle */}
+                    <button
+                      type="button"
+                      onClick={() => setActiveMapJobId(activeMapJobId === job.order_id ? null : job.order_id)}
+                      className="w-full py-2 px-3 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800/80 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 font-bold text-xs flex items-center justify-between border border-slate-300 dark:border-slate-700 transition"
+                    >
+                      <span className="flex items-center gap-1.5">
+                        <MapPin className="w-3.5 h-3.5 text-sky-500" />
+                        <span>{activeMapJobId === job.order_id ? 'Hide Live Navigation Map' : '🗺️ Open Live Delivery Simulation Map'}</span>
+                      </span>
+                      <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-extrabold uppercase bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">
+                        Driver Safety Mode
+                      </span>
+                    </button>
+
+                    {/* Active Live Delivery Map Section */}
+                    {activeMapJobId === job.order_id && (
+                      <div className="pt-2 animate-fade-in">
+                        <LiveDeliveryMap
+                          chefLocation={{ lat: 12.9784, lng: 77.6408, locality: job.vendor_name || 'Kitchen' }}
+                          customerLocation={{ lat: 12.9352, lng: 77.6245, locality: job.delivery_address || 'Customer Location' }}
+                          riderName={user.name}
+                          customerName={job.customer_name || 'Alex Customer'}
+                          customerPhone={job.customer_phone || '+91 98765 43210'}
+                          vehicleType="Ather 450X EV Scooter"
+                          viewerRole="RIDER"
+                          isDarkMode={true}
+                        />
+                      </div>
+                    )}
+
                     {job.status === 'READY' && (
                       <button
                         onClick={() => acceptJob(job.order_id)}

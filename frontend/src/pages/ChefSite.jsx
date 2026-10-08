@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { ChefHat, Package, Utensils, DollarSign, AlertTriangle, CheckCircle2, Clock, Plus, Trash2, AlertCircle, Edit3, Image as ImageIcon, X, Sparkles, Ban, Eye, EyeOff, Tag, RefreshCw, Star } from 'lucide-react';
 import { KitchenLoadingScreen, KitchenDataLoader, KitchenSkeletonRows } from '../components/KitchenLoading';
-import AuthModal from '../components/AuthModal';
+import ChefAuthPage from './ChefAuthPage';
 
 const presetImages = [
   { label: 'Pasta', url: 'https://images.unsplash.com/photo-1551183053-bf91a1d81141?auto=format&fit=crop&w=600&q=80' },
@@ -667,15 +667,7 @@ export default function ChefSite({ user, onLogin, onLogout }) {
 
   // Dedicated Login View
   if (!user || user.role !== 'VENDOR') {
-    return (
-      <div className="max-w-md mx-auto py-10 px-4">
-        <AuthModal 
-          initialRole="VENDOR" 
-          onSuccess={onLogin} 
-          isFloating={false} 
-        />
-      </div>
-    );
+    return <ChefAuthPage onLogin={onLogin} />;
   }
 
   if (loadingInitial && dishes.length === 0) {
