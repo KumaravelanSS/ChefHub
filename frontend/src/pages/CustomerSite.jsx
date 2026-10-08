@@ -238,26 +238,84 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
     return () => clearTimeout(t1);
   }, [selectedDiet, favorites.size]);
 
-  // Fetch Vendors with dynamic location calculation
-  const fetchVendors = async (coords = currentCoords) => {
-    try {
-      const lat = coords?.lat || 12.9352;
-      const lng = coords?.lng || 77.6245;
-      const res = await fetch(`/api/customer/vendors?lat=${lat}&lng=${lng}&enforce_radius=false`);
-      const data = await res.json();
-      if (data.success) {
-        setVendors(data.vendors);
-        setSelectedVendor((prev) => {
-          if (!prev) return data.vendors[0] ? { ...data.vendors[0], menu: { ...data.vendors[0].menu } } : null;
-          const match = data.vendors.find((v) => v.vendor_id === prev.vendor_id);
-          return match ? { ...match, menu: { ...match.menu } } : (data.vendors[0] ? { ...data.vendors[0], menu: { ...data.vendors[0].menu } } : null);
-        });
+  // Active in-flight request tracking, AbortController & deduplication
+  const abortControllerRef = useRef(null);
+  const inFlightFetchRef = useRef(null);
+  const lastFetchMetaRef = useRef({ lat: null, lng: null, time: 0 });
+  const currentCoordsRef = useRef(currentCoords);
+  const sseDebounceTimerRef = useRef(null);
+
+  // Keep coords ref synced
+  useEffect(() => {
+    currentCoordsRef.current = currentCoords;
+  }, [currentCoords]);
+
+  // Fetch Vendors with dynamic location calculation, AbortController & Deduplication
+  const fetchVendors = async (coords = currentCoordsRef.current, force = false) => {
+    const targetLat = coords?.lat !== undefined ? Number(coords.lat) : 12.9352;
+    const targetLng = coords?.lng !== undefined ? Number(coords.lng) : 77.6245;
+
+    // Deduplication check: if identical coordinates fetched within 3.5 seconds and not forced, reuse existing promise
+    const now = Date.now();
+    const isSameLocation =
+      lastFetchMetaRef.current.lat !== null &&
+      Math.abs(lastFetchMetaRef.current.lat - targetLat) < 0.0001 &&
+      Math.abs(lastFetchMetaRef.current.lng - targetLng) < 0.0001;
+
+    if (!force) {
+      if (isSameLocation && now - lastFetchMetaRef.current.time < 3500) {
+        if (inFlightFetchRef.current) return inFlightFetchRef.current;
+        return; // Already resolved recently with same coordinates, skip redundant network call
       }
-    } catch (err) {
-      console.error('Fetch vendors error:', err);
-    } finally {
-      setLoadingVendors(false);
+      if (inFlightFetchRef.current && isSameLocation) {
+        return inFlightFetchRef.current;
+      }
     }
+
+    // Cancel any previous in-flight request to avoid race conditions and queued pending requests
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
+    const fetchPromise = (async () => {
+      try {
+        const res = await fetch(`/api/customer/vendors?lat=${targetLat}&lng=${targetLng}&enforce_radius=false`, {
+          signal: controller.signal
+        });
+
+        if (!res.ok && res.status !== 304) {
+          throw new Error(`HTTP ${res.status}`);
+        }
+
+        const data = await res.json();
+        if (data.success && Array.isArray(data.vendors)) {
+          setVendors(data.vendors);
+          setSelectedVendor((prev) => {
+            if (!prev) return data.vendors[0] ? { ...data.vendors[0], menu: { ...data.vendors[0].menu } } : null;
+            const match = data.vendors.find((v) => v.vendor_id === prev.vendor_id);
+            return match ? { ...match, menu: { ...match.menu } } : (data.vendors[0] ? { ...data.vendors[0], menu: { ...data.vendors[0].menu } } : null);
+          });
+          lastFetchMetaRef.current = { lat: targetLat, lng: targetLng, time: Date.now() };
+        }
+      } catch (err) {
+        if (err.name === 'AbortError') {
+          // Expected when a newer request or unmount occurs, do nothing
+          return;
+        }
+        console.error('Fetch vendors error:', err);
+      } finally {
+        if (abortControllerRef.current === controller) {
+          setLoadingVendors(false);
+          inFlightFetchRef.current = null;
+        }
+      }
+    })();
+
+    inFlightFetchRef.current = fetchPromise;
+    return fetchPromise;
   };
 
   const fetchMyOrders = async () => {
@@ -274,28 +332,59 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
     }
   };
 
+  // Coalesce / debounce rapid bursts of real-time events (e.g. from SSE)
+  const triggerDebouncedVendorRefresh = () => {
+    if (sseDebounceTimerRef.current) clearTimeout(sseDebounceTimerRef.current);
+    sseDebounceTimerRef.current = setTimeout(() => {
+      fetchVendors(currentCoordsRef.current, true);
+    }, 1500);
+  };
+
+  // 1. Stabilize user profile address/coords changes without triggering unnecessary renders
   useEffect(() => {
     if (user?.primary_address) {
-      setPrimaryAddress(user.primary_address);
-      setAddressInputText(user.primary_address);
+      setPrimaryAddress(prev => prev === user.primary_address ? prev : user.primary_address);
+      setAddressInputText(prev => prev === user.primary_address ? prev : user.primary_address);
     }
     if (user?.latitude && user?.longitude) {
-      setCurrentCoords(prev => ({
-        lat: Number(user.latitude),
-        lng: Number(user.longitude),
-        locality: prev.locality
-      }));
+      const uLat = Number(user.latitude);
+      const uLng = Number(user.longitude);
+      setCurrentCoords(prev => {
+        if (Math.abs(prev.lat - uLat) < 0.0001 && Math.abs(prev.lng - uLng) < 0.0001) {
+          return prev;
+        }
+        return {
+          lat: uLat,
+          lng: uLng,
+          locality: prev.locality
+        };
+      });
     }
-  }, [user]);
+  }, [user?.primary_address, user?.latitude, user?.longitude]);
 
+  // 2. Initial & Location-change Fetch: strictly dependent on primitive lat/lng coordinates
   useEffect(() => {
-    fetchVendors(currentCoords);
+    fetchVendors({ lat: currentCoords.lat, lng: currentCoords.lng });
+
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
+  }, [currentCoords.lat, currentCoords.lng]);
+
+  // 3. User Orders & Wallet Sync: strictly dependent on user authentication state
+  useEffect(() => {
     if (user && user.role === 'CUSTOMER') {
       fetchMyOrders();
       fetchWalletBalance();
     }
+  }, [user?.user_id, user?.role]);
 
-    // Server-Sent Events push stream
+  // 4. Server-Sent Events push stream & conservative background polling (active only for authenticated customers)
+  useEffect(() => {
+    if (!user || user.role !== 'CUSTOMER') return;
+
     let eventSource = null;
     try {
       const token = localStorage.getItem('chefhub_token');
@@ -303,12 +392,12 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
       eventSource = new EventSource(url);
 
       eventSource.addEventListener('DISH_STOCK_UPDATED', () => {
-        fetchVendors(currentCoords);
+        triggerDebouncedVendorRefresh();
       });
       eventSource.addEventListener('ORDER_CREATED', () => {
         fetchMyOrders();
-        fetchVendors(currentCoords);
         fetchWalletBalance();
+        triggerDebouncedVendorRefresh();
       });
       eventSource.addEventListener('ORDER_STATUS_CHANGED', () => {
         fetchMyOrders();
@@ -316,24 +405,27 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
       });
       eventSource.addEventListener('ORDER_CANCELLED', () => {
         fetchMyOrders();
-        fetchVendors(currentCoords);
         fetchWalletBalance();
+        triggerDebouncedVendorRefresh();
       });
-    } catch (e) {}
+    } catch (e) {
+      console.warn('Realtime SSE connection fallback:', e);
+    }
 
     const interval = setInterval(() => {
-      fetchVendors(currentCoords);
-      if (user && user.role === 'CUSTOMER') {
+      if (document.visibilityState === 'visible') {
+        fetchVendors(currentCoordsRef.current, false);
         fetchMyOrders();
         fetchWalletBalance();
       }
-    }, 15000);
+    }, 30000);
 
     return () => {
       if (eventSource) eventSource.close();
+      if (sseDebounceTimerRef.current) clearTimeout(sseDebounceTimerRef.current);
       clearInterval(interval);
     };
-  }, [user]);
+  }, [user?.user_id]);
 
   // Fetch Customer Wallet Balance
   const fetchWalletBalance = async () => {
@@ -415,7 +507,7 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
     const newAddr = `${hub.name}, Bengaluru, Karnataka`;
     setPrimaryAddress(newAddr);
     setAddressInputText(newAddr);
-    fetchVendors(newCoords);
+    fetchVendors(newCoords, true);
     setAddressFeedback(`📍 Delivery hub switched to ${hub.name}!`);
     setTimeout(() => setAddressFeedback(''), 2500);
   };
@@ -443,7 +535,7 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
       if (data.success) {
         setPrimaryAddress(addressInputText.trim());
         setAddressFeedback('✅ Address saved to profile!');
-        fetchVendors(currentCoords);
+        fetchVendors(currentCoords, true);
         setTimeout(() => {
           setShowAddressModal(false);
           setAddressFeedback('');
@@ -719,7 +811,7 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
           setMerchantTransactionView(orderReceipt);
           setOrderStatusMsg('✅ Payment Successful & Order Confirmed!');
           fetchMyOrders();
-          fetchVendors(currentCoords);
+          fetchVendors(currentCoords, true);
         }, 2600);
       } else {
         const failTxnId = 'TXN-FAIL-' + Math.floor(10000000 + Math.random() * 90000000);
@@ -744,7 +836,7 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
           setPaymentStage('IDLE');
           setMerchantTransactionView(failureData);
           setOrderStatusMsg(`❌ Order Failed: ${data.message}`);
-          fetchVendors(currentCoords);
+          fetchVendors(currentCoords, true);
         }, 2600);
       }
     } catch (err) {
