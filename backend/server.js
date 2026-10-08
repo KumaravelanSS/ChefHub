@@ -41,10 +41,15 @@ const publicPath = path.join(__dirname, 'public');
 const frontendDistPath = path.join(__dirname, '../frontend/dist');
 
 let staticPath = null;
-if (fs.existsSync(frontendDistPath)) {
+// Prioritize the directory that actually contains the bundled assets
+if (fs.existsSync(path.join(publicPath, 'assets'))) {
+  staticPath = publicPath;
+} else if (fs.existsSync(path.join(frontendDistPath, 'assets'))) {
   staticPath = frontendDistPath;
 } else if (fs.existsSync(publicPath)) {
   staticPath = publicPath;
+} else if (fs.existsSync(frontendDistPath)) {
+  staticPath = frontendDistPath;
 }
 
 if (staticPath) {
@@ -100,6 +105,10 @@ app.use('/api/realtime', realtimeRoutes);
 if (staticPath) {
   app.get('*', (req, res, next) => {
     if (req.path.startsWith('/api')) return next();
+    // Do NOT return HTML for missing static asset files (prevents MIME type script failure)
+    if (req.path.startsWith('/assets/') || req.path.match(/\.(js|css|png|jpg|jpeg|gif|svg|ico|json|woff2?|ttf)$/i)) {
+      return res.status(404).type('text/plain').send('Asset not found');
+    }
     res.sendFile(path.join(staticPath, 'index.html'));
   });
 }
