@@ -245,7 +245,7 @@ router.post('/coupons/validate', async (req, res) => {
 });
 
 // Customer Escrow Wallet Balance
-router.get('/wallet', authenticateToken, requireRole('CUSTOMER'), async (req, res) => {
+router.get('/wallet', authenticateToken, requireRole(['CUSTOMER', 'VENDOR', 'RIDER', 'ADMIN']), async (req, res) => {
   try {
     const customer_id = req.user.user_id;
     let rows = await query('SELECT balance, updated_at FROM customer_wallets WHERE customer_id = ?', [customer_id]);
@@ -266,7 +266,7 @@ router.get('/wallet', authenticateToken, requireRole('CUSTOMER'), async (req, re
 });
 
 // Top-up Escrow Wallet via Simulated Gateway
-router.post('/wallet/topup', authenticateToken, requireRole('CUSTOMER'), async (req, res) => {
+router.post('/wallet/topup', authenticateToken, requireRole(['CUSTOMER', 'VENDOR', 'RIDER', 'ADMIN']), async (req, res) => {
   try {
     const customer_id = req.user.user_id;
     const { amount, payment_method } = req.body;
@@ -300,7 +300,7 @@ router.post('/wallet/topup', authenticateToken, requireRole('CUSTOMER'), async (
 });
 
 // Create New Order
-router.post('/orders', checkoutLimiter, authenticateToken, requireRole('CUSTOMER'), async (req, res) => {
+router.post('/orders', checkoutLimiter, authenticateToken, requireRole(['CUSTOMER', 'VENDOR', 'RIDER', 'ADMIN']), async (req, res) => {
   try {
     const { vendor_id, items, coupon_code, delivery_address, payment_method } = req.body;
     const customer_id = req.user.user_id;
@@ -655,11 +655,11 @@ const handleCustomerCancelOrder = async (req, res) => {
   }
 };
 
-router.post('/orders/:id/cancel', authenticateToken, requireRole('CUSTOMER'), handleCustomerCancelOrder);
-router.delete('/orders/:id', authenticateToken, requireRole('CUSTOMER'), handleCustomerCancelOrder);
+router.post('/orders/:id/cancel', authenticateToken, requireRole(['CUSTOMER', 'VENDOR', 'RIDER', 'ADMIN']), handleCustomerCancelOrder);
+router.delete('/orders/:id', authenticateToken, requireRole(['CUSTOMER', 'VENDOR', 'RIDER', 'ADMIN']), handleCustomerCancelOrder);
 
 // Fetch Orders for Authenticated Customer
-router.get('/my-orders', authenticateToken, requireRole('CUSTOMER'), async (req, res) => {
+router.get('/my-orders', authenticateToken, requireRole(['CUSTOMER', 'VENDOR', 'RIDER', 'ADMIN']), async (req, res) => {
   try {
     const orders = await query(`
       SELECT o.*, u.name AS vendor_name 
@@ -743,7 +743,7 @@ router.get('/my-orders', authenticateToken, requireRole('CUSTOMER'), async (req,
 });
 
 // Submit/Upsert Customer Review (One Review Per Order)
-router.post('/reviews', authenticateToken, requireRole('CUSTOMER'), async (req, res) => {
+router.post('/reviews', authenticateToken, requireRole(['CUSTOMER', 'VENDOR', 'RIDER', 'ADMIN']), async (req, res) => {
   try {
     const { order_id, vendor_id, rider_id, vendor_rating, rider_rating, comment } = req.body;
     

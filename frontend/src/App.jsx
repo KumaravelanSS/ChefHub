@@ -57,17 +57,32 @@ function MainApp() {
 
   const handleLogout = () => {
     const currentPath = window.location.pathname;
-    localStorage.removeItem('chefhub_token');
-    localStorage.removeItem('chefhub_user');
+    const savedTheme = localStorage.getItem('chefhub_theme');
+
+    // Complete purge of all stored customer & user data (tokens, wallet, addresses, cards, cart, etc.)
+    try {
+      localStorage.clear();
+      sessionStorage.clear();
+    } catch (e) {
+      console.warn('Storage purge error:', e);
+    }
+
+    // Preserve user theme preference
+    if (savedTheme) {
+      localStorage.setItem('chefhub_theme', savedTheme);
+    }
+
     setCurrentUser(null);
+
+    // Perform a full page refresh/redirect to guarantee zero in-memory React state retention
     if (currentPath.startsWith('/chef')) {
-      navigate('/chef/login');
+      window.location.href = '/chef/login';
     } else if (currentPath.startsWith('/rider')) {
-      navigate('/rider/login');
+      window.location.href = '/rider/login';
     } else if (currentPath.startsWith('/admin')) {
-      navigate('/admin/login');
+      window.location.href = '/admin/login';
     } else {
-      navigate('/');
+      window.location.href = '/';
     }
   };
 
