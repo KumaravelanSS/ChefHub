@@ -58,7 +58,7 @@ function SocialButton({ icon, label, onClick }) {
   );
 }
 
-export default function CustomerAuthPage({ onLogin }) {
+export default function CustomerAuthPage({ onLogin, isModal = false }) {
   const navigate = useNavigate();
   const [mode, setMode] = useState('login');
 
@@ -148,6 +148,213 @@ export default function CustomerAuthPage({ onLogin }) {
     setTimeout(() => { setLoginId('alex.customer@gmail.com'); setLoginPwd('customer123'); setMode('login'); setSuccess(''); }, 1800);
   };
 
+  const authCard = (
+    <div className={`w-full ${isModal ? 'bg-white dark:bg-slate-900' : 'max-w-md bg-white dark:bg-slate-900 rounded-3xl shadow-2xl border border-slate-200 dark:border-slate-800'} overflow-hidden`}>
+      <div className="h-1.5 bg-gradient-to-r from-orange-500 via-amber-400 to-yellow-400" />
+      <div className="p-6 sm:p-7 space-y-5">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-2xl bg-orange-100 dark:bg-orange-500/15 flex items-center justify-center">
+              <ShoppingBag className="w-5 h-5 text-orange-500" />
+            </div>
+            <div>
+              <h2 className="text-lg font-black text-slate-900 dark:text-white leading-none">
+                {mode === 'login' ? 'Welcome Back!' : 'Join ChefHub'}
+              </h2>
+              <p className="text-xs text-slate-500 dark:text-slate-400 font-semibold mt-0.5">Customer Portal</p>
+            </div>
+          </div>
+          <span className="px-3 py-1 rounded-full bg-orange-500/10 text-orange-600 dark:text-orange-400 text-[11px] font-extrabold uppercase border border-orange-500/20">
+            Customer
+          </span>
+        </div>
+
+        <div className="grid grid-cols-2 gap-1 p-1 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+          {['login', 'register'].map(m => (
+            <button
+              key={m}
+              type="button"
+              onClick={() => { setMode(m); clearFeedback(); }}
+              className={`py-2 rounded-lg text-xs font-extrabold transition-all capitalize cursor-pointer ${
+                mode === m
+                  ? 'bg-orange-500 text-white shadow-md shadow-orange-500/25'
+                  : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+              }`}
+            >
+              {m === 'login' ? 'Sign In' : 'Create Account'}
+            </button>
+          ))}
+        </div>
+
+        {error && (
+          <div className="flex items-start gap-2 p-3 rounded-xl bg-rose-500/10 border border-rose-500/25 text-rose-500 text-xs font-bold animate-in fade-in">
+            <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+            <span>{error}</span>
+          </div>
+        )}
+        {success && (
+          <div className="flex items-start gap-2 p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/25 text-emerald-500 text-xs font-bold animate-in fade-in">
+            <Check className="w-4 h-4 shrink-0 mt-0.5" />
+            <span>{success}</span>
+          </div>
+        )}
+
+        {mode === 'login' && (
+          <form onSubmit={handleLogin} className="space-y-4">
+            <div>
+              <label className="block text-xs font-extrabold text-slate-700 dark:text-slate-300 mb-1.5">Username or Email</label>
+              <div className="relative">
+                <User className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                <input
+                  id="cust-login-id"
+                  type="text"
+                  value={loginId}
+                  onChange={e => setLoginId(e.target.value)}
+                  placeholder="Username or email address"
+                  className="w-full pl-10 pr-4 py-3 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-orange-400 placeholder:text-slate-400 transition"
+                  required
+                />
+              </div>
+            </div>
+            <div>
+              <label className="block text-xs font-extrabold text-slate-700 dark:text-slate-300 mb-1.5">Password</label>
+              <PasswordInput
+                id="cust-login-pwd"
+                value={loginPwd}
+                onChange={setLoginPwd}
+                placeholder="Your password"
+                show={showLoginPwd}
+                onToggle={() => setShowLoginPwd(v => !v)}
+              />
+            </div>
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full py-3 rounded-xl bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white font-extrabold text-sm shadow-lg shadow-orange-500/20 transition-all disabled:opacity-60 cursor-pointer"
+            >
+              {loading ? 'Signing in…' : 'Sign In to ChefHub'}
+            </button>
+            <button
+              type="button"
+              onClick={() => { setLoginId('alex.customer@gmail.com'); setLoginPwd('customer123'); }}
+              className="w-full py-2 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 text-xs font-bold hover:bg-slate-50 dark:hover:bg-slate-800 transition cursor-pointer"
+            >
+              ⚡ Autofill Demo Credentials
+            </button>
+          </form>
+        )}
+
+        {mode === 'register' && (
+          <form onSubmit={handleRegister} className="space-y-3.5">
+            <div>
+              <label className="block text-xs font-extrabold text-slate-700 dark:text-slate-300 mb-1.5">Full Name</label>
+              <div className="relative">
+                <User className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                <input
+                  id="cust-reg-name"
+                  type="text"
+                  value={regName}
+                  onChange={e => setRegName(e.target.value)}
+                  placeholder="Your full name"
+                  className="w-full pl-10 pr-4 py-3 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-orange-400 placeholder:text-slate-400 transition"
+                  required
+                />
+              </div>
+            </div>
+            <div>
+              <label className="block text-xs font-extrabold text-slate-700 dark:text-slate-300 mb-1.5">Email Address</label>
+              <div className="relative">
+                <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                <input
+                  id="cust-reg-email"
+                  type="email"
+                  value={regEmail}
+                  onChange={e => setRegEmail(e.target.value)}
+                  placeholder="your@email.com"
+                  className="w-full pl-10 pr-4 py-3 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-orange-400 placeholder:text-slate-400 transition"
+                  required
+                />
+              </div>
+            </div>
+            <div>
+              <label className="block text-xs font-extrabold text-slate-700 dark:text-slate-300 mb-1.5">Phone (optional)</label>
+              <div className="relative">
+                <Phone className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                <input
+                  id="cust-reg-phone"
+                  type="tel"
+                  value={regPhone}
+                  onChange={e => setRegPhone(e.target.value)}
+                  placeholder="+91 98765 43210"
+                  className="w-full pl-10 pr-4 py-3 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-orange-400 placeholder:text-slate-400 transition"
+                />
+              </div>
+            </div>
+            <div>
+              <label className="block text-xs font-extrabold text-slate-700 dark:text-slate-300 mb-1.5">Password</label>
+              <PasswordInput
+                id="cust-reg-pwd"
+                value={regPwd}
+                onChange={setRegPwd}
+                placeholder="Create a strong password"
+                show={showRegPwd}
+                onToggle={() => setShowRegPwd(v => !v)}
+              />
+              {regPwd.length > 0 && (
+                <div className="mt-2.5 space-y-2">
+                  <div className="w-full h-1.5 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
+                    <div className={`h-full rounded-full transition-all duration-500 ${pwd.bar}`} style={{ width: pwdBarWidth }} />
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className={`text-[11px] font-extrabold ${pwd.text}`}>{pwd.label}</span>
+                    {pwd.isAcceptable ? (
+                      <span className="text-[11px] font-bold text-emerald-500 flex items-center gap-1">
+                        <Check className="w-3 h-3" />Accepted
+                      </span>
+                    ) : (
+                      <span className="text-[11px] font-bold text-rose-500">Cannot create account yet</span>
+                    )}
+                  </div>
+                  <div className="grid grid-cols-2 gap-1">
+                    {[['length', '8+ characters'], ['upper', 'Uppercase'], ['lower', 'Lowercase'], ['number', 'Number'], ['special', 'Special char']].map(([k, l]) => (
+                      <div key={k} className={`flex items-center gap-1 text-[11px] font-bold ${pwd.checks[k] ? 'text-emerald-500' : 'text-slate-400'}`}>
+                        {pwd.checks[k] ? <Check className="w-3 h-3" /> : <X className="w-3 h-3" />}{l}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+            <div className="p-2.5 rounded-xl bg-blue-500/8 border border-blue-500/15 text-blue-500 dark:text-blue-400 text-[11px] font-semibold">
+              📍 Delivery address can be added from your Profile page after signing up.
+            </div>
+            <button
+              type="submit"
+              disabled={loading || !pwd.isAcceptable}
+              className="w-full py-3 rounded-xl bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white font-extrabold text-sm shadow-lg shadow-orange-500/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+            >
+              {loading ? 'Creating account…' : 'Create Customer Account'}
+            </button>
+          </form>
+        )}
+
+        <div className="flex items-center gap-3">
+          <div className="flex-1 h-px bg-slate-200 dark:bg-slate-700" />
+          <span className="text-xs text-slate-400 font-bold">or continue with</span>
+          <div className="flex-1 h-px bg-slate-200 dark:bg-slate-700" />
+        </div>
+        <div className="flex gap-3">
+          <SocialButton icon="🌐" label="Google" onClick={() => handleSocial('Google')} />
+          <SocialButton icon="🍎" label="Apple" onClick={() => handleSocial('Apple')} />
+        </div>
+      </div>
+    </div>
+  );
+
+  if (isModal) {
+    return authCard;
+  }
+
   return (
     <div className="min-h-screen flex bg-[var(--bg-main)]">
       {/* Left hero */}
@@ -170,8 +377,11 @@ export default function CustomerAuthPage({ onLogin }) {
           </p>
         </div>
         <div className="relative z-10 space-y-3">
-          {[['🏠','Ghost Kitchen Delivery'],['⭐','Top-Rated Chefs'],['🗺️','Live GPS Tracking'],['🎟️','Coupon Codes']].map(([icon,text]) => (
-            <div key={text} className="flex items-center gap-3 text-white/90"><span className="text-xl">{icon}</span><span className="font-bold text-sm">{text}</span></div>
+          {[['🏠', 'Ghost Kitchen Delivery'], ['⭐', 'Top-Rated Chefs'], ['🗺️', 'Live GPS Tracking'], ['🎟️', 'Coupon Codes']].map(([icon, text]) => (
+            <div key={text} className="flex items-center gap-3 text-white/90">
+              <span className="text-xl">{icon}</span>
+              <span className="font-bold text-sm">{text}</span>
+            </div>
           ))}
         </div>
       </div>
@@ -179,116 +389,11 @@ export default function CustomerAuthPage({ onLogin }) {
       {/* Right auth panel */}
       <div className="flex-1 flex flex-col items-center justify-center p-6 sm:p-10">
         <div className="w-full max-w-md mb-5">
-          <button onClick={() => navigate('/')} className="flex items-center gap-1.5 text-slate-500 hover:text-orange-500 text-sm font-bold transition-colors">
+          <button onClick={() => navigate('/')} className="flex items-center gap-1.5 text-slate-500 hover:text-orange-500 text-sm font-bold transition-colors cursor-pointer">
             <ArrowLeft className="w-4 h-4" /> Customer Marketplace
           </button>
         </div>
-
-        <div className="w-full max-w-md bg-white dark:bg-slate-900 rounded-3xl shadow-2xl border border-slate-200 dark:border-slate-800 overflow-hidden">
-          <div className="h-1.5 bg-gradient-to-r from-orange-500 via-amber-400 to-yellow-400" />
-          <div className="p-7 space-y-5">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-2xl bg-orange-100 dark:bg-orange-500/15 flex items-center justify-center">
-                  <ShoppingBag className="w-5 h-5 text-orange-500" />
-                </div>
-                <div>
-                  <h2 className="text-lg font-black text-slate-900 dark:text-white leading-none">{mode === 'login' ? 'Welcome Back!' : 'Join ChefHub'}</h2>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 font-semibold mt-0.5">Customer Portal</p>
-                </div>
-              </div>
-              <span className="px-3 py-1 rounded-full bg-orange-500/10 text-orange-600 dark:text-orange-400 text-[11px] font-extrabold uppercase border border-orange-500/20">Customer</span>
-            </div>
-
-            <div className="grid grid-cols-2 gap-1 p-1 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
-              {['login','register'].map(m => (
-                <button key={m} type="button" onClick={() => { setMode(m); clearFeedback(); }}
-                  className={`py-2 rounded-lg text-xs font-extrabold transition-all capitalize ${mode===m ? 'bg-orange-500 text-white shadow-md shadow-orange-500/25' : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'}`}>
-                  {m === 'login' ? 'Sign In' : 'Create Account'}
-                </button>
-              ))}
-            </div>
-
-            {error && <div className="flex items-start gap-2 p-3 rounded-xl bg-rose-500/10 border border-rose-500/25 text-rose-500 text-xs font-bold"><AlertCircle className="w-4 h-4 shrink-0 mt-0.5" /><span>{error}</span></div>}
-            {success && <div className="flex items-start gap-2 p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/25 text-emerald-500 text-xs font-bold"><Check className="w-4 h-4 shrink-0 mt-0.5" /><span>{success}</span></div>}
-
-            {mode === 'login' && (
-              <form onSubmit={handleLogin} className="space-y-4">
-                <div>
-                  <label className="block text-xs font-extrabold text-slate-700 dark:text-slate-300 mb-1.5">Username or Email</label>
-                  <div className="relative">
-                    <User className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                    <input id="cust-login-id" type="text" value={loginId} onChange={e => setLoginId(e.target.value)} placeholder="Username or email address"
-                      className="w-full pl-10 pr-4 py-3 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-orange-400 placeholder:text-slate-400 transition" required />
-                  </div>
-                </div>
-                <div>
-                  <label className="block text-xs font-extrabold text-slate-700 dark:text-slate-300 mb-1.5">Password</label>
-                  <PasswordInput id="cust-login-pwd" value={loginPwd} onChange={setLoginPwd} placeholder="Your password" show={showLoginPwd} onToggle={() => setShowLoginPwd(v => !v)} />
-                </div>
-                <button type="submit" disabled={loading} className="w-full py-3 rounded-xl bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white font-extrabold text-sm shadow-lg shadow-orange-500/20 transition-all disabled:opacity-60">
-                  {loading ? 'Signing in…' : 'Sign In to ChefHub'}
-                </button>
-                <button type="button" onClick={() => { setLoginId('alex.customer@gmail.com'); setLoginPwd('customer123'); }}
-                  className="w-full py-2 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 text-xs font-bold hover:bg-slate-50 dark:hover:bg-slate-800 transition">
-                  ⚡ Autofill Demo Credentials
-                </button>
-              </form>
-            )}
-
-            {mode === 'register' && (
-              <form onSubmit={handleRegister} className="space-y-3.5">
-                <div>
-                  <label className="block text-xs font-extrabold text-slate-700 dark:text-slate-300 mb-1.5">Full Name</label>
-                  <div className="relative"><User className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" /><input id="cust-reg-name" type="text" value={regName} onChange={e=>setRegName(e.target.value)} placeholder="Your full name" className="w-full pl-10 pr-4 py-3 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-orange-400 placeholder:text-slate-400 transition" required /></div>
-                </div>
-                <div>
-                  <label className="block text-xs font-extrabold text-slate-700 dark:text-slate-300 mb-1.5">Email Address</label>
-                  <div className="relative"><Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" /><input id="cust-reg-email" type="email" value={regEmail} onChange={e=>setRegEmail(e.target.value)} placeholder="your@email.com" className="w-full pl-10 pr-4 py-3 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-orange-400 placeholder:text-slate-400 transition" required /></div>
-                </div>
-                <div>
-                  <label className="block text-xs font-extrabold text-slate-700 dark:text-slate-300 mb-1.5">Phone (optional)</label>
-                  <div className="relative"><Phone className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" /><input id="cust-reg-phone" type="tel" value={regPhone} onChange={e=>setRegPhone(e.target.value)} placeholder="+91 98765 43210" className="w-full pl-10 pr-4 py-3 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-orange-400 placeholder:text-slate-400 transition" /></div>
-                </div>
-                <div>
-                  <label className="block text-xs font-extrabold text-slate-700 dark:text-slate-300 mb-1.5">Password</label>
-                  <PasswordInput id="cust-reg-pwd" value={regPwd} onChange={setRegPwd} placeholder="Create a strong password" show={showRegPwd} onToggle={() => setShowRegPwd(v=>!v)} />
-                  {regPwd.length > 0 && (
-                    <div className="mt-2.5 space-y-2">
-                      <div className="w-full h-1.5 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
-                        <div className={`h-full rounded-full transition-all duration-500 ${pwd.bar}`} style={{ width: pwdBarWidth }} />
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span className={`text-[11px] font-extrabold ${pwd.text}`}>{pwd.label}</span>
-                        {pwd.isAcceptable ? <span className="text-[11px] font-bold text-emerald-500 flex items-center gap-1"><Check className="w-3 h-3" />Accepted</span> : <span className="text-[11px] font-bold text-rose-500">Cannot create account yet</span>}
-                      </div>
-                      <div className="grid grid-cols-2 gap-1">
-                        {[['length','8+ characters'],['upper','Uppercase'],['lower','Lowercase'],['number','Number'],['special','Special char']].map(([k,l]) => (
-                          <div key={k} className={`flex items-center gap-1 text-[11px] font-bold ${pwd.checks[k] ? 'text-emerald-500' : 'text-slate-400'}`}>
-                            {pwd.checks[k] ? <Check className="w-3 h-3" /> : <X className="w-3 h-3" />}{l}
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-                <div className="p-2.5 rounded-xl bg-blue-500/8 border border-blue-500/15 text-blue-500 dark:text-blue-400 text-[11px] font-semibold">
-                  📍 Delivery address can be added from your Profile page after signing up.
-                </div>
-                <button type="submit" disabled={loading || !pwd.isAcceptable}
-                  className="w-full py-3 rounded-xl bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white font-extrabold text-sm shadow-lg shadow-orange-500/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed">
-                  {loading ? 'Creating account…' : 'Create Customer Account'}
-                </button>
-              </form>
-            )}
-
-            <div className="flex items-center gap-3"><div className="flex-1 h-px bg-slate-200 dark:bg-slate-700" /><span className="text-xs text-slate-400 font-bold">or continue with</span><div className="flex-1 h-px bg-slate-200 dark:bg-slate-700" /></div>
-            <div className="flex gap-3">
-              <SocialButton icon="🌐" label="Google" onClick={() => handleSocial('Google')} />
-              <SocialButton icon="🍎" label="Apple" onClick={() => handleSocial('Apple')} />
-            </div>
-          </div>
-        </div>
+        {authCard}
       </div>
     </div>
   );

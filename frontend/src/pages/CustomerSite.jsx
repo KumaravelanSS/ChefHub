@@ -4311,8 +4311,8 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
 
       {/* Customer Auth / Sign In Modal for Guests & Role Switchers */}
       {showAuthModal && (
-        <div className="fixed inset-0 z-[90] bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-3 sm:p-5 overflow-y-auto animate-in fade-in">
-          <div className="relative max-w-lg w-full my-auto">
+        <div className="fixed inset-0 z-[90] bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto animate-in fade-in">
+          <div className="relative max-w-md w-full my-auto">
             <button
               onClick={() => setShowAuthModal(false)}
               className="absolute -top-3 -right-3 z-50 w-8 h-8 rounded-full bg-slate-800 text-white border border-slate-700 flex items-center justify-center hover:bg-rose-500 transition-colors shadow-lg cursor-pointer"
@@ -4320,8 +4320,9 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
             >
               <X className="w-4 h-4" />
             </button>
-            <div className="overflow-hidden rounded-3xl shadow-2xl border border-slate-700">
+            <div className="overflow-hidden rounded-3xl shadow-2xl border border-slate-200 dark:border-slate-800">
               <CustomerAuthPage
+                isModal={true}
                 onLogin={(loggedInUser) => {
                   onLogin(loggedInUser);
                   setShowAuthModal(false);
