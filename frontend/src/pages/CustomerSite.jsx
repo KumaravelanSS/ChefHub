@@ -4,7 +4,7 @@ import {
   X, AlertCircle, AlertTriangle, Sparkles, Send, Ban, Utensils, Flame, Heart,
   Search, Filter, Eye, EyeOff, CreditCard, ShieldCheck, Lock, Receipt, ArrowRight,
   Truck, QrCode, Building, Wallet, Download, RefreshCw, Tag, Percent, Navigation,
-  Compass, ChefHat, Check, Info, SlidersHorizontal, ArrowUpDown
+  Compass, ChefHat, Check, Info, SlidersHorizontal, ArrowUpDown, Plus
 } from 'lucide-react';
 import { KitchenLoadingScreen } from '../components/KitchenLoading';
 import CustomerAuthPage from './CustomerAuthPage';
