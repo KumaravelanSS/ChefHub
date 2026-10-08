@@ -13,14 +13,6 @@ export default function Navbar({ currentUser, onLogout, theme, onToggleTheme }) 
 
   const navTabs = [
     {
-      id: '/portals',
-      label: 'Launchpad',
-      icon: LayoutGrid,
-      path: '/portals',
-      activeColor: 'bg-gradient-to-r from-orange-500 to-amber-500 shadow-orange-500/25 ring-orange-300/40',
-      activeText: 'text-slate-950 dark:text-slate-950 font-black'
-    },
-    {
       id: '/',
       label: 'Customer Site',
       icon: ShoppingBag,
@@ -56,7 +48,6 @@ export default function Navbar({ currentUser, onLogout, theme, onToggleTheme }) 
 
   const getActiveTabId = () => {
     const p = location.pathname;
-    if (p === '/portals') return '/portals';
     if (p.startsWith('/chef')) return '/chef/login';
     if (p.startsWith('/rider')) return '/rider/login';
     if (p.startsWith('/admin')) return '/admin/login';
@@ -102,7 +93,7 @@ export default function Navbar({ currentUser, onLogout, theme, onToggleTheme }) 
       open: true,
       action: 'SWITCH',
       title: 'Switch Portal?',
-      message: 'Are you sure you want to switch portals and return to the Launchpad hub?'
+      message: 'Are you sure you want to switch portals and return to the Customer Marketplace?'
     });
   };
 
@@ -119,7 +110,7 @@ export default function Navbar({ currentUser, onLogout, theme, onToggleTheme }) 
     const action = confirmModal.action;
     setConfirmModal({ open: false, action: null, title: '', message: '' });
     if (action === 'SWITCH') {
-      navigate('/portals');
+      navigate('/');
     } else if (action === 'LOGOUT') {
       onLogout();
     }
@@ -137,7 +128,7 @@ export default function Navbar({ currentUser, onLogout, theme, onToggleTheme }) 
       case 'ADMIN':
         return { label: 'Master Admin Control', icon: ShieldAlert, color: 'text-rose-400 bg-rose-500/10 border-rose-500/30' };
       default:
-        return { label: 'ChefHub Platform', icon: LayoutGrid, color: 'text-orange-400 bg-orange-500/10 border-orange-500/30' };
+        return { label: 'ChefHub Platform', icon: ShoppingBag, color: 'text-orange-400 bg-orange-500/10 border-orange-500/30' };
     }
   };
 
@@ -150,7 +141,7 @@ export default function Navbar({ currentUser, onLogout, theme, onToggleTheme }) 
         
         {/* Top Left: Logo & Brand + Dynamic Role Badge */}
         <div className="flex items-center gap-3">
-          <Link to={currentUser ? '/' : '/portals'} className="flex items-center gap-2 group shrink-0">
+          <Link to="/" className="flex items-center gap-2 group shrink-0">
             <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-tr from-orange-600 via-amber-500 to-orange-400 flex items-center justify-center shadow-lg shadow-orange-500/25 group-hover:scale-105 transition-transform">
               <UtensilsCrossed className="w-4 h-4 sm:w-5 sm:h-5 text-slate-950" />
             </div>
@@ -212,7 +203,7 @@ export default function Navbar({ currentUser, onLogout, theme, onToggleTheme }) 
           <button
             onClick={handleSwitchPortalClick}
             className="hidden md:flex items-center gap-2 px-3.5 py-1.5 rounded-xl backdrop-blur-xl bg-white/70 dark:bg-slate-800/70 hover:bg-white/90 dark:hover:bg-slate-800/90 text-slate-800 dark:text-slate-100 text-xs font-black border border-slate-200/90 dark:border-white/10 hover:border-orange-500/50 shadow-sm shadow-slate-200/50 dark:shadow-none hover:shadow-orange-500/15 transition-all duration-200 hover:-translate-y-0.5 active:translate-y-0 cursor-pointer group"
-            title="Switch Portal / View Launchpad"
+            title="Switch Portal"
           >
             <ArrowRightLeft className="w-3.5 h-3.5 text-orange-500 group-hover:rotate-180 transition-transform duration-300" />
             <span>Switch Portal</span>
@@ -256,7 +247,7 @@ export default function Navbar({ currentUser, onLogout, theme, onToggleTheme }) 
             </div>
           ) : (
             <Link
-              to="/portals"
+              to="/customer/login"
               className="flex items-center gap-1 px-3 py-1.5 sm:px-4 sm:py-2 rounded-xl bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-slate-950 font-black text-xs shadow-md shadow-orange-500/25 ring-1 ring-orange-300/40 transition-all duration-200 hover:-translate-y-0.5 active:translate-y-0"
             >
               <UserCheck className="w-3.5 h-3.5" />
@@ -304,28 +295,37 @@ export default function Navbar({ currentUser, onLogout, theme, onToggleTheme }) 
           )}
 
           <div className="grid grid-cols-2 gap-2 text-xs font-bold">
-            <button
-              onClick={(e) => {
-                setMobileMenuOpen(false);
-                handleSwitchPortalClick(e);
-              }}
-              className="flex items-center gap-2 p-2.5 rounded-xl bg-slate-900 text-slate-300 border border-slate-800 text-left"
-            >
-              <LayoutGrid className="w-4 h-4 text-orange-400" />
-              Portals Launchpad
-            </button>
-
-            {!isCustomerPage && (
-              <Link
-                to="/"
-                onClick={() => setMobileMenuOpen(false)}
-                className="flex items-center gap-2 p-2.5 rounded-xl bg-slate-900 text-slate-300 border border-slate-800"
-              >
-                <ShoppingBag className="w-4 h-4 text-amber-400" />
-                Customer Site
-              </Link>
-            )}
+            {navTabs.map((tab) => {
+              const Icon = tab.icon;
+              const isCurrent = activeTabId === tab.id;
+              return (
+                <Link
+                  key={tab.id}
+                  to={tab.path}
+                  onClick={() => setMobileMenuOpen(false)}
+                  className={`flex items-center gap-2 p-2.5 rounded-xl border transition-colors ${
+                    isCurrent
+                      ? 'bg-orange-500/15 border-orange-500/40 text-orange-400'
+                      : 'bg-slate-100 dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-300 dark:border-slate-800'
+                  }`}
+                >
+                  <Icon className="w-4 h-4" />
+                  <span>{tab.label}</span>
+                </Link>
+              );
+            })}
           </div>
+
+          {!currentUser && (
+            <Link
+              to="/customer/login"
+              onClick={() => setMobileMenuOpen(false)}
+              className="flex items-center justify-center gap-2 p-2.5 rounded-xl bg-gradient-to-r from-orange-500 to-amber-500 text-slate-950 font-black text-xs shadow-md"
+            >
+              <UserCheck className="w-4 h-4" />
+              <span>Login / Sign Up</span>
+            </Link>
+          )}
         </div>
       )}
 

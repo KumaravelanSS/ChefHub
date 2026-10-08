@@ -54,11 +54,11 @@ export default class ErrorBoundary extends React.Component {
               </button>
 
               <a
-                href="/portals"
+                href="/"
                 className="py-3 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs border border-slate-700 transition-all flex items-center justify-center gap-2 cursor-pointer"
               >
                 <Home className="w-4 h-4" />
-                <span>Portals</span>
+                <span>Home</span>
               </a>
             </div>
           </div>

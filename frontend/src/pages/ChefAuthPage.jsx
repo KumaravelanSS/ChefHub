@@ -134,8 +134,8 @@ export default function ChefAuthPage({ onLogin }) {
       {/* Right auth panel */}
       <div className="flex-1 flex flex-col items-center justify-center p-6 sm:p-10">
         <div className="w-full max-w-md mb-5">
-          <button onClick={() => navigate('/portals')} className="flex items-center gap-1.5 text-slate-500 hover:text-emerald-500 text-sm font-bold transition-colors">
-            <ArrowLeft className="w-4 h-4" /> All Portals
+          <button onClick={() => navigate('/')} className="flex items-center gap-1.5 text-slate-500 hover:text-emerald-500 text-sm font-bold transition-colors">
+            <ArrowLeft className="w-4 h-4" /> Customer Marketplace
           </button>
         </div>
 

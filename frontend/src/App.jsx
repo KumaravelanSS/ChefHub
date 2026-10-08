@@ -3,7 +3,6 @@ import { BrowserRouter, Routes, Route, Navigate, useNavigate } from 'react-route
 import Navbar from './components/Navbar';
 import ProtectedRoute from './components/ProtectedRoute';
 
-import LandingPortalsPage from './pages/LandingPortalsPage';
 import CustomerSite from './pages/CustomerSite';
 import CustomerAuthPage from './pages/CustomerAuthPage';
 import ChefSite from './pages/ChefSite';
@@ -60,25 +59,7 @@ function MainApp() {
     localStorage.removeItem('chefhub_token');
     localStorage.removeItem('chefhub_user');
     setCurrentUser(null);
-    navigate('/portals');
-  };
-
-  const handleQuickLoginFromLaunchpad = async (identifier, password, role, targetPath) => {
-    try {
-      const res = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: identifier, username: identifier, password })
-      });
-      const data = await res.json();
-      if (data.success) {
-        handleLoginSuccess(data.user, data.token);
-      } else {
-        alert(`Login Failed: ${data.message}`);
-      }
-    } catch (err) {
-      alert('Failed to connect to backend server.');
-    }
+    navigate('/');
   };
 
   return (
@@ -92,10 +73,10 @@ function MainApp() {
 
       <main className="flex-1 pb-16">
         <Routes>
-          {/* Portals Launchpad */}
+          {/* Redirect /portals directly to Customer Site */}
           <Route
             path="/portals"
-            element={<LandingPortalsPage onQuickLogin={handleQuickLoginFromLaunchpad} />}
+            element={<Navigate to="/" replace />}
           />
 
           {/* Customer Marketplace */}
@@ -153,7 +134,7 @@ function MainApp() {
           />
 
           {/* Fallback Catch-all */}
-          <Route path="*" element={<Navigate to="/portals" replace />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </main>
 
