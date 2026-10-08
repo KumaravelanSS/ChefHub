@@ -425,10 +425,25 @@ async function initRelationalDb() {
     // Already populated or table locked
   }
 
-  console.log('[Relational Engine] All 9 relational tables checked/created successfully (including outbox_events & coupons).');
+  // 10. Customer Wallets Table (ChefHub Escrow Wallet Balance & Top-up)
+  await query(`
+    CREATE TABLE IF NOT EXISTS customer_wallets (
+      wallet_id INTEGER PRIMARY KEY ${isSqlite ? 'AUTOINCREMENT' : 'AUTO_INCREMENT'},
+      customer_id INTEGER NOT NULL UNIQUE,
+      balance DECIMAL(10,2) NOT NULL DEFAULT 1250.00,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (customer_id) REFERENCES users(user_id) ON DELETE CASCADE
+    )
+  `);
+
+  try {
+    await query(`ALTER TABLE orders ADD COLUMN payment_method VARCHAR(100) DEFAULT 'Card'`);
+  } catch (err) {}
+
+  console.log('[Relational Engine] All 10 relational tables checked/created successfully (including customer_wallets).');
 
   if (isPostgres) {
-    const tables = ['users', 'dishes', 'inventory', 'dish_recipes', 'orders', 'order_items', 'payouts', 'outbox_events', 'coupons'];
+    const tables = ['users', 'dishes', 'inventory', 'dish_recipes', 'orders', 'order_items', 'payouts', 'outbox_events', 'coupons', 'customer_wallets'];
     for (const t of tables) {
       try {
         await query(`ALTER TABLE ${t} ENABLE ROW LEVEL SECURITY`);
@@ -436,7 +451,7 @@ async function initRelationalDb() {
         // Ignored if already enabled or not supported
       }
     }
-    console.log('[Relational Engine] Row Level Security (RLS) enabled on all 9 tables.');
+    console.log('[Relational Engine] Row Level Security (RLS) enabled on all 10 tables.');
   }
 }
 

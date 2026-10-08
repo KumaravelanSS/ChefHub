@@ -220,6 +220,7 @@ export default function RiderSite({ user, onLogin }) {
                     {activeMapJobId === job.order_id && (
                       <div className="pt-2 animate-fade-in">
                         <LiveDeliveryMap
+                          orderStatus={job.status}
                           chefLocation={{ lat: 12.9784, lng: 77.6408, locality: job.vendor_name || 'Kitchen' }}
                           customerLocation={{ lat: 12.9352, lng: 77.6245, locality: job.delivery_address || 'Customer Location' }}
                           riderName={user.name}

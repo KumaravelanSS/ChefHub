@@ -65,8 +65,13 @@ export default function ChefSite({ user, onLogin, onLogout }) {
   const [showHoursModal, setShowHoursModal] = useState(false);
   const [showCloseReasonModal, setShowCloseReasonModal] = useState(false);
   const [selectedPresetReason, setSelectedPresetReason] = useState('Chef has manually closed the kitchen for today (Offline).');
-  const [customReasonInput, setCustomReasonInput] = useState('');
   const [autoReopenedNotice, setAutoReopenedNotice] = useState(false);
+
+  // Chef Order Cancellation Modal State
+  const [cancelModalOrder, setCancelModalOrder] = useState(null);
+  const [cancelReasonPreset, setCancelReasonPreset] = useState('Ingredient stock exhausted / Daily portions sold out');
+  const [customCancelReason, setCustomCancelReason] = useState('');
+  const [isCancellingOrder, setIsCancellingOrder] = useState(false);
 
   const [hoursForm, setHoursForm] = useState({
     operating_hours: '11:00 AM - 10:00 PM',
@@ -650,18 +655,41 @@ export default function ChefSite({ user, onLogin, onLogout }) {
     }
   };
 
-  const updateOrderStatus = async (order_id, status) => {
+  const updateOrderStatus = async (order_id, status, cancel_reason = null) => {
     try {
       const token = localStorage.getItem('chefhub_token');
       const res = await fetch(`/api/vendor/orders/${order_id}/status`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ status })
+        body: JSON.stringify({ status, cancel_reason })
       });
       const data = await res.json();
-      if (data.success) fetchData();
+      if (data.success) {
+        fetchData();
+        return true;
+      } else {
+        alert(data.message || 'Failed to update order status.');
+        return false;
+      }
     } catch (err) {
       alert('Failed to update order status.');
+      return false;
+    }
+  };
+
+  const handleConfirmCancelOrder = async (e) => {
+    e.preventDefault();
+    if (!cancelModalOrder) return;
+    setIsCancellingOrder(true);
+    const finalReason = cancelReasonPreset === 'CUSTOM'
+      ? (customCancelReason.trim() || 'Chef had to cancel this order due to kitchen constraints.')
+      : cancelReasonPreset;
+    
+    const ok = await updateOrderStatus(cancelModalOrder.order_id, 'CANCELLED', finalReason);
+    setIsCancellingOrder(false);
+    if (ok) {
+      setCancelModalOrder(null);
+      setCustomCancelReason('');
     }
   };
 
@@ -1555,22 +1583,53 @@ export default function ChefSite({ user, onLogin, onLogout }) {
                     </div>
                   </div>
 
-                  <div className="pt-3 border-t border-slate-100 dark:border-slate-800">
+                  <div className="pt-3 border-t border-slate-100 dark:border-slate-800 space-y-2">
                     {o.status === 'PLACED' && (
-                      <button
-                        onClick={() => updateOrderStatus(o.order_id, 'PREPARING')}
-                        className="w-full py-3 rounded-2xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-slate-950 font-black text-xs shadow-lg shadow-amber-500/20 active:scale-95 transition-all cursor-pointer"
-                      >
-                        Accept & Start Prep
-                      </button>
+                      <div className="grid grid-cols-2 gap-2">
+                        <button
+                          onClick={() => updateOrderStatus(o.order_id, 'PREPARING')}
+                          className="py-3 px-2 rounded-2xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-slate-950 font-black text-xs shadow-lg shadow-amber-500/20 active:scale-95 transition-all cursor-pointer flex items-center justify-center gap-1"
+                        >
+                          <span>Accept & Prep</span>
+                        </button>
+                        <button
+                          onClick={() => {
+                            setCancelModalOrder(o);
+                            setCancelReasonPreset('Ingredient stock exhausted / Daily portions sold out');
+                            setCustomCancelReason('');
+                          }}
+                          className="py-3 px-2 rounded-2xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 dark:text-rose-400 font-extrabold text-xs border border-rose-500/25 active:scale-95 transition-all cursor-pointer flex items-center justify-center gap-1"
+                        >
+                          <Ban className="w-3.5 h-3.5 text-rose-500" />
+                          <span>Cancel / Reject</span>
+                        </button>
+                      </div>
                     )}
                     {o.status === 'PREPARING' && (
-                      <button
-                        onClick={() => updateOrderStatus(o.order_id, 'READY')}
-                        className="w-full py-3 rounded-2xl bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white font-black text-xs shadow-lg shadow-emerald-500/25 active:scale-95 transition-all cursor-pointer"
-                      >
-                        Mark Ready for Driver Pickup
-                      </button>
+                      <div className="space-y-2">
+                        <button
+                          onClick={() => updateOrderStatus(o.order_id, 'READY')}
+                          className="w-full py-3 rounded-2xl bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white font-black text-xs shadow-lg shadow-emerald-500/25 active:scale-95 transition-all cursor-pointer"
+                        >
+                          Mark Ready for Driver Pickup
+                        </button>
+                        <button
+                          onClick={() => {
+                            setCancelModalOrder(o);
+                            setCancelReasonPreset('Kitchen rush / Cannot fulfill within prep window');
+                            setCustomCancelReason('');
+                          }}
+                          className="w-full py-2 rounded-xl text-rose-500 hover:bg-rose-500/10 text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1"
+                        >
+                          <Ban className="w-3 h-3" />
+                          <span>Cancel Order & Issue Escrow Refund</span>
+                        </button>
+                      </div>
+                    )}
+                    {o.status === 'CANCELLED' && (
+                      <div className="p-2.5 rounded-xl bg-rose-500/10 border border-rose-500/20 text-center">
+                        <span className="text-xs font-bold text-rose-500">❌ Cancelled • 100% Escrow Refunded</span>
+                      </div>
                     )}
                   </div>
                 </div>
@@ -2382,6 +2441,106 @@ export default function ChefSite({ user, onLogin, onLogout }) {
                   className="w-1/2 py-3 rounded-2xl bg-gradient-to-r from-rose-500 to-red-600 hover:from-rose-600 hover:to-red-700 text-white font-black shadow-lg shadow-rose-500/25 transition-all active:scale-95 cursor-pointer"
                 >
                   Confirm Close Kitchen
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Cook Order Cancellation & Refund Modal */}
+      {cancelModalOrder && (
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fade-in">
+          <div className="glass-card rounded-3xl p-6 sm:p-7 border border-slate-200/80 dark:border-slate-800 w-full max-w-lg space-y-4 shadow-2xl bg-white dark:bg-slate-900 text-slate-900 dark:text-white">
+            <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-800 pb-3">
+              <div className="flex items-center gap-2.5 text-rose-500">
+                <Ban className="w-5 h-5" />
+                <h3 className="font-black font-display text-base">Cancel Order #{cancelModalOrder.order_id}</h3>
+              </div>
+              <button
+                onClick={() => setCancelModalOrder(null)}
+                className="p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-3.5 rounded-2xl bg-rose-500/10 border border-rose-500/25 text-xs text-rose-700 dark:text-rose-300 space-y-1">
+              <p className="font-bold flex items-center gap-1.5">
+                <AlertTriangle className="w-4 h-4 text-rose-500 shrink-0" />
+                <span>Customer Notification & Automatic Escrow Refund</span>
+              </p>
+              <p className="text-[11px] leading-relaxed">
+                Cancelling this order will immediately alert <strong>{cancelModalOrder.customer_name}</strong>, restore portion stocks in your menu, and credit <strong>100% Escrow refund (₹{Number(cancelModalOrder.total_amount).toFixed(2)})</strong> to the customer.
+              </p>
+            </div>
+
+            <form onSubmit={handleConfirmCancelOrder} className="space-y-4 text-xs">
+              <div className="space-y-2">
+                <label className="font-extrabold text-slate-700 dark:text-slate-300 uppercase tracking-wider text-[11px]">
+                  Select Reason for Cancellation
+                </label>
+                {[
+                  'Ingredient stock exhausted / Daily portions sold out',
+                  'Kitchen rush / Cannot fulfill within prep window',
+                  'Emergency kitchen closure / Equipment issue',
+                  'CUSTOM'
+                ].map((reasonOption) => (
+                  <label
+                    key={reasonOption}
+                    className={`flex items-center gap-2.5 p-3 rounded-xl border cursor-pointer transition-all ${
+                      cancelReasonPreset === reasonOption
+                        ? 'bg-rose-50 text-rose-800 border-rose-300 dark:bg-rose-500/15 dark:text-rose-300 dark:border-rose-500/40 font-black shadow-sm ring-1 ring-rose-500/20'
+                        : 'bg-white dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300'
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="cancelOrderReason"
+                      checked={cancelReasonPreset === reasonOption}
+                      onChange={() => setCancelReasonPreset(reasonOption)}
+                      className="accent-rose-500"
+                    />
+                    <span>{reasonOption === 'CUSTOM' ? 'Type custom reason to customer...' : reasonOption}</span>
+                  </label>
+                ))}
+              </div>
+
+              {cancelReasonPreset === 'CUSTOM' && (
+                <div className="pt-1">
+                  <label className="font-extrabold text-slate-700 dark:text-slate-300 block mb-1">Custom Cancellation Note</label>
+                  <input
+                    type="text"
+                    value={customCancelReason}
+                    onChange={(e) => setCustomCancelReason(e.target.value)}
+                    placeholder="e.g. Saffron stock delayed from organic vendor."
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white font-medium shadow-sm outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500"
+                    required={cancelReasonPreset === 'CUSTOM'}
+                  />
+                </div>
+              )}
+
+              <div className="flex gap-2.5 pt-3 border-t border-slate-100 dark:border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setCancelModalOrder(null)}
+                  className="w-1/2 py-3 rounded-2xl border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 font-bold hover:bg-slate-100 dark:hover:bg-slate-800 transition-all cursor-pointer"
+                >
+                  Keep Order
+                </button>
+                <button
+                  type="submit"
+                  disabled={isCancellingOrder}
+                  className="w-1/2 py-3 rounded-2xl bg-gradient-to-r from-rose-500 to-red-600 hover:from-rose-600 hover:to-red-700 text-white font-black shadow-lg shadow-rose-500/25 transition-all active:scale-95 cursor-pointer disabled:opacity-50 flex items-center justify-center gap-1.5"
+                >
+                  {isCancellingOrder ? (
+                    <>
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                      <span>Cancelling...</span>
+                    </>
+                  ) : (
+                    <span>Confirm Cancel & Refund</span>
+                  )}
                 </button>
               </div>
             </form>

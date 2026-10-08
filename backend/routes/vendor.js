@@ -37,16 +37,72 @@ router.get('/orders', authenticateToken, requireRole('VENDOR'), async (req, res)
   }
 });
 
-// Update Order Status (PREPARING, READY)
+// Update Order Status (PREPARING, READY, CANCELLED)
 router.patch('/orders/:id/status', authenticateToken, requireRole('VENDOR'), async (req, res) => {
   try {
     const order_id = req.params.id;
-    const { status } = req.body;
+    const { status, cancel_reason } = req.body;
     const vendor_id = req.user.user_id;
 
-    const validStatuses = ['PREPARING', 'READY'];
+    const validStatuses = ['PREPARING', 'READY', 'CANCELLED'];
     if (!validStatuses.includes(status)) {
       return res.status(400).json({ success: false, message: `Invalid vendor status. Allowed: ${validStatuses.join(', ')}` });
+    }
+
+    if (status === 'CANCELLED') {
+      const reasonText = cancel_reason || 'Chef could not fulfill order at this time.';
+
+      await query(`
+        UPDATE orders 
+        SET status = 'CANCELLED', escrow_status = 'REFUNDED'
+        WHERE order_id = ? AND vendor_id = ?
+      `, [order_id, vendor_id]);
+
+      // Restore daily portion stock in dishes
+      const orderItems = await query(`SELECT dish_id, quantity FROM order_items WHERE order_id = ?`, [order_id]);
+      for (const it of orderItems) {
+        await query(`UPDATE dishes SET daily_stock = daily_stock + ? WHERE dish_id = ?`, [it.quantity, it.dish_id]);
+      }
+
+      // Refund escrow amount to customer wallet
+      const orderInfo = await query(`SELECT customer_id, total_amount, payment_method FROM orders WHERE order_id = ?`, [order_id]);
+      const refundAmt = orderInfo[0] ? Number(orderInfo[0].total_amount) : 0;
+      if (orderInfo.length > 0) {
+        const custId = orderInfo[0].customer_id;
+        try {
+          const curBalRows = await query(`SELECT balance FROM customer_wallets WHERE customer_id = ?`, [custId]);
+          if (curBalRows.length > 0) {
+            await query(`UPDATE customer_wallets SET balance = balance + ?, updated_at = CURRENT_TIMESTAMP WHERE customer_id = ?`, [refundAmt, custId]);
+          } else {
+            await query(`INSERT INTO customer_wallets (customer_id, balance) VALUES (?, ?)`, [custId, 1250.00 + refundAmt]);
+          }
+        } catch (e) {
+          console.warn('[Wallet Refund Sync Warning]', e.message);
+        }
+      }
+
+      await outboxRelay.recordEvent(null, {
+        aggregate_type: 'ORDER',
+        aggregate_id: order_id,
+        event_type: 'ORDER_CANCELLED',
+        payload: {
+          new_status: 'ORDER_CANCELLED',
+          actor_role: 'VENDOR',
+          note: `Chef cancelled order: ${reasonText}. 100% Escrow Refund (₹${refundAmt.toFixed(2)}) credited to customer account.`,
+          cancel_reason: reasonText,
+          refund_amount: refundAmt
+        }
+      });
+      outboxRelay.dispatchNow();
+
+      await MongoAdapter.pushTrackingLog(order_id, {
+        event: 'ORDER_CANCELLED',
+        timestamp: new Date(),
+        location_note: `Chef cancelled order: ${reasonText}. 100% Escrow refund of ₹${refundAmt.toFixed(2)} credited back to customer.`,
+        actor_role: 'VENDOR'
+      }).catch(err => console.warn('[Mongo Tracking Log Sync Warning]', err.message));
+
+      return res.json({ success: true, message: `Order #${order_id} cancelled by chef. Customer notified & ₹${refundAmt.toFixed(2)} payment refunded.` });
     }
 
     await query(`

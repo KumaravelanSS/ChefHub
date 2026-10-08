@@ -150,14 +150,31 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
 
   const [paymentForm, setPaymentForm] = useState({
     paymentMethod: 'CARD', // 'CARD' | 'UPI' | 'NETBANKING' | 'ESCROW_WALLET'
-    cardHolder: 'Alex Customer',
-    cardNumber: '4242 •••• •••• 4242',
-    expiry: '12/28',
+    cardHolder: user?.name || 'Alex Customer',
+    cardNumber: '4532 8892 1042 8821',
+    expiry: '08/29',
     cvv: '888',
-    upiId: 'alex.customer@upi',
+    upiApp: 'gpay', // 'gpay' | 'phonepe' | 'paytm' | 'bhim' | 'custom'
+    upiId: 'alex.customer@oksbi',
+    isUpiVerified: true,
     bankName: 'HDFC Bank',
     deliveryNotes: 'Leave at doorstep, ring bell once'
   });
+
+  // Escrow Wallet State & Top-Up
+  const [walletBalance, setWalletBalance] = useState(() => {
+    try {
+      const saved = localStorage.getItem('chefhub_wallet_balance');
+      return saved ? parseFloat(saved) : 1250.00;
+    } catch {
+      return 1250.00;
+    }
+  });
+  const [showAddMoneyModal, setShowAddMoneyModal] = useState(false);
+  const [topUpAmountInput, setTopUpAmountInput] = useState('500');
+  const [topUpMethod, setTopUpMethod] = useState('UPI');
+  const [isAddingMoney, setIsAddingMoney] = useState(false);
+  const [addMoneySuccess, setAddMoneySuccess] = useState('');
 
   // Interactive Star Ratings (1-5)
   const [vendorRating, setVendorRating] = useState(5);
@@ -275,6 +292,7 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
     fetchVendors(currentCoords);
     if (user && user.role === 'CUSTOMER') {
       fetchMyOrders();
+      fetchWalletBalance();
     }
 
     // Server-Sent Events push stream
@@ -290,15 +308,25 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
       eventSource.addEventListener('ORDER_CREATED', () => {
         fetchMyOrders();
         fetchVendors(currentCoords);
+        fetchWalletBalance();
       });
       eventSource.addEventListener('ORDER_STATUS_CHANGED', () => {
         fetchMyOrders();
+        fetchWalletBalance();
+      });
+      eventSource.addEventListener('ORDER_CANCELLED', () => {
+        fetchMyOrders();
+        fetchVendors(currentCoords);
+        fetchWalletBalance();
       });
     } catch (e) {}
 
     const interval = setInterval(() => {
       fetchVendors(currentCoords);
-      if (user && user.role === 'CUSTOMER') fetchMyOrders();
+      if (user && user.role === 'CUSTOMER') {
+        fetchMyOrders();
+        fetchWalletBalance();
+      }
     }, 15000);
 
     return () => {
@@ -306,6 +334,71 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
       clearInterval(interval);
     };
   }, [user]);
+
+  // Fetch Customer Wallet Balance
+  const fetchWalletBalance = async () => {
+    try {
+      const token = localStorage.getItem('chefhub_token');
+      if (!token) return;
+      const res = await fetch('/api/customer/wallet', {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (data.success && data.balance !== undefined) {
+        setWalletBalance(Number(data.balance));
+        localStorage.setItem('chefhub_wallet_balance', String(data.balance));
+      }
+    } catch (e) {
+      console.warn('Wallet fetch fallback:', e.message);
+    }
+  };
+
+  // Top Up Escrow Wallet via Simulated Payment Gateway
+  const handleTopUpWallet = async (amountToAdd = topUpAmountInput) => {
+    const num = parseFloat(amountToAdd);
+    if (isNaN(num) || num <= 0) {
+      alert('Please enter a valid amount greater than ₹0.');
+      return;
+    }
+    setIsAddingMoney(true);
+    setAddMoneySuccess('');
+    try {
+      const token = localStorage.getItem('chefhub_token');
+      const res = await fetch('/api/customer/wallet/topup', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({ amount: num, payment_method: topUpMethod })
+      });
+      const data = await res.json();
+      if (data.success) {
+        setWalletBalance(Number(data.balance));
+        localStorage.setItem('chefhub_wallet_balance', String(data.balance));
+        setAddMoneySuccess(`🎉 ₹${num.toFixed(2)} added to your Escrow Wallet!`);
+        setTimeout(() => {
+          setShowAddMoneyModal(false);
+          setAddMoneySuccess('');
+        }, 1400);
+      } else {
+        alert(data.message || 'Failed to top-up wallet.');
+      }
+    } catch (e) {
+      setWalletBalance(prev => {
+        const next = prev + num;
+        localStorage.setItem('chefhub_wallet_balance', String(next));
+        return next;
+      });
+      setAddMoneySuccess(`🎉 ₹${num.toFixed(2)} added to your Escrow Wallet!`);
+      setTimeout(() => {
+        setShowAddMoneyModal(false);
+        setAddMoneySuccess('');
+      }, 1400);
+    } finally {
+      setIsAddingMoney(false);
+    }
+  };
 
   // Cuisine scroll buttons
   const scrollCuisines = (direction) => {
@@ -518,10 +611,17 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
     setPaymentStage('PROCESSING');
     setOrderStatusMsg('🔒 Authorizing 256-Bit SSL Payment & Securing Escrow...');
 
-    const methodLabel = paymentForm.paymentMethod === 'CARD' ? `Credit Card (${paymentForm.cardNumber.slice(-4) || '4242'})` :
-                        paymentForm.paymentMethod === 'UPI' ? `UPI (${paymentForm.upiId || 'alex@upi'})` :
-                        paymentForm.paymentMethod === 'NETBANKING' ? `Net Banking (${paymentForm.bankName || 'HDFC'})` :
+    const methodLabel = paymentForm.paymentMethod === 'CARD' ? `Credit Card (${paymentForm.cardNumber.slice(-4) || '8821'})` :
+                        paymentForm.paymentMethod === 'UPI' ? `UPI (${paymentForm.upiApp ? paymentForm.upiApp.toUpperCase() : 'APP'} • ${paymentForm.upiId || 'alex@upi'})` :
+                        paymentForm.paymentMethod === 'NETBANKING' ? `Net Banking (${paymentForm.bankName || 'HDFC Bank'})` :
                         'ChefHub Escrow Wallet';
+
+    if (paymentForm.paymentMethod === 'ESCROW_WALLET' && walletBalance < grandTotal) {
+      alert(`Insufficient Escrow Wallet balance (Available: ₹${walletBalance.toFixed(2)}, Required: ₹${grandTotal.toFixed(2)}). Please add money to your wallet or choose another payment method.`);
+      setIsProcessingPayment(false);
+      setPaymentStage('IDLE');
+      return;
+    }
 
     if (shouldFail) {
       setSimulateFail(true);
@@ -536,7 +636,10 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
           items: [...cart],
           payment_method: methodLabel,
           payment_ref: failTxnId,
-          error_reason: 'Bank Authorization Declined: Card issuer denied test charge',
+          error_reason: paymentForm.paymentMethod === 'CARD' ? 'Bank Authorization Declined: Card issuer denied test charge' :
+                        paymentForm.paymentMethod === 'UPI' ? 'UPI PIN Authentication Timeout / Rejected by Bank' :
+                        paymentForm.paymentMethod === 'NETBANKING' ? 'NetBanking Session Timed Out by Bank Server' :
+                        'Insufficient Escrow Wallet balance',
           status: 'FAILED',
           created_at: new Date().toISOString()
         };
@@ -548,7 +651,7 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
           setPaymentStage('IDLE');
           setSimulateFail(false);
           setMerchantTransactionView(failureData);
-          setOrderStatusMsg('❌ Payment Failed: Bank declined authorization.');
+          setOrderStatusMsg('❌ Payment Failed: Authorization declined.');
         }, 2600);
       }, 1100);
       return;
@@ -570,7 +673,8 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
           vendor_id: vendorToOrder.vendor_id,
           items: cart.map((c) => ({ dish_id: c.dish_id, quantity: c.quantity })),
           coupon_code: appliedCoupon ? appliedCoupon.code : null,
-          delivery_address: primaryAddress
+          delivery_address: primaryAddress,
+          payment_method: methodLabel
         })
       });
 
@@ -578,6 +682,11 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
       setIsProcessingPayment(false);
 
       if (data.success) {
+        if (paymentForm.paymentMethod === 'ESCROW_WALLET') {
+          setWalletBalance(prev => Math.max(0, prev - grandTotal));
+          fetchWalletBalance();
+        }
+
         const newOrderId = data.order_id || (data.order && data.order.order_id) || Math.floor(1000 + Math.random() * 9000);
         const txnId = 'TXN-' + Math.floor(10000000 + Math.random() * 90000000);
 
@@ -941,10 +1050,28 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-3 flex-wrap">
+          {/* ChefHub Escrow Wallet Pill */}
+          <div className="flex items-center gap-2 p-1.5 rounded-2xl bg-slate-100 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 shadow-sm">
+            <div className="flex items-center gap-2 px-2.5 py-1 text-xs">
+              <span className="text-base">👛</span>
+              <div>
+                <span className="text-[10px] text-slate-400 font-bold block uppercase leading-none">Escrow Wallet</span>
+                <span className="font-mono font-black text-xs text-slate-900 dark:text-white">₹{walletBalance.toFixed(2)}</span>
+              </div>
+            </div>
+            <button
+              onClick={() => setShowAddMoneyModal(true)}
+              className="px-2.5 py-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-extrabold text-[11px] shadow-sm transition-all cursor-pointer flex items-center gap-1"
+            >
+              <Plus className="w-3 h-3" />
+              <span>Add Money</span>
+            </button>
+          </div>
+
           <button
             onClick={() => setShowAddressModal(true)}
-            className="px-3.5 py-2 rounded-xl bg-orange-500/10 hover:bg-orange-500/20 text-orange-600 dark:text-orange-400 font-extrabold text-xs border border-orange-500/25 transition-all flex items-center gap-1.5 cursor-pointer"
+            className="px-3.5 py-2.5 rounded-xl bg-orange-500/10 hover:bg-orange-500/20 text-orange-600 dark:text-orange-400 font-extrabold text-xs border border-orange-500/25 transition-all flex items-center gap-1.5 cursor-pointer"
           >
             <Compass className="w-4 h-4 text-orange-500" />
             <span>Change Hub / Address</span>
@@ -1632,6 +1759,27 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
                           </span>
                         </div>
                       </div>
+
+                      {/* Cancelled Order Refund Details Banner */}
+                      {o.status === 'CANCELLED' && (
+                        <div className="p-3.5 rounded-2xl bg-rose-500/10 border border-rose-500/25 space-y-1.5 animate-in fade-in">
+                          <div className="flex items-center justify-between text-xs">
+                            <span className="font-extrabold text-rose-500 flex items-center gap-1.5">
+                              <Ban className="w-3.5 h-3.5" /> Order Cancelled by Chef
+                            </span>
+                            <span className="px-2.5 py-0.5 rounded-full bg-rose-500/20 text-rose-600 dark:text-rose-400 font-black text-[10px] uppercase">
+                              100% Escrow Refunded
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-slate-600 dark:text-slate-300">
+                            Full escrow refund of <strong className="text-slate-900 dark:text-white">₹{Number(o.total_amount).toFixed(2)}</strong> has been credited back to your account ({o.payment_method || 'ChefHub Escrow Wallet'}).
+                          </p>
+                          <div className="text-[10px] text-slate-400 font-mono flex items-center justify-between">
+                            <span>Ref: REF-{o.order_id}-ESCROW</span>
+                            <span className="text-emerald-500 font-bold">✓ Refund Settled</span>
+                          </div>
+                        </div>
+                      )}
                     </div>
 
                     {/* Actions */}
@@ -1720,9 +1868,137 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
         </div>
       )}
 
-      {/* Address & Hub Modal */}
+      {/* Dedicated Add Money to Escrow Wallet Modal */}
+      {showAddMoneyModal && (
+        <div className="fixed inset-0 z-[75] bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="glass-card rounded-3xl p-6 sm:p-7 border border-slate-300 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-900 dark:text-white max-w-md w-full space-y-5 shadow-2xl animate-in fade-in">
+            <div className="flex justify-between items-center border-b border-slate-200 dark:border-slate-800 pb-3">
+              <div className="flex items-center gap-2">
+                <div className="w-9 h-9 rounded-xl bg-orange-500/10 text-orange-500 flex items-center justify-center font-bold text-lg">
+                  👛
+                </div>
+                <div>
+                  <h3 className="font-black text-base">Top-Up Escrow Wallet</h3>
+                  <p className="text-[11px] text-slate-500">Secured 100% Buyer Protection Escrow</p>
+                </div>
+              </div>
+              <button onClick={() => setShowAddMoneyModal(false)} className="text-slate-400 hover:text-white p-1">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {addMoneySuccess && (
+              <div className="p-3 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 text-xs font-bold flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
+                <span>{addMoneySuccess}</span>
+              </div>
+            )}
+
+            {/* Current Balance */}
+            <div className="p-4 rounded-2xl bg-slate-100 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 flex items-center justify-between">
+              <div>
+                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Current Balance</span>
+                <span className="text-xl font-black font-mono text-slate-900 dark:text-white">₹{walletBalance.toFixed(2)}</span>
+              </div>
+              <span className="px-2.5 py-1 rounded-full bg-emerald-500/10 text-emerald-500 text-[10px] font-extrabold uppercase">
+                Active Escrow
+              </span>
+            </div>
+
+            {/* Amount input */}
+            <div className="space-y-2">
+              <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Top-Up Amount (₹)</label>
+              <div className="relative">
+                <span className="absolute left-3.5 top-2.5 text-base font-bold text-slate-400">₹</span>
+                <input
+                  type="number"
+                  min="50"
+                  step="50"
+                  value={topUpAmountInput}
+                  onChange={(e) => setTopUpAmountInput(e.target.value)}
+                  placeholder="Enter amount"
+                  className="w-full pl-8 pr-3 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-sm font-mono font-bold outline-none focus:border-orange-500"
+                />
+              </div>
+
+              {/* Quick Select Chips */}
+              <div className="grid grid-cols-4 gap-1.5 pt-1">
+                {[200, 500, 1000, 2000].map(amt => (
+                  <button
+                    key={amt}
+                    type="button"
+                    onClick={() => setTopUpAmountInput(String(amt))}
+                    className={`py-1.5 rounded-lg text-xs font-mono font-bold border transition-all cursor-pointer ${
+                      Number(topUpAmountInput) === amt
+                        ? 'border-orange-500 bg-orange-500/15 text-orange-500'
+                        : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 hover:border-slate-400'
+                    }`}
+                  >
+                    +₹{amt}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Gateway Source */}
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Payment Method for Top-Up</label>
+              <div className="grid grid-cols-3 gap-2">
+                {[
+                  { id: 'UPI', label: 'UPI / GPay' },
+                  { id: 'CARD', label: 'Debit / Card' },
+                  { id: 'NETBANKING', label: 'Net Banking' }
+                ].map(m => (
+                  <button
+                    key={m.id}
+                    type="button"
+                    onClick={() => setTopUpMethod(m.id)}
+                    className={`py-2 px-1 rounded-xl text-xs font-bold text-center border transition-all cursor-pointer ${
+                      topUpMethod === m.id
+                        ? 'border-orange-500 bg-orange-500/15 text-orange-500 font-extrabold'
+                        : 'border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-950 text-slate-600 dark:text-slate-400'
+                    }`}
+                  >
+                    {m.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => handleTopUpWallet(topUpAmountInput)}
+                disabled={isAddingMoney || !topUpAmountInput || Number(topUpAmountInput) <= 0}
+                className="flex-1 py-3.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white font-black text-xs shadow-lg transition-all cursor-pointer disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {isAddingMoney ? (
+                  <>
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                    <span>Processing Gateway...</span>
+                  </>
+                ) : (
+                  <>
+                    <ShieldCheck className="w-4 h-4" />
+                    <span>Add ₹{Number(topUpAmountInput || 0).toFixed(2)} to Wallet</span>
+                  </>
+                )}
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowAddMoneyModal(false)}
+                className="px-4 py-3.5 rounded-xl bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold text-xs cursor-pointer"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Address & Hub Modal (Z-[70] so it cleanly layers over checkout modal) */}
       {showAddressModal && (
-        <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-[70] bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-4">
           <div className="glass-card rounded-3xl p-6 sm:p-7 border border-slate-300 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-900 dark:text-white max-w-lg w-full space-y-5 shadow-2xl">
             <div className="flex justify-between items-center border-b border-slate-200 dark:border-slate-800 pb-3">
               <div className="flex items-center gap-2">
@@ -1945,30 +2221,382 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
                   )}
                 </div>
 
-                {/* 3. Payment Method Tabs */}
-                <div className="space-y-2">
+                {/* 3. Payment Method Tabs & Detailed Input Forms */}
+                <div className="space-y-3">
                   <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Payment Method</label>
                   <div className="grid grid-cols-4 gap-2">
                     {[
-                      { id: 'CARD', label: 'Card' },
-                      { id: 'UPI', label: 'UPI' },
-                      { id: 'NETBANKING', label: 'NetBank' },
-                      { id: 'ESCROW_WALLET', label: 'Wallet' }
+                      { id: 'CARD', label: 'Card', icon: '💳' },
+                      { id: 'UPI', label: 'UPI', icon: '⚡' },
+                      { id: 'NETBANKING', label: 'NetBank', icon: '🏦' },
+                      { id: 'ESCROW_WALLET', label: 'Wallet', icon: '👛' }
                     ].map((m) => (
                       <button
                         key={m.id}
                         type="button"
                         onClick={() => setPaymentForm({ ...paymentForm, paymentMethod: m.id })}
-                        className={`py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                        className={`py-2 px-1 rounded-xl text-xs font-bold transition-all cursor-pointer flex flex-col sm:flex-row items-center justify-center gap-1 ${
                           paymentForm.paymentMethod === m.id
                             ? 'bg-orange-500 text-white font-black shadow-md'
-                            : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400'
+                            : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
                         }`}
                       >
-                        {m.label}
+                        <span>{m.icon}</span>
+                        <span>{m.label}</span>
                       </button>
                     ))}
                   </div>
+
+                  {/* A. CARD FORM */}
+                  {paymentForm.paymentMethod === 'CARD' && (
+                    <div className="p-4 rounded-2xl bg-slate-100 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 space-y-3 animate-in fade-in">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-black uppercase tracking-wider text-slate-500">Credit / Debit Card Details</span>
+                        <div className="flex items-center gap-1.5 text-xs">
+                          <span className="px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-500 font-extrabold text-[10px]">VISA</span>
+                          <span className="px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-500 font-extrabold text-[10px]">Mastercard</span>
+                          <span className="px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-500 font-extrabold text-[10px]">RuPay</span>
+                        </div>
+                      </div>
+
+                      {/* Saved Cards Quick Select */}
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setPaymentForm(prev => ({
+                            ...prev,
+                            cardNumber: '4532 8892 1042 8821',
+                            cardHolder: user?.name || 'Alex Customer',
+                            expiry: '08/29',
+                            cvv: '888'
+                          }))}
+                          className={`flex-1 p-2 rounded-xl border text-left text-xs transition-all cursor-pointer ${
+                            paymentForm.cardNumber.includes('8821')
+                              ? 'border-orange-500 bg-orange-500/10 text-orange-500 font-bold'
+                              : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300'
+                          }`}
+                        >
+                          <span className="block font-bold">💳 HDFC Regalia</span>
+                          <span className="font-mono text-[10px] text-slate-400">•••• 8821</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => setPaymentForm(prev => ({
+                            ...prev,
+                            cardNumber: '5241 6610 9920 4242',
+                            cardHolder: user?.name || 'Alex Customer',
+                            expiry: '12/28',
+                            cvv: '712'
+                          }))}
+                          className={`flex-1 p-2 rounded-xl border text-left text-xs transition-all cursor-pointer ${
+                            paymentForm.cardNumber.includes('4242')
+                              ? 'border-orange-500 bg-orange-500/10 text-orange-500 font-bold'
+                              : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300'
+                          }`}
+                        >
+                          <span className="block font-bold">💳 ICICI Coral</span>
+                          <span className="font-mono text-[10px] text-slate-400">•••• 4242</span>
+                        </button>
+                      </div>
+
+                      <div className="space-y-2.5">
+                        <div>
+                          <label className="text-[11px] font-bold text-slate-500 block mb-1">Card Number (16 Digits)</label>
+                          <div className="relative">
+                            <input
+                              type="text"
+                              value={paymentForm.cardNumber}
+                              maxLength={19}
+                              onChange={(e) => {
+                                const val = e.target.value.replace(/\D/g, '').slice(0, 16);
+                                const formatted = val.match(/.{1,4}/g)?.join(' ') || val;
+                                setPaymentForm(prev => ({ ...prev, cardNumber: formatted }));
+                              }}
+                              placeholder="4532 8892 1042 8821"
+                              className="w-full px-3 py-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-800 text-xs font-mono font-bold outline-none focus:border-orange-500"
+                            />
+                            <CreditCard className="w-4 h-4 text-slate-400 absolute right-3 top-3" />
+                          </div>
+                        </div>
+
+                        <div>
+                          <label className="text-[11px] font-bold text-slate-500 block mb-1">Cardholder Name</label>
+                          <input
+                            type="text"
+                            value={paymentForm.cardHolder}
+                            onChange={(e) => setPaymentForm(prev => ({ ...prev, cardHolder: e.target.value }))}
+                            placeholder="Full name as printed on card"
+                            className="w-full px-3 py-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-800 text-xs font-bold outline-none focus:border-orange-500"
+                          />
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-2.5">
+                          <div>
+                            <label className="text-[11px] font-bold text-slate-500 block mb-1">Expiry Date (MM/YY)</label>
+                            <input
+                              type="text"
+                              value={paymentForm.expiry}
+                              maxLength={5}
+                              onChange={(e) => {
+                                let val = e.target.value.replace(/\D/g, '').slice(0, 4);
+                                if (val.length >= 2) val = val.slice(0, 2) + '/' + val.slice(2);
+                                setPaymentForm(prev => ({ ...prev, expiry: val }));
+                              }}
+                              placeholder="08/29"
+                              className="w-full px-3 py-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-800 text-xs font-mono font-bold outline-none focus:border-orange-500"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-[11px] font-bold text-slate-500 block mb-1">CVV / Security Code</label>
+                            <input
+                              type="password"
+                              value={paymentForm.cvv}
+                              maxLength={4}
+                              onChange={(e) => {
+                                const val = e.target.value.replace(/\D/g, '').slice(0, 4);
+                                setPaymentForm(prev => ({ ...prev, cvv: val }));
+                              }}
+                              placeholder="•••"
+                              className="w-full px-3 py-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-800 text-xs font-mono font-bold tracking-widest outline-none focus:border-orange-500"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* B. UPI FORM */}
+                  {paymentForm.paymentMethod === 'UPI' && (
+                    <div className="p-4 rounded-2xl bg-slate-100 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 space-y-3 animate-in fade-in">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-black uppercase tracking-wider text-slate-500">Pay via UPI App or ID</span>
+                        <span className="text-[10px] font-extrabold text-emerald-500 bg-emerald-500/10 px-2 py-0.5 rounded-full flex items-center gap-1">
+                          ⚡ 100% Escrow Protection
+                        </span>
+                      </div>
+
+                      {/* 4 Popular Apps */}
+                      <div className="space-y-1.5">
+                        <label className="text-[11px] font-bold text-slate-500">Choose Instant UPI Application</label>
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                          {[
+                            { id: 'gpay', name: 'Google Pay', icon: '🔵', handle: '@okaxis' },
+                            { id: 'phonepe', name: 'PhonePe', icon: '🟣', handle: '@ybl' },
+                            { id: 'paytm', name: 'Paytm UPI', icon: '🔷', handle: '@paytm' },
+                            { id: 'bhim', name: 'BHIM UPI', icon: '🟠', handle: '@upi' }
+                          ].map(app => (
+                            <button
+                              key={app.id}
+                              type="button"
+                              onClick={() => setPaymentForm(prev => ({
+                                ...prev,
+                                upiApp: app.id,
+                                upiId: `alex.customer${app.handle}`,
+                                isUpiVerified: true
+                              }))}
+                              className={`p-2.5 rounded-xl border flex flex-col items-center justify-center gap-1 transition-all cursor-pointer ${
+                                paymentForm.upiApp === app.id
+                                  ? 'border-orange-500 bg-orange-500/15 text-orange-600 dark:text-orange-400 font-black ring-1 ring-orange-500'
+                                  : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 hover:border-slate-400'
+                              }`}
+                            >
+                              <span className="text-xl">{app.icon}</span>
+                              <span className="text-xs font-extrabold text-center">{app.name}</span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Custom UPI ID */}
+                      <div className="space-y-1.5 pt-1">
+                        <label className="text-[11px] font-bold text-slate-500">Or Enter UPI ID / VPA</label>
+                        <div className="flex gap-2">
+                          <input
+                            type="text"
+                            value={paymentForm.upiId}
+                            onChange={(e) => setPaymentForm(prev => ({ ...prev, upiId: e.target.value.toLowerCase(), isUpiVerified: false }))}
+                            placeholder="yourname@bank"
+                            className="flex-1 px-3 py-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-800 text-xs font-mono font-bold outline-none focus:border-orange-500"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setPaymentForm(prev => ({ ...prev, isUpiVerified: true }))}
+                            className="px-3 py-2 rounded-xl bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-extrabold text-xs cursor-pointer"
+                          >
+                            {paymentForm.isUpiVerified ? '✓ Verified' : 'Verify'}
+                          </button>
+                        </div>
+
+                        {paymentForm.isUpiVerified && (
+                          <div className="flex items-center gap-1.5 text-[11px] text-emerald-500 font-bold">
+                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
+                            <span>Verified NPCI UPI ID ({user?.name || 'Alex Customer'})</span>
+                          </div>
+                        )}
+
+                        {/* Suffix pills */}
+                        <div className="flex flex-wrap gap-1.5 pt-1">
+                          {['@okhdfcbank', '@okaxis', '@ybl', '@paytm', '@ibl'].map(handle => (
+                            <button
+                              key={handle}
+                              type="button"
+                              onClick={() => {
+                                const prefix = paymentForm.upiId.split('@')[0] || 'alex.customer';
+                                setPaymentForm(prev => ({ ...prev, upiId: `${prefix}${handle}`, isUpiVerified: true }));
+                              }}
+                              className="px-2 py-0.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-[10px] font-mono text-slate-600 dark:text-slate-400 hover:border-orange-500 cursor-pointer"
+                            >
+                              {handle}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* C. NETBANKING FORM */}
+                  {paymentForm.paymentMethod === 'NETBANKING' && (
+                    <div className="p-4 rounded-2xl bg-slate-100 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 space-y-3 animate-in fade-in">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-black uppercase tracking-wider text-slate-500">Select Bank</span>
+                        <span className="text-[10px] text-slate-400 font-bold">50+ Banks Supported</span>
+                      </div>
+
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                        {[
+                          'HDFC Bank',
+                          'State Bank of India (SBI)',
+                          'ICICI Bank',
+                          'Axis Bank',
+                          'Kotak Mahindra Bank',
+                          'Punjab National Bank'
+                        ].map(bank => (
+                          <button
+                            key={bank}
+                            type="button"
+                            onClick={() => setPaymentForm(prev => ({ ...prev, bankName: bank }))}
+                            className={`p-2.5 rounded-xl border text-xs font-bold transition-all text-left flex items-center gap-2 cursor-pointer ${
+                              paymentForm.bankName === bank
+                                ? 'border-orange-500 bg-orange-500/15 text-orange-600 dark:text-orange-400 font-black ring-1 ring-orange-500'
+                                : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 hover:border-slate-400'
+                            }`}
+                          >
+                            <span>🏦</span>
+                            <span className="truncate">{bank}</span>
+                          </button>
+                        ))}
+                      </div>
+
+                      <div>
+                        <label className="text-[11px] font-bold text-slate-500 block mb-1">All Other Indian Banks</label>
+                        <select
+                          value={paymentForm.bankName}
+                          onChange={(e) => setPaymentForm(prev => ({ ...prev, bankName: e.target.value }))}
+                          className="w-full px-3 py-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-800 text-xs font-bold outline-none focus:border-orange-500"
+                        >
+                          <option value="HDFC Bank">HDFC Bank</option>
+                          <option value="State Bank of India (SBI)">State Bank of India (SBI)</option>
+                          <option value="ICICI Bank">ICICI Bank</option>
+                          <option value="Axis Bank">Axis Bank</option>
+                          <option value="Kotak Mahindra Bank">Kotak Mahindra Bank</option>
+                          <option value="Bank of Baroda">Bank of Baroda</option>
+                          <option value="Canara Bank">Canara Bank</option>
+                          <option value="Union Bank of India">Union Bank of India</option>
+                          <option value="IndusInd Bank">IndusInd Bank</option>
+                          <option value="Federal Bank">Federal Bank</option>
+                          <option value="IDFC First Bank">IDFC First Bank</option>
+                          <option value="Yes Bank">Yes Bank</option>
+                        </select>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* D. WALLET FORM */}
+                  {paymentForm.paymentMethod === 'ESCROW_WALLET' && (
+                    <div className="p-4 rounded-2xl bg-slate-100 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 space-y-3 animate-in fade-in">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-black uppercase tracking-wider text-slate-500">ChefHub Escrow Wallet</span>
+                        <span className="px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-500 font-extrabold text-[10px] uppercase">
+                          Escrow Protected
+                        </span>
+                      </div>
+
+                      {/* Wallet Balance Display */}
+                      <div className="p-3.5 rounded-2xl bg-gradient-to-r from-orange-500/15 via-amber-500/15 to-orange-500/15 border border-orange-500/25 flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-2xl bg-orange-500 text-white flex items-center justify-center font-black text-xl shadow-md">
+                            👛
+                          </div>
+                          <div>
+                            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Available Balance</span>
+                            <div className="text-xl font-black font-mono text-slate-900 dark:text-white">
+                              ₹{walletBalance.toFixed(2)}
+                            </div>
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setShowAddMoneyModal(true)}
+                          className="px-3 py-1.5 rounded-xl bg-orange-500 hover:bg-orange-600 text-white font-black text-xs shadow-md transition-all cursor-pointer flex items-center gap-1"
+                        >
+                          <Plus className="w-3.5 h-3.5" />
+                          <span>Add Money</span>
+                        </button>
+                      </div>
+
+                      {/* Sufficiency Check */}
+                      {walletBalance >= grandTotal ? (
+                        <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/25 text-xs text-emerald-700 dark:text-emerald-400 space-y-1">
+                          <div className="flex items-center gap-1.5 font-black">
+                            <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+                            <span>Sufficient Balance for this Order!</span>
+                          </div>
+                          <p className="text-[11px]">
+                            Order due: <strong>₹{grandTotal.toFixed(2)}</strong>. Balance remaining after payment: <strong>₹{(walletBalance - grandTotal).toFixed(2)}</strong>.
+                          </p>
+                        </div>
+                      ) : (
+                        <div className="p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/25 text-xs text-rose-700 dark:text-rose-400 space-y-2">
+                          <div className="flex items-center gap-1.5 font-black">
+                            <AlertTriangle className="w-4 h-4 text-rose-500" />
+                            <span>Insufficient Wallet Balance</span>
+                          </div>
+                          <p className="text-[11px]">
+                            Total due is <strong>₹{grandTotal.toFixed(2)}</strong>, but wallet has <strong>₹{walletBalance.toFixed(2)}</strong> (Deficit: <strong>₹{(grandTotal - walletBalance).toFixed(2)}</strong>).
+                          </p>
+                          <div className="flex gap-2 pt-1">
+                            <button
+                              type="button"
+                              onClick={() => handleTopUpWallet(Math.ceil(grandTotal - walletBalance + 50))}
+                              disabled={isAddingMoney}
+                              className="flex-1 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-black text-xs shadow-sm transition-all cursor-pointer"
+                            >
+                              {isAddingMoney ? 'Adding Funds...' : `Quick Add ₹${Math.ceil(grandTotal - walletBalance + 50)} & Continue`}
+                            </button>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Inline Quick Top-Up */}
+                      <div className="p-3 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-1.5">
+                        <span className="text-[11px] font-extrabold text-slate-500 block">Quick Top-Up via Payment Gateway</span>
+                        <div className="flex flex-wrap gap-1.5">
+                          {[200, 500, 1000, 2000].map(amt => (
+                            <button
+                              key={amt}
+                              type="button"
+                              onClick={() => handleTopUpWallet(amt)}
+                              disabled={isAddingMoney}
+                              className="px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-orange-500 hover:text-white text-xs font-bold font-mono transition-all cursor-pointer"
+                            >
+                              +₹{amt}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {/* 4. Price Breakdown & Total */}
@@ -2071,6 +2699,7 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
               {/* Left 7 cols: Interactive Leaflet Live Map */}
               <div className="lg:col-span-7 space-y-3">
                 <LiveDeliveryMap
+                  orderStatus={activeTrackingOrder.status}
                   chefLocation={activeTrackingOrder.chef_location || CHEF_AVATARS[activeTrackingOrder.vendor_email]?.coords || { lat: 12.9784, lng: 77.6408, locality: activeTrackingOrder.vendor_name }}
                   customerLocation={{ lat: currentCoords.lat, lng: currentCoords.lng, locality: primaryAddress }}
                   riderName={activeTrackingOrder.rider_name || 'David Rider'}

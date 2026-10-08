@@ -3,9 +3,9 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { Bike, Navigation, MapPin, Clock, Gauge, ShieldCheck, Info, Play, Pause, RotateCcw, ExternalLink, Phone } from 'lucide-react';
 
-// Custom Map Tile URLs (Supports dark mode & crisp standard tiles)
-const TILE_LIGHT = 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png';
-const TILE_DARK = 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
+// Clean OpenStreetMap tiles - Free, public & NO "API KEY REQUIRED" watermark
+const TILE_LIGHT = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
+const TILE_DARK = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
 
 export default function LiveDeliveryMap({
   chefLocation = { lat: 12.9784, lng: 77.6408, locality: 'Indiranagar Kitchen' },
@@ -15,6 +15,7 @@ export default function LiveDeliveryMap({
   customerName = 'Alex Customer',
   customerPhone = '+91 98765 43210',
   vehicleType = 'Ather 450X EV Scooter',
+  orderStatus = 'OUT_FOR_DELIVERY', // 'PLACED' | 'CONFIRMED' | 'PREPARING' | 'READY' | 'OUT_FOR_DELIVERY' | 'DELIVERED' | 'CANCELLED'
   isDarkMode = true,
   viewerRole = 'CUSTOMER', // 'CUSTOMER' | 'RIDER' — controls what info is shown
   onArrival = null
@@ -26,10 +27,35 @@ export default function LiveDeliveryMap({
   const progressLineRef = useRef(null);
   const animFrameRef = useRef(null);
 
-  const [isPlaying, setIsPlaying] = useState(true);
-  const [simProgress, setSimProgress] = useState(0.25); // 0 to 1
+  const normalizedStatus = String(orderStatus || 'OUT_FOR_DELIVERY').toUpperCase();
+  const isDelivered = normalizedStatus === 'DELIVERED';
+  const isReady = normalizedStatus === 'READY' || normalizedStatus === 'KITCHEN_READY';
+  const isOutForDelivery = normalizedStatus === 'OUT_FOR_DELIVERY';
+  const isPreparing = normalizedStatus === 'PREPARING' || normalizedStatus === 'KITCHEN_PREPARING';
+  const isPendingCook = normalizedStatus === 'PLACED' || normalizedStatus === 'CONFIRMED' || normalizedStatus === 'ORDER_PLACED';
+  const isCancelled = normalizedStatus === 'CANCELLED';
+
+  const defaultProgress = isDelivered ? 1 : isReady ? 0.05 : isOutForDelivery ? 0.25 : 0;
+  const [isPlaying, setIsPlaying] = useState(isOutForDelivery);
+  const [simProgress, setSimProgress] = useState(defaultProgress);
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
   const [showApiGuide, setShowApiGuide] = useState(false);
+
+  useEffect(() => {
+    if (isDelivered) {
+      setSimProgress(1);
+      setIsPlaying(false);
+    } else if (isReady) {
+      setSimProgress(0.05);
+      setIsPlaying(false);
+    } else if (isOutForDelivery) {
+      setSimProgress(prev => (prev < 0.1 ? 0.25 : prev));
+      setIsPlaying(true);
+    } else {
+      setSimProgress(0);
+      setIsPlaying(false);
+    }
+  }, [orderStatus]);
 
   // Generate intermediate road-like curved waypoints between chef & customer
   const waypoints = useRef([]);
@@ -86,9 +112,9 @@ export default function LiveDeliveryMap({
     return Number((R * c).toFixed(1));
   })();
 
-  const remainingKm = Math.max(0, (totalKm * (1 - simProgress))).toFixed(1);
-  const remainingMins = Math.max(1, Math.round(Number(remainingKm) * 3.2));
-  const currentSpeed = simProgress >= 1 ? 0 : 28;
+  const remainingKm = isDelivered ? '0.0' : (isPendingCook || isPreparing) ? totalKm.toFixed(1) : Math.max(0, (totalKm * (1 - simProgress))).toFixed(1);
+  const remainingMins = isDelivered ? 0 : isPendingCook ? 35 : isPreparing ? 22 : isReady ? 14 : Math.max(1, Math.round(Number(remainingKm) * 3.2));
+  const currentSpeed = (isDelivered || isPendingCook || isPreparing || isReady || isCancelled) ? 0 : (simProgress >= 1 ? 0 : 28);
 
   // Initialize Leaflet Map
   useEffect(() => {
@@ -195,9 +221,9 @@ export default function LiveDeliveryMap({
     };
   }, []);
 
-  // Animation Loop for Rider Movement
+  // Animation Loop for Rider Movement — ONLY when order is actively OUT_FOR_DELIVERY
   useEffect(() => {
-    if (!isPlaying) return;
+    if (!isPlaying || !isOutForDelivery) return;
 
     const interval = setInterval(() => {
       setSimProgress((prev) => {
@@ -212,7 +238,7 @@ export default function LiveDeliveryMap({
     }, 150);
 
     return () => clearInterval(interval);
-  }, [isPlaying, playbackSpeed]);
+  }, [isPlaying, playbackSpeed, isOutForDelivery]);
 
   // Update Rider Position on Map when simProgress changes
   useEffect(() => {
@@ -240,7 +266,56 @@ export default function LiveDeliveryMap({
   };
 
   return (
-    <div className="w-full space-y-4">
+    <div className="w-full space-y-3.5">
+      {/* Lifecycle Stage Alert Banner */}
+      {isPendingCook && (
+        <div className="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/25 flex items-center justify-between gap-3 text-xs shadow-sm">
+          <div className="flex items-center gap-2.5 text-amber-700 dark:text-amber-400 font-bold">
+            <Clock className="w-4 h-4 animate-spin shrink-0 text-amber-500" />
+            <span>Order Placed • Waiting for Chef ({chefLocation.locality || 'Kitchen'}) to accept order and start preparation</span>
+          </div>
+          <span className="px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-700 dark:text-amber-300 font-extrabold text-[10px] uppercase shrink-0">
+            Awaiting Cook
+          </span>
+        </div>
+      )}
+
+      {isPreparing && (
+        <div className="p-3.5 rounded-2xl bg-orange-500/10 border border-orange-500/25 flex items-center justify-between gap-3 text-xs shadow-sm">
+          <div className="flex items-center gap-2.5 text-orange-700 dark:text-orange-400 font-bold">
+            <span className="text-base animate-pulse">🍳</span>
+            <span>Chef is actively preparing your handcrafted meal. Courier will be dispatched once packaging is complete.</span>
+          </div>
+          <span className="px-2.5 py-0.5 rounded-full bg-orange-500/20 text-orange-700 dark:text-orange-300 font-extrabold text-[10px] uppercase shrink-0">
+            Kitchen Cooking
+          </span>
+        </div>
+      )}
+
+      {isReady && (
+        <div className="p-3.5 rounded-2xl bg-emerald-500/10 border border-emerald-500/25 flex items-center justify-between gap-3 text-xs shadow-sm">
+          <div className="flex items-center gap-2.5 text-emerald-700 dark:text-emerald-400 font-bold">
+            <span className="text-base">📦</span>
+            <span>Meal sealed with thermal insulation! Courier arriving at kitchen for pickup.</span>
+          </div>
+          <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 font-extrabold text-[10px] uppercase shrink-0">
+            Packed & Ready
+          </span>
+        </div>
+      )}
+
+      {isCancelled && (
+        <div className="p-3.5 rounded-2xl bg-rose-500/10 border border-rose-500/25 flex items-center justify-between gap-3 text-xs shadow-sm">
+          <div className="flex items-center gap-2.5 text-rose-700 dark:text-rose-400 font-bold">
+            <X className="w-4 h-4 shrink-0 text-rose-500" />
+            <span>Order was cancelled by the cook. 100% Escrow refund has been credited back to your account.</span>
+          </div>
+          <span className="px-2.5 py-0.5 rounded-full bg-rose-500/20 text-rose-700 dark:text-rose-300 font-extrabold text-[10px] uppercase shrink-0">
+            100% Refunded
+          </span>
+        </div>
+      )}
+
       {/* Top Real-Time Telemetry & Safety Card */}
       <div className={`p-4 rounded-2xl backdrop-blur-xl flex flex-wrap items-center justify-between gap-3 shadow-lg border ${
         viewerRole === 'RIDER'
@@ -298,8 +373,16 @@ export default function LiveDeliveryMap({
                   )}
                 </div>
                 <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                  {simProgress >= 1 ? (
+                  {isCancelled ? (
+                    <span className="text-rose-500 font-extrabold">❌ Order Cancelled by Chef — Refund Completed</span>
+                  ) : isDelivered ? (
                     <span className="text-emerald-500 font-extrabold">🎉 Courier Arrived at Doorstep!</span>
+                  ) : isPendingCook ? (
+                    <span className="text-amber-500 font-bold">⏳ Awaiting Cook Acceptance • Courier will dispatch after food is prepared</span>
+                  ) : isPreparing ? (
+                    <span className="text-orange-500 font-bold">🍳 Meal preparing in kitchen • Courier on standby</span>
+                  ) : isReady ? (
+                    <span className="text-emerald-500 font-bold">📦 Meal packed & ready • Courier arriving at kitchen</span>
                   ) : (
                     <span>En route to {customerLocation.locality || 'your delivery address'}</span>
                   )}
@@ -332,7 +415,7 @@ export default function LiveDeliveryMap({
                   <span>Estimated Arrival</span>
                 </div>
                 <div className="text-lg font-black text-amber-500">
-                  {simProgress >= 1 ? 'Arrived' : `~${remainingMins} min`}
+                  {isCancelled ? 'Cancelled' : isDelivered ? 'Arrived' : isPendingCook ? '~35 min' : isPreparing ? '~22 min' : isReady ? '~14 min' : `~${remainingMins} min`}
                 </div>
               </div>
               <div className="h-8 w-px bg-slate-300 dark:bg-slate-700 hidden sm:block"></div>

@@ -244,10 +244,65 @@ router.post('/coupons/validate', async (req, res) => {
   }
 });
 
+// Customer Escrow Wallet Balance
+router.get('/wallet', authenticateToken, requireRole('CUSTOMER'), async (req, res) => {
+  try {
+    const customer_id = req.user.user_id;
+    let rows = await query('SELECT balance, updated_at FROM customer_wallets WHERE customer_id = ?', [customer_id]);
+    if (rows.length === 0) {
+      // Initialize with ₹1,250.00 platform escrow starter balance
+      await query('INSERT INTO customer_wallets (customer_id, balance) VALUES (?, 1250.00)', [customer_id]);
+      rows = [{ balance: 1250.00, updated_at: new Date() }];
+    }
+    return res.json({
+      success: true,
+      balance: Number(rows[0].balance),
+      updated_at: rows[0].updated_at
+    });
+  } catch (err) {
+    console.error('Fetch wallet error:', err);
+    return res.status(500).json({ success: false, message: 'Failed to retrieve wallet balance.' });
+  }
+});
+
+// Top-up Escrow Wallet via Simulated Gateway
+router.post('/wallet/topup', authenticateToken, requireRole('CUSTOMER'), async (req, res) => {
+  try {
+    const customer_id = req.user.user_id;
+    const { amount, payment_method } = req.body;
+    const topupAmount = parseFloat(amount);
+
+    if (isNaN(topupAmount) || topupAmount <= 0) {
+      return res.status(400).json({ success: false, message: 'Please provide a valid top-up amount greater than 0.' });
+    }
+
+    let rows = await query('SELECT balance FROM customer_wallets WHERE customer_id = ?', [customer_id]);
+    let newBalance = topupAmount;
+    if (rows.length === 0) {
+      newBalance += 1250.00;
+      await query('INSERT INTO customer_wallets (customer_id, balance) VALUES (?, ?)', [customer_id, newBalance]);
+    } else {
+      newBalance += Number(rows[0].balance);
+      await query('UPDATE customer_wallets SET balance = ?, updated_at = CURRENT_TIMESTAMP WHERE customer_id = ?', [newBalance, customer_id]);
+    }
+
+    const txId = 'WTXN-' + Math.floor(10000000 + Math.random() * 90000000);
+    return res.json({
+      success: true,
+      balance: newBalance,
+      transaction_id: txId,
+      message: `₹${topupAmount.toFixed(2)} added successfully to ChefHub Escrow Wallet via ${payment_method || 'Payment Gateway'}!`
+    });
+  } catch (err) {
+    console.error('Wallet topup error:', err);
+    return res.status(500).json({ success: false, message: 'Failed to process wallet top-up.' });
+  }
+});
+
 // Create New Order
 router.post('/orders', checkoutLimiter, authenticateToken, requireRole('CUSTOMER'), async (req, res) => {
   try {
-    const { vendor_id, items, coupon_code, delivery_address } = req.body;
+    const { vendor_id, items, coupon_code, delivery_address, payment_method } = req.body;
     const customer_id = req.user.user_id;
 
     if (!vendor_id || !items || !Array.isArray(items) || items.length === 0) {
@@ -401,11 +456,28 @@ router.post('/orders', checkoutLimiter, authenticateToken, requireRole('CUSTOMER
         }
       }
 
-      // 3. Insert Master Order record into `orders` (with delivery_address, coupon_code, discount_amount)
+      // If customer chooses to pay via Escrow Wallet, verify and deduct balance atomically
+      const methodLabel = payment_method || 'Credit Card';
+      if (payment_method && payment_method.toUpperCase().includes('WALLET')) {
+        const walletRows = await txQuery('SELECT balance FROM customer_wallets WHERE customer_id = ? FOR UPDATE', [customer_id]);
+        const curBalance = walletRows.length > 0 ? Number(walletRows[0].balance) : 1250.00;
+        if (curBalance < totalAmount) {
+          const err = new Error(`Insufficient Escrow Wallet balance. Current balance: ₹${curBalance.toFixed(2)}, Order Total: ₹${totalAmount.toFixed(2)}. Please add money to your wallet.`);
+          err.statusCode = 400;
+          throw err;
+        }
+        if (walletRows.length > 0) {
+          await txQuery('UPDATE customer_wallets SET balance = balance - ?, updated_at = CURRENT_TIMESTAMP WHERE customer_id = ?', [totalAmount, customer_id]);
+        } else {
+          await txQuery('INSERT INTO customer_wallets (customer_id, balance) VALUES (?, ?)', [customer_id, 1250.00 - totalAmount]);
+        }
+      }
+
+      // 3. Insert Master Order record into `orders` (with delivery_address, coupon_code, discount_amount, payment_method)
       const orderRes = await txQuery(
-        `INSERT INTO orders (customer_id, vendor_id, total_amount, escrow_status, payment_status, status, delivery_address, coupon_code, discount_amount)
-         VALUES (?, ?, ?, 'HOLDING', 'PAID', 'PLACED', ?, ?, ?)`,
-        [customer_id, vendor_id, totalAmount, resolvedAddress, appliedCouponCode, discountAmount]
+        `INSERT INTO orders (customer_id, vendor_id, total_amount, escrow_status, payment_status, status, delivery_address, coupon_code, discount_amount, payment_method)
+         VALUES (?, ?, ?, 'HOLDING', 'PAID', 'PLACED', ?, ?, ?, ?)`,
+        [customer_id, vendor_id, totalAmount, resolvedAddress, appliedCouponCode, discountAmount, methodLabel]
       );
       const order_id = orderRes.insertId;
 
@@ -514,8 +586,8 @@ router.post('/orders', checkoutLimiter, authenticateToken, requireRole('CUSTOMER
   }
 });
 
-// CANCEL ORDER (Customer Order Cancellation CRUD)
-router.delete('/orders/:id', authenticateToken, requireRole('CUSTOMER'), async (req, res) => {
+// CANCEL ORDER (Customer Order Cancellation CRUD - Supports both POST /:id/cancel and DELETE /:id)
+const handleCustomerCancelOrder = async (req, res) => {
   try {
     const order_id = req.params.id;
     const customer_id = req.user.user_id;
@@ -534,22 +606,57 @@ router.delete('/orders/:id', authenticateToken, requireRole('CUSTOMER'), async (
 
     await query("UPDATE orders SET status = 'CANCELLED', escrow_status = 'REFUNDED' WHERE order_id = ?", [order_id]);
 
+    // Restore dish stock
+    const orderItems = await query('SELECT dish_id, quantity FROM order_items WHERE order_id = ?', [order_id]);
+    for (const it of orderItems) {
+      await query('UPDATE dishes SET daily_stock = daily_stock + ? WHERE dish_id = ?', [it.quantity, it.dish_id]);
+    }
+
+    // Refund escrow amount to customer wallet
+    const refundAmt = Number(targetOrder[0].total_amount);
+    try {
+      const curBalRows = await query('SELECT balance FROM customer_wallets WHERE customer_id = ?', [customer_id]);
+      if (curBalRows.length > 0) {
+        await query('UPDATE customer_wallets SET balance = balance + ?, updated_at = CURRENT_TIMESTAMP WHERE customer_id = ?', [refundAmt, customer_id]);
+      } else {
+        await query('INSERT INTO customer_wallets (customer_id, balance) VALUES (?, ?)', [customer_id, 1250.00 + refundAmt]);
+      }
+    } catch (e) {
+      console.warn('[Wallet Refund Sync Warning]', e.message);
+    }
+
+    await outboxRelay.recordEvent(null, {
+      aggregate_type: 'ORDER',
+      aggregate_id: order_id,
+      event_type: 'ORDER_CANCELLED',
+      payload: {
+        new_status: 'ORDER_CANCELLED',
+        actor_role: 'CUSTOMER',
+        note: `Order cancelled by customer. 100% Escrow refund of ₹${refundAmt.toFixed(2)} credited to account.`,
+        refund_amount: refundAmt
+      }
+    });
+    outboxRelay.dispatchNow();
+
     await MongoAdapter.pushTrackingLog(order_id, {
       event: 'ORDER_CANCELLED',
       timestamp: new Date(),
-      location_note: 'Order cancelled by customer. Refund initiated (2-7 working days).',
+      location_note: `Order cancelled by customer. 100% Escrow refund of ₹${refundAmt.toFixed(2)} credited back to customer wallet.`,
       actor_role: 'CUSTOMER'
     });
 
     return res.json({ 
       success: true, 
-      message: `Order #${order_id} has been cancelled! The payment amount will be refunded within 2-7 working days to the same payment method.` 
+      message: `Order #${order_id} cancelled. ₹${refundAmt.toFixed(2)} 100% Escrow refund credited to your wallet.` 
     });
   } catch (err) {
     console.error('Cancel order error:', err);
     return res.status(500).json({ success: false, message: 'Failed to cancel order.' });
   }
-});
+};
+
+router.post('/orders/:id/cancel', authenticateToken, requireRole('CUSTOMER'), handleCustomerCancelOrder);
+router.delete('/orders/:id', authenticateToken, requireRole('CUSTOMER'), handleCustomerCancelOrder);
 
 // Fetch Orders for Authenticated Customer
 router.get('/my-orders', authenticateToken, requireRole('CUSTOMER'), async (req, res) => {
@@ -578,17 +685,21 @@ router.get('/my-orders', authenticateToken, requireRole('CUSTOMER'), async (req,
         timeline = [
           { event: 'ORDER_PLACED', location_note: 'Order submitted and escrow payment secured', timestamp: o.timestamp || new Date(), actor_role: 'CUSTOMER' }
         ];
-        if (['PREPARING', 'READY', 'OUT_FOR_DELIVERY', 'DELIVERED'].includes(o.status)) {
-          timeline.push({ event: 'KITCHEN_PREPARING', location_note: 'Chef started preparing your meal', timestamp: new Date(new Date(o.timestamp).getTime() + 2 * 60000), actor_role: 'VENDOR' });
-        }
-        if (['READY', 'OUT_FOR_DELIVERY', 'DELIVERED'].includes(o.status)) {
-          timeline.push({ event: 'KITCHEN_READY', location_note: 'Meal packed & waiting for delivery pickup', timestamp: new Date(new Date(o.timestamp).getTime() + 10 * 60000), actor_role: 'VENDOR' });
-        }
-        if (['OUT_FOR_DELIVERY', 'DELIVERED'].includes(o.status)) {
-          timeline.push({ event: 'RIDER_ACCEPTED', location_note: 'Courier picked up order and is en route', timestamp: new Date(new Date(o.timestamp).getTime() + 15 * 60000), actor_role: 'RIDER' });
-        }
-        if (o.status === 'DELIVERED') {
-          timeline.push({ event: 'DELIVERED', location_note: 'Order delivered successfully to your doorstep', timestamp: new Date(new Date(o.timestamp).getTime() + 25 * 60000), actor_role: 'RIDER' });
+        if (o.status === 'CANCELLED') {
+          timeline.push({ event: 'ORDER_CANCELLED', location_note: 'Order cancelled. 100% Escrow refund credited back to customer account.', timestamp: o.timestamp || new Date(), actor_role: 'VENDOR' });
+        } else {
+          if (['PREPARING', 'READY', 'OUT_FOR_DELIVERY', 'DELIVERED'].includes(o.status)) {
+            timeline.push({ event: 'KITCHEN_PREPARING', location_note: 'Chef started preparing your meal', timestamp: new Date(new Date(o.timestamp).getTime() + 2 * 60000), actor_role: 'VENDOR' });
+          }
+          if (['READY', 'OUT_FOR_DELIVERY', 'DELIVERED'].includes(o.status)) {
+            timeline.push({ event: 'KITCHEN_READY', location_note: 'Meal packed & waiting for delivery pickup', timestamp: new Date(new Date(o.timestamp).getTime() + 10 * 60000), actor_role: 'VENDOR' });
+          }
+          if (['OUT_FOR_DELIVERY', 'DELIVERED'].includes(o.status)) {
+            timeline.push({ event: 'RIDER_ACCEPTED', location_note: 'Courier picked up order and is en route', timestamp: new Date(new Date(o.timestamp).getTime() + 15 * 60000), actor_role: 'RIDER' });
+          }
+          if (o.status === 'DELIVERED') {
+            timeline.push({ event: 'DELIVERED', location_note: 'Order delivered successfully to your doorstep', timestamp: new Date(new Date(o.timestamp).getTime() + 25 * 60000), actor_role: 'RIDER' });
+          }
         }
       }
 
