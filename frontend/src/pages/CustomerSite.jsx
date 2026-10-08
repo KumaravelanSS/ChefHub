@@ -437,7 +437,14 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
         headers: { Authorization: `Bearer ${token}` }
       });
       const data = await res.json();
-      if (data.success) setMyOrders(data.orders);
+      if (data.success) {
+        setMyOrders(data.orders);
+        setActiveTrackingOrder(prev => {
+          if (!prev) return null;
+          const updated = data.orders.find(o => o.order_id === prev.order_id);
+          return updated ? { ...prev, ...updated } : prev;
+        });
+      }
     } catch (err) {
       console.error('Fetch my orders error:', err);
     }
@@ -1372,6 +1379,7 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
     const stageMap = {
       PLACED: 0,
       ORDER_PLACED: 0,
+      CONFIRMED: 0,
       PREPARING: 1,
       KITCHEN_PREPARING: 1,
       READY: 2,
@@ -1407,9 +1415,9 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
       {
         key: 'KITCHEN_READY',
         title: 'KITCHEN_READY',
-        desc: 'Meal packed with thermal insulation & waiting for delivery pickup',
+        desc: 'Order ready • Packed & waiting to be picked up by a delivery person',
         time: tReady,
-        pendingLabel: 'Pending culinary packaging'
+        pendingLabel: 'Awaiting delivery partner pickup'
       },
       {
         key: 'RIDER_ACCEPTED',
@@ -3937,11 +3945,53 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
                 </div>
                 <div>
                   <h3 className="font-black text-base sm:text-lg">Order #{activeTrackingOrder.order_id} Live Delivery</h3>
-                  <p className="text-xs text-slate-500">Courier navigation from {activeTrackingOrder.vendor_name} to your address</p>
+                  <p className="text-xs text-slate-500">
+                    {['OUT_FOR_DELIVERY', 'RIDER_ACCEPTED', 'DELIVERED'].includes(String(activeTrackingOrder.status || '').toUpperCase())
+                      ? `Courier navigation from ${activeTrackingOrder.vendor_name} to your address`
+                      : `Order preparation & dispatch tracking • ${activeTrackingOrder.vendor_name}`}
+                  </p>
                 </div>
               </div>
 
               <div className="flex items-center gap-2">
+                {/* Milestone Stage Switcher / Simulator */}
+                <div className="hidden sm:flex items-center gap-1 bg-slate-100 dark:bg-slate-900 p-1 rounded-xl border border-slate-200 dark:border-slate-800 text-[11px] font-bold">
+                  <span className="text-slate-400 px-1 text-[10px] uppercase font-extrabold">Stage:</span>
+                  {[
+                    { label: '1. Placed', status: 'CONFIRMED' },
+                    { label: '2. Cooking', status: 'PREPARING' },
+                    { label: '3. Food Ready', status: 'READY' },
+                    { label: '4. Rider En Route', status: 'OUT_FOR_DELIVERY' },
+                    { label: '5. Delivered', status: 'DELIVERED' }
+                  ].map((s) => {
+                    const currUpper = String(activeTrackingOrder.status || '').toUpperCase();
+                    const isCurr = (
+                      (s.status === 'CONFIRMED' && ['CONFIRMED', 'PLACED', 'ORDER_PLACED'].includes(currUpper)) ||
+                      (s.status === 'PREPARING' && ['PREPARING', 'KITCHEN_PREPARING'].includes(currUpper)) ||
+                      (s.status === 'READY' && ['READY', 'KITCHEN_READY', 'READY_FOR_PICKUP'].includes(currUpper)) ||
+                      (s.status === 'OUT_FOR_DELIVERY' && ['OUT_FOR_DELIVERY', 'RIDER_ACCEPTED'].includes(currUpper)) ||
+                      (s.status === 'DELIVERED' && currUpper === 'DELIVERED')
+                    );
+                    return (
+                      <button
+                        key={s.status}
+                        onClick={() => {
+                          setActiveTrackingOrder(prev => ({ ...prev, status: s.status }));
+                          setTimelineAnimKey(prev => prev + 1);
+                        }}
+                        className={`px-2 py-0.5 rounded-lg text-[10px] font-black transition-all cursor-pointer ${
+                          isCurr
+                            ? 'bg-orange-500 text-white shadow-sm'
+                            : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
+                        }`}
+                        title={`Preview: ${s.label}`}
+                      >
+                        {s.label}
+                      </button>
+                    );
+                  })}
+                </div>
+
                 <button
                   onClick={() => setTimelineAnimKey(prev => prev + 1)}
                   className="px-2.5 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-xs font-bold flex items-center gap-1 cursor-pointer"
