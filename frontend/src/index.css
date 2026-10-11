@@ -31,18 +31,20 @@ html.dark {
 body {
   background-color: var(--bg-main);
   color: var(--text-primary);
-  font-family: 'Nunito', 'Outfit', system-ui, -apple-system, sans-serif;
+  font-family: 'Plus Jakarta Sans', 'Inter', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+  letter-spacing: -0.012em;
   transition: background-color 0.3s ease, color 0.3s ease;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
 .font-display {
-  font-family: 'Playfair Display', 'Outfit', serif;
+  font-family: 'Outfit', 'Plus Jakarta Sans', system-ui, sans-serif;
+  letter-spacing: -0.028em;
 }
 
 .font-sans {
-  font-family: 'Nunito', 'Outfit', system-ui, sans-serif;
+  font-family: 'Plus Jakarta Sans', 'Inter', system-ui, sans-serif;
 }
 
 @layer utilities {

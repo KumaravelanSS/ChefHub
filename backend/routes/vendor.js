@@ -7,6 +7,7 @@ const { MongoAdapter } = require('../config/mongo_db');
 const { authenticateToken, requireRole, JWT_SECRET } = require('../middleware/auth_rbac');
 const InventoryEngine = require('../services/inventory_engine');
 const outboxRelay = require('../services/outbox_relay');
+const { sendPasswordResetOtp } = require('../services/email_service');
 
 function validatePasswordStrength(password) {
   if (!password || typeof password !== 'string') {
@@ -959,13 +960,36 @@ router.post('/password/request-otp', authenticateToken, requireRole('VENDOR'), a
 
     console.log(`[CHEF OTP DISPATCH] Generated OTP [${otpCode}] for Chef ${user.name} (${recipient})`);
 
+    // Dispatch real email via Nodemailer (Real SMTP if configured, or automated Ethereal webmail preview)
+    let emailResult = null;
+    if (target === 'EMAIL' || !target) {
+      try {
+        emailResult = await sendPasswordResetOtp({
+          toEmail: user.email.trim(),
+          chefName: user.name,
+          otpCode,
+          expiresMinutes: 5
+        });
+      } catch (mailErr) {
+        console.error('[Email Dispatch Error]', mailErr.message);
+      }
+    }
+
+    const messageText = emailResult?.mode === 'REAL_SMTP'
+      ? `Real verification email with OTP sent to ${maskedRecipient}!`
+      : emailResult?.previewUrl
+      ? `Verification email dispatched! Live preview available in webmail.`
+      : `OTP sent successfully to your registered ${target === 'PHONE' ? 'mobile number' : 'email ID'} (${maskedRecipient})`;
+
     return res.json({
       success: true,
-      message: `OTP sent successfully to your registered ${target === 'PHONE' ? 'mobile number' : 'email ID'} (${maskedRecipient})`,
+      message: messageText,
       target,
       recipient: maskedRecipient,
       expires_in_seconds: 300,
-      debug_otp: otpCode
+      debug_otp: otpCode,
+      email_preview_url: emailResult?.previewUrl || null,
+      email_mode: emailResult?.mode || 'LOCAL'
     });
   } catch (err) {
     console.error('Request OTP error:', err);
