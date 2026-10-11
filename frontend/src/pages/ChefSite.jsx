@@ -6,6 +6,8 @@ import {
 } from 'lucide-react';
 import { KitchenLoadingScreen, KitchenDataLoader, KitchenSkeletonRows } from '../components/KitchenLoading';
 import ChefAuthPage from './ChefAuthPage';
+import ChefLocationPickerMap from '../components/ChefLocationPickerMap';
+import CancelOrderLoadingModal from '../components/CancelOrderLoadingModal';
 
 const presetImages = [
   { label: 'Pasta', url: 'https://images.unsplash.com/photo-1551183053-bf91a1d81141?auto=format&fit=crop&w=600&q=80' },
@@ -93,6 +95,7 @@ export default function ChefSite({ user, onLogin, onLogout }) {
   const [cancelReasonPreset, setCancelReasonPreset] = useState('Ingredient stock exhausted / Daily portions sold out');
   const [customCancelReason, setCustomCancelReason] = useState('');
   const [isCancellingOrder, setIsCancellingOrder] = useState(false);
+  const [cancellingProgress, setCancellingProgress] = useState(null);
 
   const [hoursForm, setHoursForm] = useState({
     operating_hours: '11:00 AM - 10:00 PM',
@@ -881,16 +884,80 @@ export default function ChefSite({ user, onLogin, onLogout }) {
   const handleConfirmCancelOrder = async (e) => {
     e.preventDefault();
     if (!cancelModalOrder) return;
-    setIsCancellingOrder(true);
+    const orderToCancel = cancelModalOrder;
     const finalReason = cancelReasonPreset === 'CUSTOM'
       ? (customCancelReason.trim() || 'Chef had to cancel this order due to kitchen constraints.')
       : cancelReasonPreset;
-    
-    const ok = await updateOrderStatus(cancelModalOrder.order_id, 'CANCELLED', finalReason);
-    setIsCancellingOrder(false);
-    if (ok) {
-      setCancelModalOrder(null);
-      setCustomCancelReason('');
+
+    // Close the input prompt modal immediately
+    setCancelModalOrder(null);
+    setCustomCancelReason('');
+
+    // Open dedicated small cancellation loading screen and hold through multi-stage progression
+    setCancellingProgress({
+      order_id: orderToCancel.order_id,
+      customer_name: orderToCancel.customer_name || 'Customer',
+      total_amount: Number(orderToCancel.total_amount || 0).toFixed(2),
+      reason: finalReason,
+      step: 'CANCEL_REQUEST',
+      statusText: 'Connecting to kitchen order gateway...'
+    });
+
+    try {
+      // Step 1: Restoring menu portion stocks
+      await new Promise((r) => setTimeout(r, 450));
+      setCancellingProgress((prev) =>
+        prev ? { ...prev, step: 'RESTOCKING_MENU', statusText: 'Restoring portion stocks to live menu catalog...' } : null
+      );
+
+      // Step 2: Relational status update & escrow reversal
+      const token = localStorage.getItem('chefhub_token');
+      const res = await fetch(`/api/vendor/orders/${orderToCancel.order_id}/status`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ status: 'CANCELLED', cancel_reason: finalReason })
+      });
+      const data = await res.json();
+
+      if (!data.success) {
+        throw new Error(data.message || 'Failed to cancel order.');
+      }
+
+      // Step 3: Refunding Escrow
+      await new Promise((r) => setTimeout(r, 450));
+      setCancellingProgress((prev) =>
+        prev
+          ? {
+              ...prev,
+              step: 'REFUNDING_ESCROW',
+              statusText: `Crediting 100% Escrow refund (₹${Number(orderToCancel.total_amount || 0).toFixed(2)}) to ${orderToCancel.customer_name || 'Customer'}...`
+            }
+          : null
+      );
+
+      // Step 4: Refresh UI (dishes, inventory, orders queue)
+      await new Promise((r) => setTimeout(r, 450));
+      setCancellingProgress((prev) =>
+        prev ? { ...prev, step: 'UPDATING_QUEUE', statusText: 'Synchronizing real-time kitchen order queue & stock tables...' } : null
+      );
+      await fetchData();
+
+      // Step 5: Success state
+      await new Promise((r) => setTimeout(r, 400));
+      setCancellingProgress((prev) =>
+        prev
+          ? {
+              ...prev,
+              step: 'SUCCESS',
+              statusText: `Order #${orderToCancel.order_id} successfully cancelled & 100% Escrow refunded!`
+            }
+          : null
+      );
+    } catch (err) {
+      console.error('Cancellation error:', err);
+      setCancellingProgress((prev) =>
+        prev ? { ...prev, step: 'ERROR', statusText: 'Cancellation failed', errorMessage: err.message } : null
+      );
     }
   };
 
@@ -1129,29 +1196,29 @@ export default function ChefSite({ user, onLogin, onLogout }) {
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="font-extrabold text-slate-700 dark:text-slate-300 block mb-1">Latitude</label>
-                  <input
-                    type="number"
-                    step="0.000001"
-                    value={profileForm.latitude}
-                    onChange={(e) => setProfileForm({ ...profileForm, latitude: parseFloat(e.target.value) || 0 })}
-                    placeholder="12.9784"
-                    className="w-full px-3 py-2 rounded-xl bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white font-mono font-medium outline-none focus:border-emerald-500"
-                  />
+              {/* Interactive Kitchen Map (Replacing raw Latitude & Longitude inputs) */}
+              <div className="space-y-1.5 pt-1">
+                <div className="flex items-center justify-between">
+                  <label className="font-extrabold text-slate-700 dark:text-slate-300 flex items-center gap-1.5 text-xs">
+                    <Compass className="w-3.5 h-3.5 text-emerald-500" />
+                    <span>Kitchen Pin on Interactive Map</span>
+                  </label>
+                  <span className="text-[11px] font-mono font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-md border border-emerald-500/20">
+                    {Number(profileForm.latitude || 12.9784).toFixed(4)}° N, {Number(profileForm.longitude || 77.6408).toFixed(4)}° E
+                  </span>
                 </div>
-                <div>
-                  <label className="font-extrabold text-slate-700 dark:text-slate-300 block mb-1">Longitude</label>
-                  <input
-                    type="number"
-                    step="0.000001"
-                    value={profileForm.longitude}
-                    onChange={(e) => setProfileForm({ ...profileForm, longitude: parseFloat(e.target.value) || 0 })}
-                    placeholder="77.6408"
-                    className="w-full px-3 py-2 rounded-xl bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white font-mono font-medium outline-none focus:border-emerald-500"
-                  />
-                </div>
+                <ChefLocationPickerMap
+                  latitude={profileForm.latitude}
+                  longitude={profileForm.longitude}
+                  onChange={(newLat, newLng) => {
+                    setProfileForm((prev) => ({
+                      ...prev,
+                      latitude: newLat,
+                      longitude: newLng
+                    }));
+                  }}
+                  localityName={profileForm.business_name || profileForm.name || 'Kitchen Location'}
+                />
               </div>
             </div>
 
@@ -3635,6 +3702,14 @@ export default function ChefSite({ user, onLogin, onLogout }) {
             {renderProfileContent(true)}
           </div>
         </div>
+      )}
+
+      {/* Dedicated Cancel Order Multi-Stage Loading Modal */}
+      {cancellingProgress && (
+        <CancelOrderLoadingModal
+          cancellingProgress={cancellingProgress}
+          onClose={() => setCancellingProgress(null)}
+        />
       )}
 
     </div>
