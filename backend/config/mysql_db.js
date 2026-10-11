@@ -376,6 +376,25 @@ async function initRelationalDb() {
   } catch (err) {}
 
   try {
+    await query(`ALTER TABLE users ADD COLUMN avatar_url VARCHAR(500)`);
+  } catch (err) {}
+
+  try {
+    await query(`
+      CREATE TABLE IF NOT EXISTS password_otps (
+        otp_id INTEGER PRIMARY KEY ${isSqlite ? 'AUTOINCREMENT' : 'AUTO_INCREMENT'},
+        user_id INTEGER NOT NULL,
+        identifier VARCHAR(255) NOT NULL,
+        otp_code VARCHAR(10) NOT NULL,
+        expires_at DATETIME NOT NULL,
+        used INTEGER DEFAULT 0,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE
+      )
+    `);
+  } catch (err) {}
+
+  try {
     await query(`ALTER TABLE orders ADD COLUMN delivery_address TEXT`);
   } catch (err) {}
 

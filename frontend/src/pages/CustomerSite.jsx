@@ -1865,6 +1865,8 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
                   avatar: 'https://images.unsplash.com/photo-1577219491135-ce391730fb2c?auto=format&fit=crop&w=240&q=80',
                   locality: v.primary_address || 'Artisanal Kitchen'
                 };
+                const chefAvatar = v.avatar_url || chefMeta.avatar;
+                const chefLocality = v.primary_address || chefMeta.locality;
                 const isClosed = v.is_currently_open === false || v.menu?.is_currently_open === false;
                 const isOutOfRadius = enforceRadius && v.is_within_20km === false;
 
@@ -1886,7 +1888,7 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
                     <div className="flex items-center gap-3">
                       <div className="relative w-12 h-12 rounded-2xl overflow-hidden shrink-0 shadow-md">
                         <img
-                          src={chefMeta.avatar}
+                          src={chefAvatar}
                           alt={v.business_name}
                           className="w-full h-full object-cover"
                         />
@@ -1898,15 +1900,22 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
                       </div>
                       <div className="overflow-hidden">
                         <h4 className="text-xs sm:text-sm font-extrabold text-slate-900 dark:text-white truncate">{v.business_name}</h4>
-                        <p className="text-[11px] text-slate-500 truncate">{chefMeta.locality}</p>
+                        <p className="text-[11px] text-slate-500 truncate">{chefLocality}</p>
                       </div>
                     </div>
 
-                    <div className="flex items-center justify-between text-[11px] pt-2 border-t border-slate-200 dark:border-slate-800 font-semibold">
-                      <span className="text-amber-500 flex items-center gap-0.5">
-                        <Star className="w-3 h-3 fill-amber-500 text-amber-500" /> 4.9
-                      </span>
-                      <span className={`font-extrabold ${
+                    <div className="flex items-center justify-between text-[11px] pt-2 border-t border-slate-200 dark:border-slate-800 font-semibold gap-1">
+                      {v.is_new_arrival ? (
+                        <span className="text-emerald-600 dark:text-emerald-400 font-black flex items-center gap-1 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/25 text-[10px]">
+                          <Sparkles className="w-3 h-3 text-emerald-500 shrink-0" />
+                          <span>New Arrival</span>
+                        </span>
+                      ) : (
+                        <span className="text-amber-500 flex items-center gap-0.5 font-black">
+                          <Star className="w-3 h-3 fill-amber-500 text-amber-500" /> {v.rating} <span className="text-[10px] text-slate-400 font-normal">({v.review_count})</span>
+                        </span>
+                      )}
+                      <span className={`font-extrabold shrink-0 ${
                         isOutOfRadius
                           ? 'text-rose-500'
                           : isClosed
@@ -1920,6 +1929,49 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
                 );
               })}
             </div>
+
+            {/* Selected Chef Details Banner */}
+            {selectedChefFilter !== 'ALL' && (() => {
+              const activeChef = vendors.find(v => v.vendor_id === selectedChefFilter);
+              if (!activeChef) return null;
+              const meta = CHEF_AVATARS[activeChef.email?.toLowerCase()] || {};
+              const avatar = activeChef.avatar_url || meta.avatar || 'https://images.unsplash.com/photo-1577219491135-ce391730fb2c?auto=format&fit=crop&w=240&q=80';
+              return (
+                <div className="mt-4 p-4 rounded-2xl bg-gradient-to-r from-orange-500/10 via-amber-500/10 to-orange-500/5 border border-orange-500/30 flex flex-wrap items-center justify-between gap-4 animate-fade-in backdrop-blur-md">
+                  <div className="flex items-center gap-3.5">
+                    <img src={avatar} alt={activeChef.business_name} className="w-14 h-14 rounded-2xl object-cover border-2 border-orange-500/40 shadow-md shrink-0" />
+                    <div>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <h3 className="text-sm sm:text-base font-black text-slate-900 dark:text-white">{activeChef.business_name}</h3>
+                        {activeChef.is_new_arrival ? (
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 flex items-center gap-1">
+                            <Sparkles className="w-3 h-3 text-emerald-400" /> New Arrival ({activeChef.review_count || 0}/3 reviews)
+                          </span>
+                        ) : (
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30 flex items-center gap-1">
+                            <Star className="w-3 h-3 fill-amber-400 text-amber-400" /> {activeChef.rating} / 5.0 ({activeChef.review_count} verified reviews)
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-xs text-slate-600 dark:text-slate-400 font-medium mt-0.5 line-clamp-1">
+                        📍 {activeChef.primary_address || meta.locality || 'Artisanal Kitchen'} • ⏰ {activeChef.menu?.operating_hours || '11:00 AM - 10:00 PM'}
+                      </p>
+                      {activeChef.menu?.chef_bio && (
+                        <p className="text-[11px] text-slate-500 dark:text-slate-400 italic mt-0.5 line-clamp-1">
+                          "{activeChef.menu.chef_bio}"
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setSelectedChefFilter('ALL')}
+                    className="text-xs font-black text-orange-500 hover:text-orange-600 dark:hover:text-orange-400 bg-white dark:bg-slate-800 px-3 py-1.5 rounded-xl border border-orange-500/30 shadow-sm cursor-pointer"
+                  >
+                    Clear Filter (All Chefs)
+                  </button>
+                </div>
+              );
+            })()}
           </div>
 
           {/* FoodChow-Inspired Main Marketplace: Left Filter Sidebar + Unified Dishes Grid */}

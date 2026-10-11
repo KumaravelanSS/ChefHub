@@ -1,10 +1,39 @@
 const express = require('express');
 const router = express.Router();
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
 const { query } = require('../config/mysql_db');
 const { MongoAdapter } = require('../config/mongo_db');
-const { authenticateToken, requireRole } = require('../middleware/auth_rbac');
+const { authenticateToken, requireRole, JWT_SECRET } = require('../middleware/auth_rbac');
 const InventoryEngine = require('../services/inventory_engine');
 const outboxRelay = require('../services/outbox_relay');
+
+function validatePasswordStrength(password) {
+  if (!password || typeof password !== 'string') {
+    return { valid: false, message: 'Password is required' };
+  }
+  if (password.length < 8) {
+    return { valid: false, message: 'Password must be at least 8 characters long.' };
+  }
+  const hasUpper = /[A-Z]/.test(password);
+  const hasLower = /[a-z]/.test(password);
+  const hasNumber = /[0-9]/.test(password);
+  const hasSpecial = /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password);
+
+  let score = 0;
+  if (hasUpper) score++;
+  if (hasLower) score++;
+  if (hasNumber) score++;
+  if (hasSpecial) score++;
+
+  if (score < 3) {
+    return {
+      valid: false,
+      message: 'Password must include at least 3 of: uppercase, lowercase, numbers, or special characters.'
+    };
+  }
+  return { valid: true };
+}
 
 // Vendor Orders Queue
 router.get('/orders', authenticateToken, requireRole('VENDOR'), async (req, res) => {
@@ -723,10 +752,21 @@ router.get('/reviews', authenticateToken, requireRole('VENDOR'), async (req, res
   }
 });
 
-// Get Vendor Store Profile & Status
+// In-memory OTP storage fallback
+const inMemoryOtps = new Map();
+
+// Get Vendor Store Profile & Status & Rating Metrics
 router.get('/profile', authenticateToken, requireRole('VENDOR'), async (req, res) => {
   try {
     const vendor_id = req.user.user_id;
+
+    // Fetch user details from MySQL
+    const userRows = await query(`
+      SELECT user_id, name, email, phone, primary_address, latitude, longitude, avatar_url, role 
+      FROM users WHERE user_id = ?
+    `, [vendor_id]);
+    const u = userRows[0] || {};
+
     const mongoMenu = await MongoAdapter.findVendorMenu(vendor_id) || { vendor_id, categories: [] };
 
     const todayDate = new Date().toISOString().split('T')[0];
@@ -741,21 +781,292 @@ router.get('/profile', authenticateToken, requireRole('VENDOR'), async (req, res
       await MongoAdapter.findOrSeedVendorMenus([mongoMenu]);
     }
 
+    // Dynamic accurate ratings calculation from real customer reviews
+    const reviews = await MongoAdapter.getReviews({ vendor_id: Number(vendor_id) });
+    const review_count = reviews.length;
+    const totalStars = reviews.reduce((acc, r) => acc + (Number(r.vendor_rating) || 5), 0);
+    const avgRating = review_count > 0 ? Number((totalStars / review_count).toFixed(1)) : 0;
+    const MIN_REVIEWS_THRESHOLD = 3;
+    const is_new_arrival = review_count < MIN_REVIEWS_THRESHOLD;
+
     const profile = {
       vendor_id,
-      business_name: mongoMenu?.business_name || req.user.name,
+      name: u.name || req.user.name,
+      email: u.email || req.user.email,
+      phone: u.phone || null,
+      primary_address: u.primary_address || '',
+      latitude: u.latitude ? Number(u.latitude) : 12.9716,
+      longitude: u.longitude ? Number(u.longitude) : 77.5946,
+      avatar_url: u.avatar_url || mongoMenu?.hero_image_url || null,
+      business_name: mongoMenu?.business_name || u.name || req.user.name,
       is_open: mongoMenu?.is_open !== undefined ? mongoMenu.is_open : true,
       closed_reason: mongoMenu?.closed_reason || null,
       operating_hours: mongoMenu?.operating_hours || '11:00 AM - 10:00 PM',
       open_time: mongoMenu?.open_time || '11:00',
       close_time: mongoMenu?.close_time || '22:00',
       chef_bio: mongoMenu?.chef_bio || 'Michelin-trained artisanal independent chef.',
+      rating: avgRating,
+      review_count,
+      min_reviews_needed: MIN_REVIEWS_THRESHOLD,
+      is_new_arrival,
       auto_reopened: autoReopened
     };
     return res.json({ success: true, profile });
   } catch (err) {
     console.error('Fetch profile error:', err);
     return res.status(500).json({ success: false, message: 'Failed to fetch store profile.' });
+  }
+});
+
+// Update Comprehensive Vendor Profile (Username/Chef Name, Phone, Address, Coordinates, Avatar, Bio, Hours)
+router.put('/profile', authenticateToken, requireRole('VENDOR'), async (req, res) => {
+  try {
+    const vendor_id = req.user.user_id;
+    const {
+      name,
+      phone,
+      primary_address,
+      latitude,
+      longitude,
+      avatar_url,
+      business_name,
+      chef_bio,
+      operating_hours,
+      open_time,
+      close_time
+    } = req.body;
+
+    const lat = latitude !== undefined && latitude !== null && latitude !== '' ? Number(latitude) : null;
+    const lng = longitude !== undefined && longitude !== null && longitude !== '' ? Number(longitude) : null;
+
+    // Update MySQL users table
+    await query(`
+      UPDATE users 
+      SET name = COALESCE(?, name),
+          phone = COALESCE(?, phone),
+          primary_address = COALESCE(?, primary_address),
+          latitude = COALESCE(?, latitude),
+          longitude = COALESCE(?, longitude),
+          avatar_url = COALESCE(?, avatar_url)
+      WHERE user_id = ?
+    `, [
+      name ? name.trim() : null,
+      phone ? phone.trim() : null,
+      primary_address ? primary_address.trim() : null,
+      lat,
+      lng,
+      avatar_url ? avatar_url.trim() : null,
+      vendor_id
+    ]);
+
+    // Update Mongo VendorMenu document
+    const mongoMenu = await MongoAdapter.findVendorMenu(vendor_id) || { vendor_id, categories: [] };
+    if (business_name) mongoMenu.business_name = business_name.trim();
+    else if (name) mongoMenu.business_name = name.trim();
+
+    if (chef_bio !== undefined) mongoMenu.chef_bio = chef_bio;
+    if (avatar_url) mongoMenu.hero_image_url = avatar_url.trim();
+    if (operating_hours) mongoMenu.operating_hours = operating_hours;
+    if (open_time) mongoMenu.open_time = open_time;
+    if (close_time) mongoMenu.close_time = close_time;
+
+    await MongoAdapter.findOrSeedVendorMenus([mongoMenu]);
+
+    // Query refreshed user record
+    const userRows = await query(`
+      SELECT user_id, name, email, phone, role, primary_address, latitude, longitude, avatar_url, status 
+      FROM users WHERE user_id = ?
+    `, [vendor_id]);
+    const updatedUser = userRows[0];
+
+    // Generate refreshed token
+    const tokenPayload = {
+      user_id: updatedUser.user_id,
+      name: updatedUser.name,
+      email: updatedUser.email,
+      role: updatedUser.role
+    };
+    const token = jwt.sign(tokenPayload, JWT_SECRET, { expiresIn: '24h' });
+
+    return res.json({
+      success: true,
+      message: 'Chef profile, location and avatar updated successfully!',
+      user: {
+        ...updatedUser,
+        latitude: updatedUser.latitude ? Number(updatedUser.latitude) : 12.9716,
+        longitude: updatedUser.longitude ? Number(updatedUser.longitude) : 77.5946
+      },
+      token,
+      profile: mongoMenu
+    });
+  } catch (err) {
+    console.error('Update vendor profile error:', err);
+    return res.status(500).json({ success: false, message: 'Failed to update chef profile.' });
+  }
+});
+
+// Request Password Reset OTP (SMS or Email)
+router.post('/password/request-otp', authenticateToken, requireRole('VENDOR'), async (req, res) => {
+  try {
+    const vendor_id = req.user.user_id;
+    const { target = 'EMAIL' } = req.body; // 'EMAIL' or 'PHONE'
+
+    const userRows = await query('SELECT user_id, name, email, phone FROM users WHERE user_id = ?', [vendor_id]);
+    if (!userRows || userRows.length === 0) {
+      return res.status(404).json({ success: false, message: 'User not found.' });
+    }
+    const user = userRows[0];
+
+    let recipient = '';
+    let maskedRecipient = '';
+
+    if (target === 'PHONE') {
+      if (!user.phone || !user.phone.trim()) {
+        return res.status(400).json({
+          success: false,
+          message: 'No registered phone number found on your profile. Please add your mobile number in the Chef Profile section first, or choose OTP via Email.'
+        });
+      }
+      recipient = user.phone.trim();
+      maskedRecipient = recipient.replace(/.(?=.{4})/g, '*');
+    } else {
+      recipient = user.email.trim();
+      const parts = recipient.split('@');
+      maskedRecipient = (parts[0].length > 2 ? parts[0].slice(0, 2) + '***' : '***') + '@' + (parts[1] || 'chefhub.com');
+    }
+
+    // Generate 6-digit OTP code
+    const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
+    const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
+
+    // Save in DB
+    try {
+      await query(`
+        INSERT INTO password_otps (user_id, identifier, otp_code, expires_at, used)
+        VALUES (?, ?, ?, ?, 0)
+      `, [vendor_id, recipient, otpCode, expiresAt.toISOString().replace('T', ' ').substring(0, 19)]);
+    } catch (e) {
+      console.warn('[OTP DB Insert Note]', e.message);
+    }
+
+    // Save in memory fallback
+    inMemoryOtps.set(`${vendor_id}_${otpCode}`, {
+      otpCode,
+      recipient,
+      expiresAt: Date.now() + 5 * 60 * 1000,
+      used: false
+    });
+
+    console.log(`[CHEF OTP DISPATCH] Generated OTP [${otpCode}] for Chef ${user.name} (${recipient})`);
+
+    return res.json({
+      success: true,
+      message: `OTP sent successfully to your registered ${target === 'PHONE' ? 'mobile number' : 'email ID'} (${maskedRecipient})`,
+      target,
+      recipient: maskedRecipient,
+      expires_in_seconds: 300,
+      debug_otp: otpCode
+    });
+  } catch (err) {
+    console.error('Request OTP error:', err);
+    return res.status(500).json({ success: false, message: 'Failed to generate verification OTP.' });
+  }
+});
+
+// Change Password (via Old Password OR via OTP)
+router.post('/password/change', authenticateToken, requireRole('VENDOR'), async (req, res) => {
+  try {
+    const vendor_id = req.user.user_id;
+    const { method, old_password, otp, new_password } = req.body;
+
+    if (!new_password) {
+      return res.status(400).json({ success: false, message: 'New password is required.' });
+    }
+
+    const strength = validatePasswordStrength(new_password);
+    if (!strength.valid) {
+      return res.status(400).json({ success: false, message: strength.message });
+    }
+
+    const userRows = await query('SELECT user_id, password_hash, plain_password, email FROM users WHERE user_id = ?', [vendor_id]);
+    if (!userRows || userRows.length === 0) {
+      return res.status(404).json({ success: false, message: 'User not found.' });
+    }
+    const user = userRows[0];
+
+    if (method === 'OLD_PASSWORD') {
+      if (!old_password) {
+        return res.status(400).json({ success: false, message: 'Current password is required.' });
+      }
+
+      const isMatch = await bcrypt.compare(old_password, user.password_hash);
+      if (!isMatch && old_password !== user.plain_password) {
+        return res.status(400).json({ success: false, message: 'Current password is incorrect. Please check and try again.' });
+      }
+    } else if (method === 'OTP') {
+      if (!otp || !otp.trim()) {
+        return res.status(400).json({ success: false, message: 'OTP verification code is required.' });
+      }
+
+      const cleanOtp = otp.trim();
+      let otpValid = false;
+
+      // Check DB
+      try {
+        const rows = await query(`
+          SELECT * FROM password_otps 
+          WHERE user_id = ? AND otp_code = ? AND used = 0
+          ORDER BY otp_id DESC LIMIT 1
+        `, [vendor_id, cleanOtp]);
+
+        if (rows && rows.length > 0) {
+          const otpRow = rows[0];
+          const expTime = new Date(otpRow.expires_at).getTime();
+          if (expTime > Date.now()) {
+            otpValid = true;
+            await query('UPDATE password_otps SET used = 1 WHERE otp_id = ?', [otpRow.otp_id]);
+          }
+        }
+      } catch (e) {
+        console.warn('[OTP DB Check Note]', e.message);
+      }
+
+      // Check memory fallback if DB check was not matched
+      if (!otpValid) {
+        const memEntry = inMemoryOtps.get(`${vendor_id}_${cleanOtp}`);
+        if (memEntry && !memEntry.used && memEntry.expiresAt > Date.now()) {
+          otpValid = true;
+          memEntry.used = true;
+        }
+      }
+
+      if (!otpValid) {
+        return res.status(400).json({ success: false, message: 'Invalid or expired OTP code. Please request a new OTP.' });
+      }
+    } else {
+      return res.status(400).json({ success: false, message: 'Invalid verification method. Allowed: OLD_PASSWORD or OTP.' });
+    }
+
+    // Hash and update new password
+    const hashed = await bcrypt.hash(new_password, 10);
+    await query(`
+      UPDATE users 
+      SET password_hash = ?, plain_password = ?
+      WHERE user_id = ?
+    `, [hashed, new_password, vendor_id]);
+
+    await MongoAdapter.addAuditLog(vendor_id, 'CHEF_PASSWORD_CHANGED', {
+      method,
+      updated_at: new Date()
+    });
+
+    return res.json({
+      success: true,
+      message: 'Password changed successfully! You can now use your new password.'
+    });
+  } catch (err) {
+    console.error('Change password error:', err);
+    return res.status(500).json({ success: false, message: 'Failed to update password.' });
   }
 });
 

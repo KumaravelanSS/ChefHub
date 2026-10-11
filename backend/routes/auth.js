@@ -85,6 +85,7 @@ router.post('/login', async (req, res) => {
         role: user.role,
         phone: user.phone || null,
         status: user.status,
+        avatar_url: user.avatar_url || null,
         primary_address: user.primary_address || '124 Gourmet Boulevard, Suite 4B, Foodie City',
         latitude: user.latitude ? Number(user.latitude) : 12.9716,
         longitude: user.longitude ? Number(user.longitude) : 77.5946
@@ -168,7 +169,7 @@ router.post('/register', async (req, res) => {
 // Get Current User Profile
 router.get('/profile', authenticateToken, async (req, res) => {
   try {
-    const users = await query('SELECT user_id, name, email, role, phone, status, primary_address, latitude, longitude FROM users WHERE user_id = ?', [req.user.user_id]);
+    const users = await query('SELECT user_id, name, email, role, phone, status, avatar_url, primary_address, latitude, longitude FROM users WHERE user_id = ?', [req.user.user_id]);
     if (!users || users.length === 0) {
       return res.status(404).json({ success: false, message: 'User not found.' });
     }
@@ -177,6 +178,7 @@ router.get('/profile', authenticateToken, async (req, res) => {
       success: true,
       user: {
         ...u,
+        avatar_url: u.avatar_url || null,
         latitude: u.latitude ? Number(u.latitude) : 12.9716,
         longitude: u.longitude ? Number(u.longitude) : 77.5946,
         primary_address: u.primary_address || '124 Gourmet Boulevard, Suite 4B, Foodie City'
@@ -251,4 +253,5 @@ router.put('/admin/update-credentials', authenticateToken, requireRole('ADMIN'),
   }
 });
 
+router.validatePasswordStrength = validatePasswordStrength;
 module.exports = router;

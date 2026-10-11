@@ -1,5 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { ChefHat, Package, Utensils, DollarSign, AlertTriangle, CheckCircle2, Clock, Plus, Trash2, AlertCircle, Edit3, Image as ImageIcon, X, Sparkles, Ban, Eye, EyeOff, Tag, RefreshCw, Star } from 'lucide-react';
+import {
+  ChefHat, Package, Utensils, DollarSign, AlertTriangle, CheckCircle2, Clock, Plus, Trash2,
+  AlertCircle, Edit3, Image as ImageIcon, X, Sparkles, Ban, Eye, EyeOff, Tag, RefreshCw, Star,
+  User, MapPin, Lock, Shield, KeyRound, Smartphone, Mail, Compass, Check, Copy, Send, Save, ArrowRight
+} from 'lucide-react';
 import { KitchenLoadingScreen, KitchenDataLoader, KitchenSkeletonRows } from '../components/KitchenLoading';
 import ChefAuthPage from './ChefAuthPage';
 
@@ -12,6 +16,23 @@ const presetImages = [
   { label: 'Biryani', url: 'https://images.unsplash.com/photo-1563379091339-03b21ab4a4f8?auto=format&fit=crop&w=600&q=80' },
   { label: 'Ramen', url: 'https://images.unsplash.com/photo-1569718212165-3a8278d5f624?auto=format&fit=crop&w=600&q=80' },
   { label: 'Tiramisu', url: 'https://images.unsplash.com/photo-1571877227200-a0d98ea607e9?auto=format&fit=crop&w=600&q=80' }
+];
+
+const CHEF_AVATAR_PRESETS = [
+  { label: 'Italian Master', url: 'https://images.unsplash.com/photo-1577219491135-ce391730fb2c?auto=format&fit=crop&w=400&q=80' },
+  { label: 'Royal Indian', url: 'https://images.unsplash.com/photo-1581299894007-aaa50297cf16?auto=format&fit=crop&w=400&q=80' },
+  { label: 'Tokyo Ramen Master', url: 'https://images.unsplash.com/photo-1583394293214-28ded15ee548?auto=format&fit=crop&w=400&q=80' },
+  { label: 'Chettinad Heritage', url: 'https://images.unsplash.com/photo-1566554273541-37a9ca77b91f?auto=format&fit=crop&w=400&q=80' },
+  { label: 'Modern Gourmet', url: 'https://images.unsplash.com/photo-1581349485608-9469926a8e5e?auto=format&fit=crop&w=400&q=80' },
+  { label: 'Artisan Patissier', url: 'https://images.unsplash.com/photo-1607631568010-a87245c0daf8?auto=format&fit=crop&w=400&q=80' }
+];
+
+const KITCHEN_HUBS = [
+  { id: 'indiranagar', name: 'Indiranagar 100ft Road', lat: 12.9784, lng: 77.6408, locality: 'Indiranagar 100ft Road, Bengaluru' },
+  { id: 'koramangala', name: 'Koramangala 5th Block', lat: 12.9352, lng: 77.6245, locality: 'Koramangala 5th Block, Bengaluru' },
+  { id: 'mgroad', name: 'MG Road / Church Street', lat: 12.9756, lng: 77.6066, locality: 'MG Road, Church Street, Bengaluru' },
+  { id: 'hsr', name: 'HSR Layout Sector 1', lat: 12.9121, lng: 77.6446, locality: 'HSR Layout Sector 1, Bengaluru' },
+  { id: 'whitefield', name: 'Whitefield Main Road', lat: 12.9698, lng: 77.7499, locality: 'Whitefield Main Road, Bengaluru' }
 ];
 
 export default function ChefSite({ user, onLogin, onLogout }) {
@@ -79,6 +100,55 @@ export default function ChefSite({ user, onLogin, onLogout }) {
     close_time: '22:00',
     chef_bio: ''
   });
+
+  // Chef Profile & Security Modal State
+  const [showProfileModal, setShowProfileModal] = useState(false);
+  const [profileModalTab, setProfileModalTab] = useState('INFO'); // 'INFO' | 'PASSWORD' | 'REPUTATION'
+
+  const [profileForm, setProfileForm] = useState({
+    name: user?.name || '',
+    business_name: '',
+    phone: user?.phone || '',
+    email: user?.email || '',
+    primary_address: user?.primary_address || '',
+    latitude: user?.latitude ? Number(user.latitude) : 12.9716,
+    longitude: user?.longitude ? Number(user.longitude) : 77.5946,
+    avatar_url: user?.avatar_url || '',
+    chef_bio: '',
+    operating_hours: '11:00 AM - 10:00 PM',
+    open_time: '11:00',
+    close_time: '22:00'
+  });
+
+  const [savingProfile, setSavingProfile] = useState(false);
+  const [profileFeedback, setProfileFeedback] = useState({ text: '', type: '' });
+
+  // Password & OTP State
+  const [passwordChangeMethod, setPasswordChangeMethod] = useState('OLD_PASSWORD'); // 'OLD_PASSWORD' | 'OTP'
+  const [oldPassword, setOldPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [showOldPwd, setShowOldPwd] = useState(false);
+  const [showNewPwd, setShowNewPwd] = useState(false);
+  const [showConfirmPwd, setShowConfirmPwd] = useState(false);
+
+  const [otpTarget, setOtpTarget] = useState('EMAIL'); // 'EMAIL' | 'PHONE'
+  const [otpSent, setOtpSent] = useState(false);
+  const [otpCodeInput, setOtpCodeInput] = useState('');
+  const [otpSending, setOtpSending] = useState(false);
+  const [otpTimer, setOtpTimer] = useState(0);
+  const [changingPassword, setChangingPassword] = useState(false);
+  const [passwordFeedback, setPasswordFeedback] = useState({ text: '', type: '', debug_otp: null });
+
+  useEffect(() => {
+    let interval = null;
+    if (otpTimer > 0) {
+      interval = setInterval(() => {
+        setOtpTimer((prev) => (prev > 0 ? prev - 1 : 0));
+      }, 1000);
+    }
+    return () => clearInterval(interval);
+  }, [otpTimer]);
 
   const tabRefs = useRef({});
   const [indicatorStyle, setIndicatorStyle] = useState({ left: 0, width: 0, opacity: 0 });
@@ -228,6 +298,21 @@ export default function ChefSite({ user, onLogin, onLogout }) {
           close_time: dataProf.profile.close_time || '22:00',
           chef_bio: dataProf.profile.chef_bio || ''
         });
+        setProfileForm(prev => ({
+          ...prev,
+          name: dataProf.profile.name || user?.name || prev.name,
+          business_name: dataProf.profile.business_name || prev.business_name,
+          phone: dataProf.profile.phone || user?.phone || prev.phone,
+          email: dataProf.profile.email || user?.email || prev.email,
+          primary_address: dataProf.profile.primary_address || user?.primary_address || prev.primary_address,
+          latitude: dataProf.profile.latitude || user?.latitude || prev.latitude,
+          longitude: dataProf.profile.longitude || user?.longitude || prev.longitude,
+          avatar_url: dataProf.profile.avatar_url || user?.avatar_url || prev.avatar_url,
+          chef_bio: dataProf.profile.chef_bio || prev.chef_bio,
+          operating_hours: dataProf.profile.operating_hours || prev.operating_hours,
+          open_time: dataProf.profile.open_time || prev.open_time,
+          close_time: dataProf.profile.close_time || prev.close_time
+        }));
       }
 
       const dataDishes = await resDishes.json();
@@ -323,6 +408,122 @@ export default function ChefSite({ user, onLogin, onLogout }) {
       }
     } catch (err) {
       alert('Failed to save store timings.');
+    }
+  };
+
+  const handleSaveChefProfile = async (e) => {
+    if (e) e.preventDefault();
+    setSavingProfile(true);
+    setProfileFeedback({ text: '', type: '' });
+
+    try {
+      const token = localStorage.getItem('chefhub_token');
+      const res = await fetch('/api/vendor/profile', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify(profileForm)
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.message || 'Failed to update chef profile.');
+      }
+
+      setProfileFeedback({ text: 'Chef profile, kitchen location & avatar updated successfully!', type: 'success' });
+      if (data.profile) {
+        setStoreProfile(prev => ({
+          ...prev,
+          ...data.profile,
+          name: profileForm.name,
+          phone: profileForm.phone,
+          primary_address: profileForm.primary_address,
+          latitude: profileForm.latitude,
+          longitude: profileForm.longitude,
+          avatar_url: profileForm.avatar_url
+        }));
+      }
+
+      if (data.user && onLogin) {
+        onLogin(data.user, data.token || token);
+      }
+    } catch (err) {
+      setProfileFeedback({ text: err.message, type: 'error' });
+    } finally {
+      setSavingProfile(false);
+    }
+  };
+
+  const handleRequestOtp = async () => {
+    setOtpSending(true);
+    setPasswordFeedback({ text: '', type: '', debug_otp: null });
+
+    try {
+      const token = localStorage.getItem('chefhub_token');
+      const res = await fetch('/api/vendor/password/request-otp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ target: otpTarget })
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.message || 'Failed to request OTP code.');
+      }
+
+      setOtpSent(true);
+      setOtpTimer(60);
+      setPasswordFeedback({
+        text: data.message,
+        type: 'success',
+        debug_otp: data.debug_otp
+      });
+    } catch (err) {
+      setPasswordFeedback({ text: err.message, type: 'error', debug_otp: null });
+    } finally {
+      setOtpSending(false);
+    }
+  };
+
+  const handleChangePassword = async (e) => {
+    if (e) e.preventDefault();
+    if (newPassword !== confirmPassword) {
+      setPasswordFeedback({ text: 'New password and confirmation do not match.', type: 'error' });
+      return;
+    }
+    if (newPassword.length < 8) {
+      setPasswordFeedback({ text: 'New password must be at least 8 characters long.', type: 'error' });
+      return;
+    }
+
+    setChangingPassword(true);
+    setPasswordFeedback({ text: '', type: '', debug_otp: null });
+
+    try {
+      const token = localStorage.getItem('chefhub_token');
+      const payload = {
+        method: passwordChangeMethod,
+        new_password: newPassword,
+        ...(passwordChangeMethod === 'OLD_PASSWORD' ? { old_password: oldPassword } : { otp: otpCodeInput })
+      };
+
+      const res = await fetch('/api/vendor/password/change', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.message || 'Failed to update password.');
+      }
+
+      setPasswordFeedback({ text: 'Password successfully updated! Your new credentials are active.', type: 'success', debug_otp: null });
+      setOldPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+      setOtpCodeInput('');
+      setOtpSent(false);
+    } catch (err) {
+      setPasswordFeedback({ text: err.message, type: 'error', debug_otp: null });
+    } finally {
+      setChangingPassword(false);
     }
   };
 
@@ -707,6 +908,739 @@ export default function ChefSite({ user, onLogin, onLogout }) {
     );
   }
 
+  const renderProfileContent = (isModal = false) => {
+    const reviewCount = chefReviews.length;
+    const avgRating = reviewCount > 0 ? (chefReviews.reduce((a, r) => a + (Number(r.vendor_rating) || 5), 0) / reviewCount).toFixed(1) : '5.0';
+    const isNewArrival = reviewCount < 3;
+
+    // Check password strength requirements
+    const pwdHasMinLength = newPassword.length >= 8;
+    const pwdHasUpper = /[A-Z]/.test(newPassword);
+    const pwdHasLower = /[a-z]/.test(newPassword);
+    const pwdHasNumber = /[0-9]/.test(newPassword);
+    const pwdHasSpecial = /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(newPassword);
+    let pwdScore = 0;
+    if (pwdHasMinLength) pwdScore++;
+    if (pwdHasUpper) pwdScore++;
+    if (pwdHasLower) pwdScore++;
+    if (pwdHasNumber) pwdScore++;
+    if (pwdHasSpecial) pwdScore++;
+
+    return (
+      <div className="space-y-6">
+        {/* Sub-tab Navigation */}
+        <div className="flex items-center gap-2 p-1.5 bg-slate-100 dark:bg-slate-950 rounded-2xl border border-slate-200 dark:border-slate-800 text-xs font-bold">
+          <button
+            type="button"
+            onClick={() => setProfileModalTab('INFO')}
+            className={`flex-1 py-2 px-3 rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+              profileModalTab === 'INFO'
+                ? 'bg-white dark:bg-slate-800 text-emerald-600 dark:text-emerald-400 shadow-md font-black'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+            }`}
+          >
+            <User className="w-3.5 h-3.5" />
+            <span>Identity & Location</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setProfileModalTab('PASSWORD')}
+            className={`flex-1 py-2 px-3 rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+              profileModalTab === 'PASSWORD'
+                ? 'bg-white dark:bg-slate-800 text-emerald-600 dark:text-emerald-400 shadow-md font-black'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+            }`}
+          >
+            <Lock className="w-3.5 h-3.5" />
+            <span>Password & Security</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setProfileModalTab('REPUTATION')}
+            className={`flex-1 py-2 px-3 rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+              profileModalTab === 'REPUTATION'
+                ? 'bg-white dark:bg-slate-800 text-emerald-600 dark:text-emerald-400 shadow-md font-black'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+            }`}
+          >
+            <Star className="w-3.5 h-3.5" />
+            <span>Ratings & Reputation</span>
+          </button>
+        </div>
+
+        {/* TAB 1: IDENTITY & LOCATION */}
+        {profileModalTab === 'INFO' && (
+          <form onSubmit={handleSaveChefProfile} className="space-y-5 text-xs">
+            {profileFeedback.text && (
+              <div className={`p-3.5 rounded-2xl text-xs font-bold flex items-center gap-2 animate-fade-in ${
+                profileFeedback.type === 'success'
+                  ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30'
+                  : 'bg-rose-500/15 text-rose-700 dark:text-rose-300 border border-rose-500/30'
+              }`}>
+                {profileFeedback.type === 'success' ? <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-500" /> : <AlertCircle className="w-4 h-4 shrink-0 text-rose-500" />}
+                <span>{profileFeedback.text}</span>
+              </div>
+            )}
+
+            {/* Profile Picture Section */}
+            <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 space-y-3">
+              <label className="font-black text-slate-800 dark:text-slate-200 block">Chef Profile Picture / Avatar</label>
+              
+              <div className="flex items-center gap-4">
+                <div className="w-16 h-16 rounded-2xl overflow-hidden border-2 border-emerald-500/40 shadow-md shrink-0 bg-slate-200 dark:bg-slate-800">
+                  <img
+                    src={profileForm.avatar_url || 'https://images.unsplash.com/photo-1577219491135-ce391730fb2c?auto=format&fit=crop&w=400&q=80'}
+                    alt="Preview"
+                    className="w-full h-full object-cover"
+                    onError={(e) => {
+                      e.target.onerror = null;
+                      e.target.src = 'https://images.unsplash.com/photo-1577219491135-ce391730fb2c?auto=format&fit=crop&w=400&q=80';
+                    }}
+                  />
+                </div>
+                <div className="flex-1 space-y-1">
+                  <input
+                    type="url"
+                    value={profileForm.avatar_url}
+                    onChange={(e) => setProfileForm({ ...profileForm, avatar_url: e.target.value })}
+                    placeholder="Enter custom image URL (https://images.unsplash.com/...)"
+                    className="w-full px-3 py-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white font-medium outline-none focus:border-emerald-500"
+                  />
+                  <p className="text-[11px] text-slate-500">Pick from curated chef avatars below or paste an image URL</p>
+                </div>
+              </div>
+
+              {/* Quick Presets */}
+              <div className="space-y-1.5 pt-1">
+                <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">Curated Chef Avatars:</span>
+                <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
+                  {CHEF_AVATAR_PRESETS.map((preset) => (
+                    <button
+                      type="button"
+                      key={preset.label}
+                      onClick={() => setProfileForm({ ...profileForm, avatar_url: preset.url })}
+                      className={`p-1.5 rounded-xl border flex flex-col items-center gap-1 transition-all cursor-pointer ${
+                        profileForm.avatar_url === preset.url
+                          ? 'border-emerald-500 bg-emerald-500/10 ring-2 ring-emerald-500/30'
+                          : 'border-slate-200 dark:border-slate-800 hover:border-emerald-400/50 bg-white dark:bg-slate-900'
+                      }`}
+                    >
+                      <img src={preset.url} alt={preset.label} className="w-9 h-9 rounded-lg object-cover" />
+                      <span className="text-[9px] font-extrabold text-slate-700 dark:text-slate-300 truncate w-full text-center">{preset.label}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Chef Identity Fields */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="font-extrabold text-slate-700 dark:text-slate-300 block mb-1">Chef Name / Username</label>
+                <input
+                  type="text"
+                  value={profileForm.name}
+                  onChange={(e) => setProfileForm({ ...profileForm, name: e.target.value })}
+                  placeholder="e.g. Chef Priya Sharma"
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white font-semibold outline-none focus:border-emerald-500"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="font-extrabold text-slate-700 dark:text-slate-300 block mb-1">Kitchen / Business Display Name</label>
+                <input
+                  type="text"
+                  value={profileForm.business_name}
+                  onChange={(e) => setProfileForm({ ...profileForm, business_name: e.target.value })}
+                  placeholder="e.g. Spice & Curry Artisanal Kitchen"
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white font-semibold outline-none focus:border-emerald-500"
+                />
+              </div>
+
+              <div>
+                <label className="font-extrabold text-slate-700 dark:text-slate-300 block mb-1">Registered Mobile Number (for OTP & Delivery)</label>
+                <input
+                  type="tel"
+                  value={profileForm.phone}
+                  onChange={(e) => setProfileForm({ ...profileForm, phone: e.target.value })}
+                  placeholder="e.g. +91 98765 43210"
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white font-semibold outline-none focus:border-emerald-500"
+                />
+              </div>
+
+              <div>
+                <label className="font-extrabold text-slate-700 dark:text-slate-300 block mb-1">Registered Email ID (Account Primary)</label>
+                <input
+                  type="email"
+                  value={profileForm.email || user.email}
+                  readOnly
+                  disabled
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-500 font-semibold cursor-not-allowed"
+                />
+              </div>
+            </div>
+
+            {/* Kitchen Location Section */}
+            <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 space-y-3">
+              <div className="flex items-center justify-between">
+                <label className="font-black text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                  <MapPin className="w-4 h-4 text-emerald-500" />
+                  <span>Kitchen Location & GPS Coordinates</span>
+                </label>
+              </div>
+
+              {/* Bangalore Quick Hub Presets */}
+              <div className="space-y-1.5">
+                <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">Quick Bangalore Hub Selector:</span>
+                <div className="flex flex-wrap gap-1.5">
+                  {KITCHEN_HUBS.map((hub) => (
+                    <button
+                      type="button"
+                      key={hub.id}
+                      onClick={() => {
+                        setProfileForm({
+                          ...profileForm,
+                          primary_address: hub.locality,
+                          latitude: hub.lat,
+                          longitude: hub.lng
+                        });
+                      }}
+                      className="px-2.5 py-1 rounded-lg text-[11px] font-bold bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 hover:border-emerald-500 text-slate-700 dark:text-slate-300 transition-all flex items-center gap-1 cursor-pointer hover:bg-emerald-500/10"
+                    >
+                      <MapPin className="w-3 h-3 text-emerald-500" />
+                      <span>{hub.name}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label className="font-extrabold text-slate-700 dark:text-slate-300 block mb-1">Full Kitchen Address / Locality</label>
+                <textarea
+                  value={profileForm.primary_address}
+                  onChange={(e) => setProfileForm({ ...profileForm, primary_address: e.target.value })}
+                  rows={2}
+                  placeholder="e.g. 100ft Road, 12th Main, Indiranagar, Bengaluru, Karnataka - 560038"
+                  className="w-full px-3.5 py-2 rounded-xl bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white font-medium outline-none focus:border-emerald-500 resize-none"
+                  required
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="font-extrabold text-slate-700 dark:text-slate-300 block mb-1">Latitude</label>
+                  <input
+                    type="number"
+                    step="0.000001"
+                    value={profileForm.latitude}
+                    onChange={(e) => setProfileForm({ ...profileForm, latitude: parseFloat(e.target.value) || 0 })}
+                    placeholder="12.9784"
+                    className="w-full px-3 py-2 rounded-xl bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white font-mono font-medium outline-none focus:border-emerald-500"
+                  />
+                </div>
+                <div>
+                  <label className="font-extrabold text-slate-700 dark:text-slate-300 block mb-1">Longitude</label>
+                  <input
+                    type="number"
+                    step="0.000001"
+                    value={profileForm.longitude}
+                    onChange={(e) => setProfileForm({ ...profileForm, longitude: parseFloat(e.target.value) || 0 })}
+                    placeholder="77.6408"
+                    className="w-full px-3 py-2 rounded-xl bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white font-mono font-medium outline-none focus:border-emerald-500"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Kitchen Bio */}
+            <div>
+              <label className="font-extrabold text-slate-700 dark:text-slate-300 block mb-1">Chef Culinary Bio & Specialties</label>
+              <textarea
+                value={profileForm.chef_bio}
+                onChange={(e) => setProfileForm({ ...profileForm, chef_bio: e.target.value })}
+                rows={2}
+                placeholder="Share your culinary background, awards, Michelin inspirations, and cooking philosophy..."
+                className="w-full px-3.5 py-2 rounded-xl bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white font-medium outline-none focus:border-emerald-500 resize-none"
+              />
+            </div>
+
+            {/* Operating Hours */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div>
+                <label className="font-extrabold text-slate-700 dark:text-slate-300 block mb-1">Display Hours</label>
+                <input
+                  type="text"
+                  value={profileForm.operating_hours}
+                  onChange={(e) => setProfileForm({ ...profileForm, operating_hours: e.target.value })}
+                  placeholder="11:00 AM - 10:00 PM"
+                  className="w-full px-3 py-2 rounded-xl bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white font-medium outline-none focus:border-emerald-500"
+                />
+              </div>
+              <div>
+                <label className="font-extrabold text-slate-700 dark:text-slate-300 block mb-1">Open Time (24h)</label>
+                <input
+                  type="time"
+                  value={profileForm.open_time}
+                  onChange={(e) => setProfileForm({ ...profileForm, open_time: e.target.value })}
+                  className="w-full px-3 py-2 rounded-xl bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white font-medium outline-none focus:border-emerald-500"
+                />
+              </div>
+              <div>
+                <label className="font-extrabold text-slate-700 dark:text-slate-300 block mb-1">Close Time (24h)</label>
+                <input
+                  type="time"
+                  value={profileForm.close_time}
+                  onChange={(e) => setProfileForm({ ...profileForm, close_time: e.target.value })}
+                  className="w-full px-3 py-2 rounded-xl bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white font-medium outline-none focus:border-emerald-500"
+                />
+              </div>
+            </div>
+
+            <div className="pt-2">
+              <button
+                type="submit"
+                disabled={savingProfile}
+                className="w-full py-3.5 px-4 rounded-2xl bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-600 hover:from-emerald-600 hover:to-teal-600 text-white font-black shadow-lg shadow-emerald-500/25 transition-all active:scale-95 cursor-pointer disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {savingProfile ? (
+                  <>
+                    <RefreshCw className="w-4 h-4 animate-spin" />
+                    <span>Saving Profile...</span>
+                  </>
+                ) : (
+                  <>
+                    <Save className="w-4 h-4" />
+                    <span>Save Chef Profile Changes</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </form>
+        )}
+
+        {/* TAB 2: PASSWORD & SECURITY */}
+        {profileModalTab === 'PASSWORD' && (
+          <div className="space-y-5 text-xs">
+            {passwordFeedback.text && (
+              <div className={`p-3.5 rounded-2xl text-xs font-bold flex items-start gap-2.5 animate-fade-in ${
+                passwordFeedback.type === 'success'
+                  ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30'
+                  : 'bg-rose-500/15 text-rose-700 dark:text-rose-300 border border-rose-500/30'
+              }`}>
+                {passwordFeedback.type === 'success' ? <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-500 mt-0.5" /> : <AlertCircle className="w-4 h-4 shrink-0 text-rose-500 mt-0.5" />}
+                <div>
+                  <p>{passwordFeedback.text}</p>
+                  {passwordFeedback.debug_otp && (
+                    <div className="mt-2 p-2 rounded-lg bg-emerald-500/20 border border-emerald-500/40 font-mono text-emerald-800 dark:text-emerald-200 flex items-center gap-2">
+                      <KeyRound className="w-3.5 h-3.5 text-emerald-500" />
+                      <span>Verification OTP Code: <strong>{passwordFeedback.debug_otp}</strong></span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Method Toggle */}
+            <div className="space-y-1.5">
+              <label className="font-extrabold text-slate-700 dark:text-slate-300 block">Choose Password Change Method</label>
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  onClick={() => setPasswordChangeMethod('OLD_PASSWORD')}
+                  className={`p-3.5 rounded-2xl border text-left transition-all cursor-pointer ${
+                    passwordChangeMethod === 'OLD_PASSWORD'
+                      ? 'border-emerald-500 bg-emerald-500/10 text-emerald-950 dark:text-emerald-200 ring-2 ring-emerald-500/30 font-black'
+                      : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400'
+                  }`}
+                >
+                  <KeyRound className="w-4 h-4 text-emerald-500 mb-1" />
+                  <div className="font-bold text-xs text-slate-900 dark:text-white">With Old Password</div>
+                  <p className="text-[10px] text-slate-500">Verify using your current password</p>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setPasswordChangeMethod('OTP')}
+                  className={`p-3.5 rounded-2xl border text-left transition-all cursor-pointer ${
+                    passwordChangeMethod === 'OTP'
+                      ? 'border-emerald-500 bg-emerald-500/10 text-emerald-950 dark:text-emerald-200 ring-2 ring-emerald-500/30 font-black'
+                      : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400'
+                  }`}
+                >
+                  <Smartphone className="w-4 h-4 text-emerald-500 mb-1" />
+                  <div className="font-bold text-xs text-slate-900 dark:text-white">With OTP Code</div>
+                  <p className="text-[10px] text-slate-500">Send 6-digit OTP to Email or Phone</p>
+                </button>
+              </div>
+            </div>
+
+            {/* MODE A: With Old Password */}
+            {passwordChangeMethod === 'OLD_PASSWORD' && (
+              <form onSubmit={handleChangePassword} className="space-y-4 pt-1">
+                <div>
+                  <label className="font-extrabold text-slate-700 dark:text-slate-300 block mb-1">Current / Old Password</label>
+                  <div className="relative">
+                    <input
+                      type={showOldPwd ? 'text' : 'password'}
+                      value={oldPassword}
+                      onChange={(e) => setOldPassword(e.target.value)}
+                      placeholder="Enter your current password"
+                      className="w-full px-3.5 py-2.5 rounded-xl bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white font-medium outline-none focus:border-emerald-500 pr-10"
+                      required
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowOldPwd(!showOldPwd)}
+                      className="absolute right-3 top-3 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                    >
+                      {showOldPwd ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="font-extrabold text-slate-700 dark:text-slate-300 block mb-1">New Password</label>
+                  <div className="relative">
+                    <input
+                      type={showNewPwd ? 'text' : 'password'}
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                      placeholder="At least 8 characters with upper, lower, numbers & symbols"
+                      className="w-full px-3.5 py-2.5 rounded-xl bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white font-medium outline-none focus:border-emerald-500 pr-10"
+                      required
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowNewPwd(!showNewPwd)}
+                      className="absolute right-3 top-3 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                    >
+                      {showNewPwd ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="font-extrabold text-slate-700 dark:text-slate-300 block mb-1">Confirm New Password</label>
+                  <div className="relative">
+                    <input
+                      type={showConfirmPwd ? 'text' : 'password'}
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      placeholder="Re-type new password"
+                      className="w-full px-3.5 py-2.5 rounded-xl bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white font-medium outline-none focus:border-emerald-500 pr-10"
+                      required
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowConfirmPwd(!showConfirmPwd)}
+                      className="absolute right-3 top-3 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                    >
+                      {showConfirmPwd ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Password Strength Pills */}
+                {newPassword && (
+                  <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950/80 border border-slate-200 dark:border-slate-800 space-y-2">
+                    <div className="flex items-center justify-between text-[11px] font-bold">
+                      <span className="text-slate-500">Security Strength:</span>
+                      <span className={pwdScore >= 4 ? 'text-emerald-500' : pwdScore >= 3 ? 'text-amber-500' : 'text-rose-500'}>
+                        {pwdScore >= 4 ? '🛡️ Strong' : pwdScore >= 3 ? '⚡ Good' : '⚠️ Weak'}
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-1 text-[10px]">
+                      <span className={pwdHasMinLength ? 'text-emerald-500 font-bold' : 'text-slate-400'}>✓ 8+ Characters</span>
+                      <span className={pwdHasUpper ? 'text-emerald-500 font-bold' : 'text-slate-400'}>✓ Uppercase Letter</span>
+                      <span className={pwdHasLower ? 'text-emerald-500 font-bold' : 'text-slate-400'}>✓ Lowercase Letter</span>
+                      <span className={pwdHasNumber ? 'text-emerald-500 font-bold' : 'text-slate-400'}>✓ Number</span>
+                      <span className={pwdHasSpecial ? 'text-emerald-500 font-bold' : 'text-slate-400'}>✓ Special Character</span>
+                      {confirmPassword && (
+                        <span className={newPassword === confirmPassword ? 'text-emerald-500 font-bold' : 'text-rose-500 font-bold'}>
+                          {newPassword === confirmPassword ? '✓ Passwords Match' : '✕ Passwords Do Not Match'}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                <button
+                  type="submit"
+                  disabled={changingPassword || (newPassword && confirmPassword && newPassword !== confirmPassword)}
+                  className="w-full py-3 px-4 rounded-2xl bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-600 hover:from-emerald-600 hover:to-teal-600 text-white font-black shadow-lg shadow-emerald-500/25 transition-all active:scale-95 cursor-pointer disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  {changingPassword ? (
+                    <>
+                      <RefreshCw className="w-4 h-4 animate-spin" />
+                      <span>Updating Password...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Lock className="w-4 h-4" />
+                      <span>Update Password with Old Password</span>
+                    </>
+                  )}
+                </button>
+              </form>
+            )}
+
+            {/* MODE B: With OTP Verification */}
+            {passwordChangeMethod === 'OTP' && (
+              <div className="space-y-4 pt-1">
+                {/* Destination Selector */}
+                <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-950/80 border border-slate-200 dark:border-slate-800 space-y-2.5">
+                  <label className="font-extrabold text-slate-700 dark:text-slate-300 block">Select OTP Destination:</label>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <label className={`flex items-center gap-2 p-2.5 rounded-xl border cursor-pointer transition-all ${
+                      otpTarget === 'EMAIL'
+                        ? 'border-emerald-500 bg-emerald-500/10 font-black text-emerald-950 dark:text-emerald-200'
+                        : 'border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400'
+                    }`}>
+                      <input
+                        type="radio"
+                        name="otpDest"
+                        checked={otpTarget === 'EMAIL'}
+                        onChange={() => setOtpTarget('EMAIL')}
+                        className="accent-emerald-500"
+                      />
+                      <Mail className="w-4 h-4 text-emerald-500 shrink-0" />
+                      <div className="overflow-hidden">
+                        <span className="block text-xs truncate">Registered Email</span>
+                        <span className="block text-[10px] text-slate-500 truncate">{user.email}</span>
+                      </div>
+                    </label>
+
+                    <label className={`flex items-center gap-2 p-2.5 rounded-xl border cursor-pointer transition-all ${
+                      otpTarget === 'PHONE'
+                        ? 'border-emerald-500 bg-emerald-500/10 font-black text-emerald-950 dark:text-emerald-200'
+                        : 'border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400'
+                    }`}>
+                      <input
+                        type="radio"
+                        name="otpDest"
+                        checked={otpTarget === 'PHONE'}
+                        onChange={() => setOtpTarget('PHONE')}
+                        className="accent-emerald-500"
+                      />
+                      <Smartphone className="w-4 h-4 text-emerald-500 shrink-0" />
+                      <div className="overflow-hidden">
+                        <span className="block text-xs truncate">Registered Mobile</span>
+                        <span className="block text-[10px] text-slate-500 truncate">{profileForm.phone || user.phone || 'None set'}</span>
+                      </div>
+                    </label>
+                  </div>
+
+                  <div className="pt-1">
+                    <button
+                      type="button"
+                      onClick={handleRequestOtp}
+                      disabled={otpSending || otpTimer > 0}
+                      className="w-full py-2.5 px-3 rounded-xl bg-slate-900 dark:bg-slate-800 hover:bg-slate-800 dark:hover:bg-slate-700 text-white font-bold text-xs transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                    >
+                      {otpSending ? (
+                        <>
+                          <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                          <span>Generating & Sending OTP...</span>
+                        </>
+                      ) : otpTimer > 0 ? (
+                        <>
+                          <Clock className="w-3.5 h-3.5 text-amber-400" />
+                          <span>Resend OTP in {otpTimer}s</span>
+                        </>
+                      ) : (
+                        <>
+                          <Send className="w-3.5 h-3.5 text-emerald-400" />
+                          <span>{otpSent ? 'Resend 6-Digit OTP Code' : 'Send 6-Digit OTP Code'}</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </div>
+
+                {/* If OTP Sent, show code and new password inputs */}
+                {otpSent && (
+                  <form onSubmit={handleChangePassword} className="space-y-4 animate-fade-in">
+                    <div>
+                      <label className="font-extrabold text-slate-700 dark:text-slate-300 block mb-1">Enter 6-Digit OTP Verification Code</label>
+                      <input
+                        type="text"
+                        maxLength={6}
+                        value={otpCodeInput}
+                        onChange={(e) => setOtpCodeInput(e.target.value.replace(/\D/g, ''))}
+                        placeholder="e.g. 583921"
+                        className="w-full px-3.5 py-3 rounded-xl bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white font-mono font-bold text-base tracking-widest text-center outline-none focus:border-emerald-500"
+                        required
+                      />
+                    </div>
+
+                    <div>
+                      <label className="font-extrabold text-slate-700 dark:text-slate-300 block mb-1">Set New Password</label>
+                      <div className="relative">
+                        <input
+                          type={showNewPwd ? 'text' : 'password'}
+                          value={newPassword}
+                          onChange={(e) => setNewPassword(e.target.value)}
+                          placeholder="At least 8 characters with upper, lower, numbers & symbols"
+                          className="w-full px-3.5 py-2.5 rounded-xl bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white font-medium outline-none focus:border-emerald-500 pr-10"
+                          required
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowNewPwd(!showNewPwd)}
+                          className="absolute right-3 top-3 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                        >
+                          {showNewPwd ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        </button>
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="font-extrabold text-slate-700 dark:text-slate-300 block mb-1">Confirm New Password</label>
+                      <div className="relative">
+                        <input
+                          type={showConfirmPwd ? 'text' : 'password'}
+                          value={confirmPassword}
+                          onChange={(e) => setConfirmPassword(e.target.value)}
+                          placeholder="Re-type new password"
+                          className="w-full px-3.5 py-2.5 rounded-xl bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white font-medium outline-none focus:border-emerald-500 pr-10"
+                          required
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowConfirmPwd(!showConfirmPwd)}
+                          className="absolute right-3 top-3 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                        >
+                          {showConfirmPwd ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        </button>
+                      </div>
+                    </div>
+
+                    <button
+                      type="submit"
+                      disabled={changingPassword || otpCodeInput.length < 6 || (newPassword && confirmPassword && newPassword !== confirmPassword)}
+                      className="w-full py-3 px-4 rounded-2xl bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-600 hover:from-emerald-600 hover:to-teal-600 text-white font-black shadow-lg shadow-emerald-500/25 transition-all active:scale-95 cursor-pointer disabled:opacity-50 flex items-center justify-center gap-2"
+                    >
+                      {changingPassword ? (
+                        <>
+                          <RefreshCw className="w-4 h-4 animate-spin" />
+                          <span>Verifying OTP & Updating Password...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Check className="w-4 h-4" />
+                          <span>Verify OTP & Save New Password</span>
+                        </>
+                      )}
+                    </button>
+                  </form>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* TAB 3: RATINGS & REPUTATION */}
+        {profileModalTab === 'REPUTATION' && (
+          <div className="space-y-5 text-xs">
+            {/* Reputation Cards */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="p-4 rounded-2xl bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 space-y-1 text-center">
+                <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">Marketplace Rating</span>
+                <div className="text-2xl font-black text-amber-500 flex items-center justify-center gap-1">
+                  <Star className="w-5 h-5 fill-amber-500 text-amber-500" />
+                  <span>{avgRating}</span>
+                </div>
+                <p className="text-[10px] text-slate-500">Out of 5.0 maximum</p>
+              </div>
+
+              <div className="p-4 rounded-2xl bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 space-y-1 text-center">
+                <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">Verified Reviews</span>
+                <div className="text-2xl font-black text-slate-900 dark:text-white">
+                  {reviewCount}
+                </div>
+                <p className="text-[10px] text-slate-500">From completed orders</p>
+              </div>
+
+              <div className="p-4 rounded-2xl bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 space-y-1 text-center">
+                <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">Reputation Badge</span>
+                <div className="text-sm font-black flex items-center justify-center pt-1">
+                  {isNewArrival ? (
+                    <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 flex items-center gap-1">
+                      <Sparkles className="w-3.5 h-3.5" /> New Arrival
+                    </span>
+                  ) : (
+                    <span className="px-2.5 py-0.5 rounded-full bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30 flex items-center gap-1">
+                      <Star className="w-3.5 h-3.5 fill-amber-400" /> Verified Stars
+                    </span>
+                  )}
+                </div>
+                <p className="text-[10px] text-slate-500">{isNewArrival ? 'Min 3 reviews needed' : 'Public rating active'}</p>
+              </div>
+            </div>
+
+            {/* Threshold Logic Detailed Explanation Banner */}
+            <div className={`p-4 rounded-2xl border space-y-2.5 ${
+              isNewArrival
+                ? 'bg-emerald-500/10 border-emerald-500/25 text-emerald-900 dark:text-emerald-200'
+                : 'bg-amber-500/10 border-amber-500/25 text-amber-900 dark:text-amber-200'
+            }`}>
+              <div className="flex items-center gap-2">
+                {isNewArrival ? <Sparkles className="w-4 h-4 text-emerald-500" /> : <CheckCircle2 className="w-4 h-4 text-emerald-500" />}
+                <h4 className="font-black text-sm text-slate-900 dark:text-white">
+                  {isNewArrival ? '✨ Minimum Ratings Threshold Logic (New Arrival)' : '✓ Milestone Met: Public Rating Unlocked'}
+                </h4>
+              </div>
+              <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
+                {isNewArrival
+                  ? 'To protect new artisanal kitchens from initial variance, ChefHub requires at least 3 verified customer reviews before displaying a numerical star rating. Until 3 reviews are reached, your kitchen displays the "✨ New Arrival" badge in all customer feeds.'
+                  : 'Your kitchen has collected 3 or more verified customer reviews! Your calculated rating of ' + avgRating + ' / 5.0 is displayed on your store banner and customer search cards.'}
+              </p>
+
+              <div className="pt-1">
+                <div className="flex justify-between text-[11px] font-bold mb-1">
+                  <span>Threshold Milestone Progress</span>
+                  <span>{reviewCount} / 3 Reviews ({Math.min(100, Math.round((reviewCount / 3) * 100))}%)</span>
+                </div>
+                <div className="w-full h-2.5 bg-slate-200 dark:bg-slate-800 rounded-full overflow-hidden">
+                  <div
+                    className={`h-full rounded-full transition-all duration-500 ${isNewArrival ? 'bg-emerald-500' : 'bg-amber-500'}`}
+                    style={{ width: `${Math.min(100, Math.max(10, (reviewCount / 3) * 100))}%` }}
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Recent Reviews Summary */}
+            <div className="space-y-2 pt-1">
+              <h4 className="font-extrabold text-slate-700 dark:text-slate-300">Customer Feedback ({chefReviews.length})</h4>
+              {chefReviews.length === 0 ? (
+                <p className="text-slate-400 italic py-4 text-center">No reviews yet. Completed customer orders will show here.</p>
+              ) : (
+                <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
+                  {chefReviews.map((r, i) => (
+                    <div key={r.review_id || i} className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 flex items-start justify-between gap-2">
+                      <div>
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-bold text-slate-900 dark:text-white">{r.customer_name || 'Customer'}</span>
+                          <span className="text-amber-500 font-bold">{'⭐'.repeat(r.vendor_rating || 5)}</span>
+                        </div>
+                        <p className="text-[11px] text-slate-600 dark:text-slate-400 mt-0.5">"{r.comment || 'Delicious meal!'}"</p>
+                      </div>
+                      <span className="text-[10px] text-slate-400 shrink-0 font-mono">Order #{r.order_id}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
   // Logged-in Chef Console View
   const navTabs = [
     { id: 'dishes', label: `Dishes Menu (${dishes.length})`, icon: Utensils },
@@ -714,7 +1648,8 @@ export default function ChefSite({ user, onLogin, onLogout }) {
     { id: 'inventory', label: `Stock Inventory (${inventory.length})`, icon: Package },
     { id: 'recipes', label: 'Recipe Builder', icon: Plus },
     { id: 'payouts', label: 'Payout Earnings', icon: DollarSign },
-    { id: 'reviews', label: `Customer Reviews (${chefReviews.length})`, icon: Tag }
+    { id: 'reviews', label: `Customer Reviews (${chefReviews.length})`, icon: Tag },
+    { id: 'profile', label: 'Chef Profile & Security', icon: User }
   ];
 
   return (
@@ -750,6 +1685,18 @@ export default function ChefSite({ user, onLogin, onLogout }) {
               <Clock className="w-3.5 h-3.5 text-amber-500" />
               Hours: {storeProfile.operating_hours || '11:00 AM - 10:00 PM'}
             </button>
+
+            {/* Chef Profile & Security Settings Button */}
+            <button
+              onClick={() => {
+                setShowProfileModal(true);
+                setProfileModalTab('INFO');
+              }}
+              className="px-3.5 py-1 rounded-full text-xs font-bold bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700/80 transition-all flex items-center gap-1.5 border border-slate-200 dark:border-slate-700 shadow-sm active:scale-95 cursor-pointer hover:border-emerald-500/40"
+            >
+              <User className="w-3.5 h-3.5 text-emerald-500" />
+              <span>Edit Profile & Security</span>
+            </button>
           </div>
 
           {!storeProfile.is_open && storeProfile.closed_reason && (
@@ -769,8 +1716,52 @@ export default function ChefSite({ user, onLogin, onLogout }) {
             </div>
           )}
 
-          <h1 className="text-3xl sm:text-4xl font-black font-display text-slate-900 dark:text-white tracking-tight">{user.name}</h1>
-          <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 font-medium">Manage dish menu, real-time stock availability, ingredient inventory, and kitchen orders</p>
+          <div className="flex items-center gap-4 pt-1">
+            <div className="relative w-16 h-16 rounded-2xl overflow-hidden border-2 border-emerald-500/40 shadow-lg shrink-0 group">
+              <img
+                src={storeProfile.avatar_url || user.avatar_url || 'https://images.unsplash.com/photo-1577219491135-ce391730fb2c?auto=format&fit=crop&w=400&q=80'}
+                alt={user.name}
+                className="w-full h-full object-cover"
+              />
+              <button
+                onClick={() => {
+                  setShowProfileModal(true);
+                  setProfileModalTab('INFO');
+                }}
+                className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 flex items-center justify-center text-white transition-opacity cursor-pointer"
+                title="Change Avatar"
+              >
+                <Edit3 className="w-4 h-4" />
+              </button>
+            </div>
+            <div>
+              <div className="flex items-center gap-2.5 flex-wrap">
+                <h1 className="text-2xl sm:text-3xl font-black font-display text-slate-900 dark:text-white tracking-tight">
+                  {storeProfile.business_name || user.name}
+                </h1>
+                {storeProfile.is_new_arrival ? (
+                  <span className="px-2.5 py-0.5 rounded-full text-xs font-black bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/25 flex items-center gap-1 shadow-sm">
+                    <Sparkles className="w-3.5 h-3.5 text-emerald-500" />
+                    <span>New Arrival</span>
+                    <span className="text-[10px] text-slate-400 font-normal">({chefReviews.length}/3 reviews)</span>
+                  </span>
+                ) : (
+                  <span className="px-2.5 py-0.5 rounded-full text-xs font-black bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/25 flex items-center gap-1 shadow-sm">
+                    <Star className="w-3.5 h-3.5 fill-amber-500 text-amber-500" />
+                    <span>{storeProfile.rating || (chefReviews.length ? (chefReviews.reduce((a, r) => a + (Number(r.vendor_rating) || 5), 0) / chefReviews.length).toFixed(1) : '5.0')}</span>
+                    <span className="text-[10px] text-slate-400 font-normal">({chefReviews.length} reviews)</span>
+                  </span>
+                )}
+              </div>
+              <p className="text-xs text-slate-500 dark:text-slate-400 font-medium mt-0.5 flex items-center gap-1.5 flex-wrap">
+                <MapPin className="w-3.5 h-3.5 text-emerald-500" />
+                <span>{storeProfile.primary_address || user.primary_address || 'Artisanal Kitchen, Bengaluru'}</span>
+                <span>•</span>
+                <Clock className="w-3.5 h-3.5 text-amber-500" />
+                <span>{storeProfile.operating_hours || '11:00 AM - 10:00 PM'}</span>
+              </p>
+            </div>
+          </div>
         </div>
 
         {/* Modern Segmented Tab Switcher with Smooth Sliding Indicator */}
@@ -2226,6 +3217,60 @@ export default function ChefSite({ user, onLogin, onLogout }) {
               </span>
             </div>
 
+            {/* Dynamic Reputation & New Arrival Status Milestone Banner */}
+            {(() => {
+              const count = chefReviews.length;
+              const avg = count > 0 ? (chefReviews.reduce((acc, r) => acc + (Number(r.vendor_rating) || 5), 0) / count).toFixed(1) : '5.0';
+              const isNew = count < 3;
+              return (
+                <div className={`p-4 sm:p-5 rounded-2xl border flex flex-wrap items-center justify-between gap-4 backdrop-blur-md shadow-sm ${
+                  isNew
+                    ? 'bg-emerald-500/10 border-emerald-500/25 text-emerald-900 dark:text-emerald-200'
+                    : 'bg-amber-500/10 border-amber-500/25 text-amber-900 dark:text-amber-200'
+                }`}>
+                  <div className="flex items-center gap-3.5">
+                    <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 shadow-md ${
+                      isNew ? 'bg-emerald-500 text-white' : 'bg-amber-500 text-white'
+                    }`}>
+                      {isNew ? <Sparkles className="w-6 h-6" /> : <Star className="w-6 h-6 fill-white" />}
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <h3 className="text-base font-black text-slate-900 dark:text-white">
+                          {isNew ? '✨ New Arrival Kitchen Status' : `⭐ Live Marketplace Rating: ${avg} / 5.0`}
+                        </h3>
+                        <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-black border ${
+                          isNew
+                            ? 'bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border-emerald-500/30'
+                            : 'bg-amber-500/20 text-amber-700 dark:text-amber-300 border-amber-500/30'
+                        }`}>
+                          {isNew ? 'Threshold In Progress' : 'Public Star Rating Active'}
+                        </span>
+                      </div>
+                      <p className="text-xs text-slate-600 dark:text-slate-400 mt-0.5">
+                        {isNew
+                          ? `Platform rule: Minimum 3 verified customer reviews required to show public numerical rating. Currently at ${count}/3 reviews.`
+                          : `Calculated from ${count} verified orders. Customers can view your real rating across all discovery carousels.`}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-col items-end gap-1.5 w-full sm:w-auto">
+                    <div className="flex items-center gap-2 text-xs font-mono font-bold">
+                      <span>{count} / 3 Reviews</span>
+                      <span>({Math.min(100, Math.round((count / 3) * 100))}%)</span>
+                    </div>
+                    <div className="w-36 h-2.5 bg-slate-200 dark:bg-slate-800 rounded-full overflow-hidden">
+                      <div
+                        className={`h-full rounded-full transition-all duration-500 ${isNew ? 'bg-emerald-500' : 'bg-amber-500'}`}
+                        style={{ width: `${Math.min(100, Math.max(10, (count / 3) * 100))}%` }}
+                      />
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
+
             {chefReviews.length === 0 ? (
               <div className="text-center py-16 bg-slate-50 dark:bg-slate-950/40 rounded-2xl border border-dashed border-slate-200 dark:border-slate-800 space-y-2">
                 <p className="text-sm font-bold text-slate-700 dark:text-slate-300">No customer reviews yet</p>
@@ -2277,6 +3322,24 @@ export default function ChefSite({ user, onLogin, onLogout }) {
               </div>
             )}
           </div>
+        </div>
+      )}
+
+      {/* Chef Profile & Security Tab */}
+      {activeTab === 'profile' && (
+        <div className="glass-card rounded-3xl p-6 sm:p-8 border border-slate-200/80 dark:border-slate-800 shadow-xl space-y-6">
+          <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-4">
+            <div>
+              <h2 className="text-xl sm:text-2xl font-black font-display text-slate-900 dark:text-white flex items-center gap-2.5">
+                <User className="w-6 h-6 text-emerald-500" />
+                <span>Chef Profile & Security Settings</span>
+              </h2>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                Update your chef identity, kitchen location GPS, avatar picture, and password credentials via old password or OTP verification.
+              </p>
+            </div>
+          </div>
+          {renderProfileContent(false)}
         </div>
       )}
 
@@ -2544,6 +3607,32 @@ export default function ChefSite({ user, onLogin, onLogout }) {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Chef Profile & Security Modal */}
+      {showProfileModal && (
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fade-in overflow-y-auto">
+          <div className="glass-card rounded-3xl p-6 sm:p-8 border border-slate-200/80 dark:border-slate-800 w-full max-w-2xl max-h-[90vh] overflow-y-auto space-y-4 shadow-2xl bg-white dark:bg-slate-900 my-8">
+            <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-800 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-xl bg-emerald-500/10 text-emerald-500 flex items-center justify-center">
+                  <User className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="font-black font-display text-slate-900 dark:text-white text-base">Chef Profile & Security Settings</h3>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400">Edit credentials, location coordinates, and kitchen avatar</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowProfileModal(false)}
+                className="p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            {renderProfileContent(true)}
           </div>
         </div>
       )}

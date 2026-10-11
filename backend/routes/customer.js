@@ -76,18 +76,25 @@ router.get('/vendors', async (req, res) => {
     const enforceRadius = req.query.enforce_radius === 'true';
 
     const vendors = await query(`
-      SELECT user_id AS vendor_id, name AS business_name, email, phone, primary_address, latitude, longitude 
+      SELECT user_id AS vendor_id, name AS business_name, email, phone, primary_address, latitude, longitude, avatar_url 
       FROM users WHERE role = 'VENDOR' AND status = 'ACTIVE'
     `);
 
     const result = [];
     for (const v of vendors) {
-      // Determine Kitchen Coordinates
-      const loc = CHEF_LOCATIONS[v.email.toLowerCase()] || {
-        lat: v.latitude ? parseFloat(v.latitude) : 12.9716,
-        lng: v.longitude ? parseFloat(v.longitude) : 77.6408,
-        locality: v.primary_address || 'Artisanal Kitchen',
+      // Determine Kitchen Coordinates (prioritize user profile coords if customized, then CHEF_LOCATIONS default)
+      const defaultLoc = CHEF_LOCATIONS[v.email.toLowerCase()] || {
+        lat: 12.9716,
+        lng: 77.6408,
+        locality: 'Artisanal Kitchen',
         city: 'Bengaluru'
+      };
+
+      const loc = {
+        lat: (v.latitude !== null && v.latitude !== undefined && Number(v.latitude) !== 0) ? parseFloat(v.latitude) : defaultLoc.lat,
+        lng: (v.longitude !== null && v.longitude !== undefined && Number(v.longitude) !== 0) ? parseFloat(v.longitude) : defaultLoc.lng,
+        locality: v.primary_address || defaultLoc.locality,
+        city: defaultLoc.city || 'Bengaluru'
       };
 
       const distance_km = calculateDistanceKm(userLat, userLng, loc.lat, loc.lng);
@@ -98,6 +105,14 @@ router.get('/vendors', async (req, res) => {
       if (enforceRadius && !is_within_20km) {
         continue;
       }
+
+      // Calculate dynamic ratings and new arrival logic
+      const reviews = await MongoAdapter.getReviews({ vendor_id: Number(v.vendor_id) });
+      const review_count = reviews.length;
+      const totalStars = reviews.reduce((acc, r) => acc + (Number(r.vendor_rating) || 5), 0);
+      const avgRating = review_count > 0 ? Number((totalStars / review_count).toFixed(1)) : 0;
+      const MIN_REVIEWS_THRESHOLD = 3;
+      const is_new_arrival = review_count < MIN_REVIEWS_THRESHOLD;
 
       const mongoMenu = await MongoAdapter.findVendorMenu(v.vendor_id);
       const mysqlDishes = await query('SELECT * FROM dishes WHERE vendor_id = ? ORDER BY dish_id DESC', [v.vendor_id]);
@@ -145,21 +160,30 @@ router.get('/vendors', async (req, res) => {
 
       result.push({
         ...v,
+        avatar_url: v.avatar_url || null,
         distance_km,
         is_within_20km,
         estimated_delivery_mins: estimated_mins,
         kitchen_location: loc,
+        rating: avgRating,
+        review_count,
+        min_reviews_needed: MIN_REVIEWS_THRESHOLD,
+        is_new_arrival,
         menu: {
           vendor_id: v.vendor_id,
           business_name: mongoMenu?.business_name || v.business_name,
           chef_bio: mongoMenu?.chef_bio || 'Michelin-trained artisanal independent chef.',
-          hero_image_url: mongoMenu?.hero_image_url || 'https://images.unsplash.com/photo-1551183053-bf91a1d81141?auto=format&fit=crop&w=800&q=80',
+          hero_image_url: v.avatar_url || mongoMenu?.hero_image_url || 'https://images.unsplash.com/photo-1551183053-bf91a1d81141?auto=format&fit=crop&w=800&q=80',
           operating_hours: mongoMenu?.operating_hours || '11:00 AM - 10:00 PM',
           open_time: mongoMenu?.open_time || '11:00',
           close_time: mongoMenu?.close_time || '22:00',
           is_open: mongoMenu?.is_open !== undefined ? mongoMenu.is_open : true,
           is_currently_open: storeStatus.isOpen,
           closed_reason: storeStatus.reason || null,
+          rating: avgRating,
+          review_count,
+          min_reviews_needed: MIN_REVIEWS_THRESHOLD,
+          is_new_arrival,
           categories
         }
       });
