@@ -556,7 +556,7 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
       setCouponCodeInput('');
       setAppliedCoupon(null);
     }
-  }, [user?.user_id]);
+  }, [user?.user_id, customerTab]);
 
   // 4. Server-Sent Events push stream & conservative background polling (active only for authenticated users)
   useEffect(() => {
@@ -2409,12 +2409,20 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
                         : `No orders matching filter "${ordersFilter}".`}
                     </p>
                   </div>
-                  <button
-                    onClick={() => setCustomerTab('MARKETPLACE')}
-                    className="px-5 py-2.5 rounded-xl bg-orange-500 text-white font-extrabold text-xs shadow-lg hover:bg-orange-600"
-                  >
-                    Browse Gourmet Menus
-                  </button>
+                  <div className="flex items-center justify-center gap-3">
+                    <button
+                      onClick={() => setCustomerTab('MARKETPLACE')}
+                      className="px-5 py-2.5 rounded-xl bg-orange-500 text-white font-extrabold text-xs shadow-lg hover:bg-orange-600 cursor-pointer"
+                    >
+                      Browse Gourmet Menus
+                    </button>
+                    <button
+                      onClick={() => fetchMyOrders()}
+                      className="px-4 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 font-bold text-xs hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
+                    >
+                      ↻ Refresh Orders
+                    </button>
+                  </div>
                 </div>
               );
             }
