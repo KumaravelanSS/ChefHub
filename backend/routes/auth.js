@@ -34,24 +34,84 @@ function validatePasswordStrength(password) {
   return { valid: true, score };
 }
 
-// Unified Login Endpoint for all 4 roles (Accepts username, email, or phone)
+// Strict Username Validation
+function validateUsername(username) {
+  if (!username || typeof username !== 'string') {
+    return { valid: false, message: 'Username is required.' };
+  }
+  const trimmed = username.trim();
+  if (trimmed.length < 3) {
+    return { valid: false, message: 'Username must be at least 3 characters long.' };
+  }
+  if (trimmed.length > 50) {
+    return { valid: false, message: 'Username cannot exceed 50 characters.' };
+  }
+  if (/^\d+$/.test(trimmed)) {
+    return { valid: false, message: 'Username cannot be purely numbers. (Pure numbers are reserved for Customer IDs).' };
+  }
+  if (!/^[a-zA-Z0-9][a-zA-Z0-9_\-\.\s]*$/.test(trimmed)) {
+    return { valid: false, message: 'Username must start with an alphanumeric character and contain only letters, numbers, spaces, dots, hyphens, and underscores.' };
+  }
+  return { valid: true, username: trimmed };
+}
+
+// Dedicated Real-Time Username Format & Availability Checker Endpoint
+router.get('/validate-username', async (req, res) => {
+  const username = (req.query.username || '').trim();
+  const check = validateUsername(username);
+  if (!check.valid) {
+    return res.json({ valid: false, message: check.message });
+  }
+  try {
+    const existing = await query('SELECT user_id FROM users WHERE LOWER(name) = LOWER(?)', [username]);
+    if (existing && existing.length > 0) {
+      return res.json({ valid: false, message: 'This username is already taken. Please choose another.' });
+    }
+    return res.json({ valid: true, message: 'Username is available!' });
+  } catch (err) {
+    return res.json({ valid: true, message: 'Username format is valid.' });
+  }
+});
+
+// Unified Login Endpoint for all roles (Accepts Email, Customer ID, Username, or Phone)
 router.post('/login', async (req, res) => {
   try {
-    const { username, email, password } = req.body;
-    const identifier = (username || email || '').trim();
+    const { username, email, customer_id, identifier: rawId, password } = req.body;
+    const identifier = (rawId || username || email || customer_id || '').trim();
 
     if (!identifier || !password) {
-      return res.status(400).json({ success: false, message: 'Username/Email/Phone and Password are required.' });
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Please enter your Username, Email, or Customer ID, along with your password.' 
+      });
     }
 
-    // Query user by email, username, or phone
-    const users = await query(`
-      SELECT * FROM users 
-      WHERE LOWER(email) = LOWER(?) OR LOWER(name) = LOWER(?) OR phone = ?
-    `, [identifier, identifier, identifier]);
+    // Smart Identifier Parsing: Detect if input is a Customer ID (e.g. "4", "#4", "CUST-4", "CUST4", "cust_4", "customer:4")
+    let numericCustomerId = null;
+    const strippedId = identifier.replace(/^(cust[-_]?|customer[:\-_]?|#|id[:\s#]*)/i, '').trim();
+    if (/^\d+$/.test(strippedId)) {
+      numericCustomerId = parseInt(strippedId, 10);
+    }
+
+    // Query user by: Customer ID (user_id), Email, Username (name), or Phone
+    let users = [];
+    if (numericCustomerId !== null) {
+      users = await query(`
+        SELECT * FROM users 
+        WHERE user_id = ? OR LOWER(email) = LOWER(?) OR LOWER(name) = LOWER(?) OR phone = ?
+      `, [numericCustomerId, identifier, identifier, identifier]);
+    } else {
+      users = await query(`
+        SELECT * FROM users 
+        WHERE LOWER(email) = LOWER(?) OR LOWER(name) = LOWER(?) OR phone = ?
+      `, [identifier, identifier, identifier]);
+    }
 
     if (!users || users.length === 0) {
-      return res.status(401).json({ success: false, message: 'Invalid credentials. User not found.' });
+      const hint = numericCustomerId !== null 
+        ? `No account found with Customer ID #${numericCustomerId} or matching credentials.`
+        : 'Invalid credentials. User not found.';
+      return res.status(401).json({ success: false, message: hint });
     }
 
     const user = users[0];
@@ -76,7 +136,7 @@ router.post('/login', async (req, res) => {
 
     return res.json({
       success: true,
-      message: `Successfully logged in as ${user.role}`,
+      message: `Successfully logged in as ${user.role} (Customer ID #${user.user_id})`,
       token,
       user: {
         user_id: user.user_id,
@@ -97,18 +157,27 @@ router.post('/login', async (req, res) => {
   }
 });
 
-// Self-Service Registration Endpoint with Strict Password Security Enforcement
+// Self-Service Registration Endpoint with Strict Password & Username Validation
 router.post('/register', async (req, res) => {
   try {
     const { name, email, password, role = 'CUSTOMER', phone, primary_address, latitude, longitude } = req.body;
 
     if (!name || !email || !password) {
-      return res.status(400).json({ success: false, message: 'Name, Email/Username, and Password are required.' });
+      return res.status(400).json({ success: false, message: 'Username/Name, Email, and Password are required.' });
+    }
+
+    // 1. Strict Username Validation
+    const uCheck = validateUsername(name);
+    if (!uCheck.valid) {
+      return res.status(400).json({
+        success: false,
+        message: uCheck.message
+      });
     }
 
     const targetRole = ['CUSTOMER', 'VENDOR', 'RIDER'].includes(role) ? role : 'CUSTOMER';
 
-    // Strict Password Validation Check
+    // 2. Strict Password Security Check
     const pwdCheck = validatePasswordStrength(password);
     if (!pwdCheck.valid) {
       return res.status(400).json({
@@ -118,8 +187,8 @@ router.post('/register', async (req, res) => {
       });
     }
 
-    // Check existing email or username
-    const existing = await query('SELECT user_id FROM users WHERE LOWER(email) = LOWER(?) OR LOWER(name) = LOWER(?)', [email, name]);
+    // 3. Check existing email or username
+    const existing = await query('SELECT user_id FROM users WHERE LOWER(email) = LOWER(?) OR LOWER(name) = LOWER(?)', [email.trim(), name.trim()]);
     if (existing.length > 0) {
       return res.status(400).json({ success: false, message: 'An account with this email or username already exists.' });
     }

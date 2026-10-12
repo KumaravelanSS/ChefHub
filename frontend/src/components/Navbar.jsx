@@ -234,7 +234,9 @@ export default function Navbar({ currentUser, onLogout, theme, onToggleTheme }) 
               {/* Desktop User Info */}
               <div className="hidden sm:flex flex-col items-end text-right">
                 <span className="text-xs font-extrabold text-slate-900 dark:text-white truncate max-w-[130px]">{currentUser.name}</span>
-                <span className="text-[10px] font-extrabold text-orange-500 uppercase tracking-wider">{currentUser.role}</span>
+                <span className="text-[10px] font-extrabold text-orange-500 uppercase tracking-wider">
+                  {currentUser.role} {currentUser.user_id ? `• ID #${currentUser.user_id}` : ''}
+                </span>
               </div>
               
               {/* Logout Button */}

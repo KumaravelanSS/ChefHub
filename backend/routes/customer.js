@@ -628,7 +628,7 @@ const handleCustomerCancelOrder = async (req, res) => {
       });
     }
 
-    await query("UPDATE orders SET status = 'CANCELLED', escrow_status = 'REFUNDED' WHERE order_id = ?", [order_id]);
+    await query("UPDATE orders SET status = 'CANCELLED', escrow_status = 'REFUNDED', cancelled_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE order_id = ?", [order_id]);
 
     // Restore dish stock
     const orderItems = await query('SELECT dish_id, quantity FROM order_items WHERE order_id = ?', [order_id]);
@@ -686,7 +686,7 @@ router.delete('/orders/:id', authenticateToken, requireRole(['CUSTOMER', 'VENDOR
 router.get('/my-orders', authenticateToken, requireRole(['CUSTOMER', 'VENDOR', 'RIDER', 'ADMIN']), async (req, res) => {
   try {
     const orders = await query(`
-      SELECT o.*, u.name AS vendor_name 
+      SELECT o.*, o.timestamp AS created_at, u.name AS vendor_name 
       FROM orders o
       JOIN users u ON o.vendor_id = u.user_id
       WHERE o.customer_id = ?
@@ -707,22 +707,52 @@ router.get('/my-orders', authenticateToken, requireRole(['CUSTOMER', 'VENDOR', '
 
       if (timeline.length === 0) {
         timeline = [
-          { event: 'ORDER_PLACED', location_note: 'Order submitted and escrow payment secured', timestamp: o.timestamp || new Date(), actor_role: 'CUSTOMER' }
+          { 
+            event: 'ORDER_PLACED', 
+            location_note: 'Order submitted and escrow payment secured', 
+            timestamp: o.timestamp || o.created_at || new Date(), 
+            actor_role: 'CUSTOMER' 
+          }
         ];
         if (o.status === 'CANCELLED') {
-          timeline.push({ event: 'ORDER_CANCELLED', location_note: 'Order cancelled. 100% Escrow refund credited back to customer account.', timestamp: o.timestamp || new Date(), actor_role: 'VENDOR' });
+          timeline.push({ 
+            event: 'ORDER_CANCELLED', 
+            location_note: 'Order cancelled. 100% Escrow refund credited back to customer account.', 
+            timestamp: o.cancelled_at || o.updated_at || o.timestamp || new Date(), 
+            actor_role: 'VENDOR' 
+          });
         } else {
           if (['PREPARING', 'READY', 'OUT_FOR_DELIVERY', 'DELIVERED'].includes(o.status)) {
-            timeline.push({ event: 'KITCHEN_PREPARING', location_note: 'Chef started preparing your meal', timestamp: new Date(new Date(o.timestamp).getTime() + 2 * 60000), actor_role: 'VENDOR' });
+            timeline.push({ 
+              event: 'KITCHEN_PREPARING', 
+              location_note: 'Chef started preparing your handcrafted meal', 
+              timestamp: o.prepared_at || o.timestamp || new Date(), 
+              actor_role: 'VENDOR' 
+            });
           }
           if (['READY', 'OUT_FOR_DELIVERY', 'DELIVERED'].includes(o.status)) {
-            timeline.push({ event: 'KITCHEN_READY', location_note: 'Meal packed & waiting for delivery pickup', timestamp: new Date(new Date(o.timestamp).getTime() + 10 * 60000), actor_role: 'VENDOR' });
+            timeline.push({ 
+              event: 'KITCHEN_READY', 
+              location_note: 'Meal packed & waiting for delivery pickup', 
+              timestamp: o.ready_at || o.prepared_at || o.timestamp || new Date(), 
+              actor_role: 'VENDOR' 
+            });
           }
           if (['OUT_FOR_DELIVERY', 'DELIVERED'].includes(o.status)) {
-            timeline.push({ event: 'RIDER_ACCEPTED', location_note: 'Courier picked up order and is en route', timestamp: new Date(new Date(o.timestamp).getTime() + 15 * 60000), actor_role: 'RIDER' });
+            timeline.push({ 
+              event: 'RIDER_ACCEPTED', 
+              location_note: 'Courier picked up order and is en route', 
+              timestamp: o.dispatched_at || o.ready_at || o.timestamp || new Date(), 
+              actor_role: 'RIDER' 
+            });
           }
           if (o.status === 'DELIVERED') {
-            timeline.push({ event: 'DELIVERED', location_note: 'Order delivered successfully to your doorstep', timestamp: new Date(new Date(o.timestamp).getTime() + 25 * 60000), actor_role: 'RIDER' });
+            timeline.push({ 
+              event: 'DELIVERED', 
+              location_note: 'Order delivered successfully to your doorstep', 
+              timestamp: o.delivered_at || o.dispatched_at || o.timestamp || new Date(), 
+              actor_role: 'RIDER' 
+            });
           }
         }
       }

@@ -459,7 +459,14 @@ async function initRelationalDb() {
     await query(`ALTER TABLE orders ADD COLUMN payment_method VARCHAR(100) DEFAULT 'Card'`);
   } catch (err) {}
 
-  console.log('[Relational Engine] All 10 relational tables checked/created successfully (including customer_wallets).');
+  try { await query('ALTER TABLE orders ADD COLUMN prepared_at DATETIME'); } catch (err) {}
+  try { await query('ALTER TABLE orders ADD COLUMN ready_at DATETIME'); } catch (err) {}
+  try { await query('ALTER TABLE orders ADD COLUMN dispatched_at DATETIME'); } catch (err) {}
+  try { await query('ALTER TABLE orders ADD COLUMN delivered_at DATETIME'); } catch (err) {}
+  try { await query('ALTER TABLE orders ADD COLUMN cancelled_at DATETIME'); } catch (err) {}
+  try { await query('ALTER TABLE orders ADD COLUMN updated_at DATETIME'); } catch (err) {}
+
+  console.log('[Relational Engine] All 10 relational tables checked/created successfully (including customer_wallets and timing telemetry).');
 
   // 11. Performance Optimization Indexes (Accelerates WHERE/JOIN queries by 10x - 50x)
   const indexStatements = [

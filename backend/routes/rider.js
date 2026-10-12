@@ -35,7 +35,7 @@ router.patch('/orders/:id/accept', authenticateToken, requireRole('RIDER'), asyn
 
     await query(`
       UPDATE orders 
-      SET rider_id = ?, status = 'OUT_FOR_DELIVERY'
+      SET rider_id = ?, status = 'OUT_FOR_DELIVERY', dispatched_at = COALESCE(dispatched_at, CURRENT_TIMESTAMP), updated_at = CURRENT_TIMESTAMP
       WHERE order_id = ?
     `, [rider_id, order_id]);
 
@@ -82,7 +82,7 @@ router.patch('/orders/:id/complete', authenticateToken, requireRole('RIDER'), as
 
     await query(`
       UPDATE orders 
-      SET status = 'DELIVERED', escrow_status = 'DISBURSED'
+      SET status = 'DELIVERED', escrow_status = 'DISBURSED', delivered_at = COALESCE(delivered_at, CURRENT_TIMESTAMP), updated_at = CURRENT_TIMESTAMP
       WHERE order_id = ? AND rider_id = ?
     `, [order_id, rider_id]);
 

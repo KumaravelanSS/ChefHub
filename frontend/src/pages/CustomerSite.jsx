@@ -1419,11 +1419,11 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
 
     const currentStageIdx = stageMap[status] !== undefined ? stageMap[status] : 0;
 
-    const tPlaced = getEventTimestamp(['ORDER_PLACED']) || validBaseTime;
-    const tPrep = getEventTimestamp(['KITCHEN_PREPARING', 'PREPARING']) || new Date(validBaseTime.getTime() + 3 * 60000);
-    const tReady = getEventTimestamp(['KITCHEN_READY', 'READY', 'READY_FOR_PICKUP']) || new Date(validBaseTime.getTime() + 12 * 60000);
-    const tRider = getEventTimestamp(['RIDER_ACCEPTED', 'OUT_FOR_DELIVERY']) || new Date(validBaseTime.getTime() + 18 * 60000);
-    const tDelivered = getEventTimestamp(['DELIVERED']) || new Date(validBaseTime.getTime() + 30 * 60000);
+    const tPlaced = getEventTimestamp(['ORDER_PLACED']) || (order.timestamp ? new Date(order.timestamp) : (order.created_at ? new Date(order.created_at) : validBaseTime));
+    const tPrep = getEventTimestamp(['KITCHEN_PREPARING', 'PREPARING']) || (order.prepared_at ? new Date(order.prepared_at) : (currentStageIdx >= 1 ? (order.updated_at ? new Date(order.updated_at) : validBaseTime) : null));
+    const tReady = getEventTimestamp(['KITCHEN_READY', 'READY', 'READY_FOR_PICKUP']) || (order.ready_at ? new Date(order.ready_at) : (currentStageIdx >= 2 ? (order.updated_at ? new Date(order.updated_at) : null) : null));
+    const tRider = getEventTimestamp(['RIDER_ACCEPTED', 'OUT_FOR_DELIVERY']) || (order.dispatched_at ? new Date(order.dispatched_at) : (currentStageIdx >= 3 ? (order.updated_at ? new Date(order.updated_at) : null) : null));
+    const tDelivered = getEventTimestamp(['DELIVERED']) || (order.delivered_at ? new Date(order.delivered_at) : (currentStageIdx >= 4 ? (order.updated_at ? new Date(order.updated_at) : null) : null));
 
     const baseStages = [
       {
@@ -1444,21 +1444,21 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
         title: 'KITCHEN_READY',
         desc: 'Order ready • Packed & waiting to be picked up by a delivery person',
         time: tReady,
-        pendingLabel: 'Awaiting delivery partner pickup'
+        pendingLabel: 'Chef actively cooking & packaging your meal'
       },
       {
         key: 'RIDER_ACCEPTED',
         title: 'RIDER_ACCEPTED',
         desc: `${order.rider_name || 'Courier'} picked up order and is en route`,
         time: tRider,
-        pendingLabel: 'Courier will be dispatched upon kitchen completion'
+        pendingLabel: 'Courier dispatch will activate once meal is packed'
       },
       {
         key: 'DELIVERED',
         title: 'DELIVERED',
         desc: 'Order delivered successfully to your doorstep',
         time: tDelivered,
-        pendingLabel: 'Estimated delivery: ~25-35 mins'
+        pendingLabel: 'Estimated delivery: ~25-35 mins from dispatch'
       }
     ];
 
@@ -2448,9 +2448,18 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
                         ))}
 
                         <div className="pt-2 border-t border-slate-200 dark:border-slate-800 flex justify-between items-center text-xs">
-                          <span className="text-slate-500 font-mono">
-                            {new Date(o.created_at || Date.now()).toLocaleString()}
-                          </span>
+                          <div className="text-slate-500 font-mono text-[11px]">
+                            <span>Placed: </span>
+                            <span className="font-bold text-slate-700 dark:text-slate-300">
+                              {new Date(o.timestamp || o.created_at || Date.now()).toLocaleString([], {
+                                month: 'short',
+                                day: 'numeric',
+                                hour: '2-digit',
+                                minute: '2-digit',
+                                second: '2-digit'
+                              })}
+                            </span>
+                          </div>
                           <span className="text-sm font-black text-amber-500">
                             Total: ₹{Number(o.total_amount).toFixed(2)}
                           </span>
@@ -4135,9 +4144,23 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
                             <p className="text-[11px] text-slate-500 leading-snug">
                               {stage.desc}
                             </p>
-                            {isDone && (
-                              <span className="text-[10px] text-slate-400 font-mono block">
-                                {new Date(stage.time).toLocaleTimeString()}
+                            {isDone && stage.time ? (
+                              <div className="flex items-center gap-1.5 text-[10px] text-slate-400 font-mono mt-0.5">
+                                <span className="font-bold text-emerald-600 dark:text-emerald-400">
+                                  ✓ {new Date(stage.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                                </span>
+                                <span className="text-slate-500">
+                                  • {new Date(stage.time).toLocaleDateString([], { month: 'short', day: 'numeric' })}
+                                </span>
+                              </div>
+                            ) : stage.isActive ? (
+                              <div className="flex items-center gap-1.5 text-[10px] text-amber-500 font-extrabold mt-0.5">
+                                <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-ping"></span>
+                                <span>Active Milestone • In progress</span>
+                              </div>
+                            ) : (
+                              <span className="text-[10px] text-slate-400 dark:text-slate-500 italic block mt-0.5">
+                                ⏳ {stage.pendingLabel || 'Pending'}
                               </span>
                             )}
                           </div>

@@ -25,6 +25,25 @@ function evalPwd(pwd) {
   return { checks, score, ...levels[score], isAcceptable: score >= 4 };
 }
 
+function getIdentifierType(val) {
+  const trimmed = (val || '').trim();
+  if (!trimmed) return null;
+  if (trimmed.includes('@')) return { type: 'EMAIL', label: 'Email Format', icon: '📧' };
+  const stripped = trimmed.replace(/^(cust[-_]?|customer[:\-_]?|#|id[:\s#]*)/i, '').trim();
+  if (/^\d+$/.test(stripped)) return { type: 'CUSTOMER_ID', label: `Customer ID #${stripped}`, icon: '🆔' };
+  return { type: 'USERNAME', label: 'Username Format', icon: '👤' };
+}
+
+function evalUsername(name) {
+  const trimmed = (name || '').trim();
+  if (!trimmed) return { valid: false, message: 'Username is required' };
+  if (trimmed.length < 3) return { valid: false, message: 'Must be at least 3 characters' };
+  if (trimmed.length > 50) return { valid: false, message: 'Cannot exceed 50 characters' };
+  if (/^\d+$/.test(trimmed)) return { valid: false, message: 'Cannot be purely numeric (pure numbers are Customer IDs)' };
+  if (!/^[a-zA-Z0-9][a-zA-Z0-9_\-\.\s]*$/.test(trimmed)) return { valid: false, message: 'Must start with a letter/number and use valid characters' };
+  return { valid: true, message: 'Valid username format' };
+}
+
 function PasswordInput({ value, onChange, placeholder, id, show, onToggle }) {
   return (
     <div className="relative">
@@ -78,17 +97,29 @@ export default function CustomerAuthPage({ onLogin, isModal = false }) {
 
   const pwd = evalPwd(regPwd);
   const pwdBarWidth = `${(pwd.score / 5) * 100}%`;
+  const usernameCheck = evalUsername(regName);
   const clearFeedback = () => { setError(''); setSuccess(''); };
 
   const handleLogin = async (e) => {
     e.preventDefault();
     clearFeedback();
+    const cleanId = loginId.trim();
+    if (!cleanId) {
+      setError('Please enter your Email, Username, or Customer ID.');
+      return;
+    }
     setLoading(true);
     try {
       const res = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: loginId.trim(), username: loginId.trim(), password: loginPwd })
+        body: JSON.stringify({ 
+          identifier: cleanId, 
+          email: cleanId, 
+          username: cleanId, 
+          customer_id: cleanId, 
+          password: loginPwd 
+        })
       });
       const data = await res.json();
       setLoading(false);
@@ -113,6 +144,11 @@ export default function CustomerAuthPage({ onLogin, isModal = false }) {
   const handleRegister = async (e) => {
     e.preventDefault();
     clearFeedback();
+    const uCheck = evalUsername(regName);
+    if (!uCheck.valid) {
+      setError(uCheck.message || 'Please enter a valid username (3-50 characters).');
+      return;
+    }
     if (!pwd.isAcceptable) {
       setError('Password must be rated "Good" or higher to create an account.');
       return;
@@ -202,7 +238,19 @@ export default function CustomerAuthPage({ onLogin, isModal = false }) {
         {mode === 'login' && (
           <form onSubmit={handleLogin} className="space-y-4">
             <div>
-              <label className="block text-xs font-extrabold text-slate-700 dark:text-slate-300 mb-1.5">Username or Email</label>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="block text-xs font-extrabold text-slate-700 dark:text-slate-300">
+                  Email, Username, or Customer ID
+                </label>
+                {loginId && (() => {
+                  const idType = getIdentifierType(loginId);
+                  return idType ? (
+                    <span className="text-[10px] font-extrabold text-orange-600 dark:text-orange-400 bg-orange-500/10 px-2 py-0.5 rounded-md border border-orange-500/20">
+                      {idType.icon} {idType.label}
+                    </span>
+                  ) : null;
+                })()}
+              </div>
               <div className="relative">
                 <User className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                 <input
@@ -210,11 +258,14 @@ export default function CustomerAuthPage({ onLogin, isModal = false }) {
                   type="text"
                   value={loginId}
                   onChange={e => setLoginId(e.target.value)}
-                  placeholder="Username or email address"
+                  placeholder="e.g. alex.customer@gmail.com, Alex, or #4"
                   className="w-full pl-10 pr-4 py-3 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-orange-400 placeholder:text-slate-400 transition"
                   required
                 />
               </div>
+              <p className="text-[11px] text-slate-400 mt-1">
+                You can log in via registered <strong>Email</strong>, <strong>Username</strong>, or numeric <strong>Customer ID</strong> (e.g. #4).
+              </p>
             </div>
             <div>
               <label className="block text-xs font-extrabold text-slate-700 dark:text-slate-300 mb-1.5">Password</label>
@@ -234,20 +285,40 @@ export default function CustomerAuthPage({ onLogin, isModal = false }) {
             >
               {loading ? 'Signing in…' : 'Sign In to ChefHub'}
             </button>
-            <button
-              type="button"
-              onClick={() => { setLoginId('alex.customer@gmail.com'); setLoginPwd('customer123'); }}
-              className="w-full py-2 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 text-xs font-bold hover:bg-slate-50 dark:hover:bg-slate-800 transition cursor-pointer"
-            >
-              ⚡ Autofill Demo Credentials
-            </button>
+            <div className="grid grid-cols-2 gap-2 pt-1">
+              <button
+                type="button"
+                onClick={() => { setLoginId('alex.customer@gmail.com'); setLoginPwd('customer123'); }}
+                className="py-2 px-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 text-[11px] font-bold hover:bg-slate-50 dark:hover:bg-slate-800 transition cursor-pointer text-center truncate"
+                title="Autofill via Email"
+              >
+                📧 Demo Email
+              </button>
+              <button
+                type="button"
+                onClick={() => { setLoginId('#4'); setLoginPwd('customer123'); }}
+                className="py-2 px-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 text-[11px] font-bold hover:bg-slate-50 dark:hover:bg-slate-800 transition cursor-pointer text-center truncate"
+                title="Autofill via Customer ID"
+              >
+                🆔 Customer ID (#4)
+              </button>
+            </div>
           </form>
         )}
 
         {mode === 'register' && (
           <form onSubmit={handleRegister} className="space-y-3.5">
             <div>
-              <label className="block text-xs font-extrabold text-slate-700 dark:text-slate-300 mb-1.5">Full Name</label>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="block text-xs font-extrabold text-slate-700 dark:text-slate-300">
+                  Username / Full Name
+                </label>
+                {regName && (
+                  <span className={`text-[10px] font-bold ${usernameCheck.valid ? 'text-emerald-500' : 'text-amber-500'}`}>
+                    {usernameCheck.valid ? '✓ Valid Username' : usernameCheck.message}
+                  </span>
+                )}
+              </div>
               <div className="relative">
                 <User className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                 <input
@@ -255,11 +326,14 @@ export default function CustomerAuthPage({ onLogin, isModal = false }) {
                   type="text"
                   value={regName}
                   onChange={e => setRegName(e.target.value)}
-                  placeholder="Your full name"
+                  placeholder="Choose unique username (e.g. Alex Customer)"
                   className="w-full pl-10 pr-4 py-3 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-orange-400 placeholder:text-slate-400 transition"
                   required
                 />
               </div>
+              <p className="text-[11px] text-slate-400 mt-1">
+                3-50 characters. Letters, numbers, and spaces allowed.
+              </p>
             </div>
             <div>
               <label className="block text-xs font-extrabold text-slate-700 dark:text-slate-300 mb-1.5">Email Address</label>

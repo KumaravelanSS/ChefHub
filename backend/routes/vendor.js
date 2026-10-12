@@ -84,7 +84,7 @@ router.patch('/orders/:id/status', authenticateToken, requireRole('VENDOR'), asy
 
       await query(`
         UPDATE orders 
-        SET status = 'CANCELLED', escrow_status = 'REFUNDED'
+        SET status = 'CANCELLED', escrow_status = 'REFUNDED', cancelled_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
         WHERE order_id = ? AND vendor_id = ?
       `, [order_id, vendor_id]);
 
@@ -135,8 +135,15 @@ router.patch('/orders/:id/status', authenticateToken, requireRole('VENDOR'), asy
       return res.json({ success: true, message: `Order #${order_id} cancelled by chef. Customer notified & ₹${refundAmt.toFixed(2)} payment refunded.` });
     }
 
+    let timeColUpdate = '';
+    if (status === 'PREPARING') {
+      timeColUpdate = ', prepared_at = COALESCE(prepared_at, CURRENT_TIMESTAMP)';
+    } else if (status === 'READY') {
+      timeColUpdate = ', ready_at = COALESCE(ready_at, CURRENT_TIMESTAMP)';
+    }
+
     await query(`
-      UPDATE orders SET status = ? 
+      UPDATE orders SET status = ? ${timeColUpdate}, updated_at = CURRENT_TIMESTAMP 
       WHERE order_id = ? AND vendor_id = ?
     `, [status, order_id, vendor_id]);
 
