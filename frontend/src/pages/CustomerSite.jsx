@@ -567,7 +567,20 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
         fetchWalletBalance();
         triggerDebouncedVendorRefresh();
       });
-      eventSource.addEventListener('ORDER_STATUS_CHANGED', () => {
+      eventSource.addEventListener('ORDER_STATUS_CHANGED', (event) => {
+        try {
+          if (event && event.data) {
+            const parsed = JSON.parse(event.data);
+            if (parsed && parsed.order_id) {
+              setActiveTrackingOrder(prev => {
+                if (prev && Number(prev.order_id) === Number(parsed.order_id)) {
+                  return { ...prev, status: parsed.new_status || prev.status };
+                }
+                return prev;
+              });
+            }
+          }
+        } catch (e) {}
         fetchMyOrders();
         fetchWalletBalance();
       });
@@ -594,6 +607,20 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
       clearInterval(interval);
     };
   }, [user?.user_id]);
+
+  // Real-time auto-sync for live tracking modal (continuous active heartbeat while modal is open)
+  useEffect(() => {
+    if (!activeTrackingOrder?.order_id) return;
+
+    // Heartbeat every 3 seconds while customer is viewing the live modal
+    const trackInterval = setInterval(() => {
+      if (document.visibilityState === 'visible') {
+        fetchMyOrders();
+      }
+    }, 3000);
+
+    return () => clearInterval(trackInterval);
+  }, [activeTrackingOrder?.order_id]);
 
   // Fetch Customer Wallet Balance
   const fetchWalletBalance = async () => {
@@ -4006,52 +4033,33 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
               </div>
 
               <div className="flex items-center gap-2">
-                {/* Milestone Stage Switcher / Simulator */}
-                <div className="hidden sm:flex items-center gap-1 bg-slate-100 dark:bg-slate-900 p-1 rounded-xl border border-slate-200 dark:border-slate-800 text-[11px] font-bold">
-                  <span className="text-slate-400 px-1 text-[10px] uppercase font-extrabold">Stage:</span>
-                  {[
-                    { label: '1. Placed', status: 'CONFIRMED' },
-                    { label: '2. Cooking', status: 'PREPARING' },
-                    { label: '3. Food Ready', status: 'READY' },
-                    { label: '4. Rider En Route', status: 'OUT_FOR_DELIVERY' },
-                    { label: '5. Delivered', status: 'DELIVERED' }
-                  ].map((s) => {
-                    const currUpper = String(activeTrackingOrder.status || '').toUpperCase();
-                    const isCurr = (
-                      (s.status === 'CONFIRMED' && ['CONFIRMED', 'PLACED', 'ORDER_PLACED'].includes(currUpper)) ||
-                      (s.status === 'PREPARING' && ['PREPARING', 'KITCHEN_PREPARING'].includes(currUpper)) ||
-                      (s.status === 'READY' && ['READY', 'KITCHEN_READY', 'READY_FOR_PICKUP'].includes(currUpper)) ||
-                      (s.status === 'OUT_FOR_DELIVERY' && ['OUT_FOR_DELIVERY', 'RIDER_ACCEPTED'].includes(currUpper)) ||
-                      (s.status === 'DELIVERED' && currUpper === 'DELIVERED')
-                    );
-                    return (
-                      <button
-                        key={s.status}
-                        onClick={() => {
-                          setActiveTrackingOrder(prev => ({ ...prev, status: s.status }));
-                          setTimelineAnimKey(prev => prev + 1);
-                        }}
-                        className={`px-2 py-0.5 rounded-lg text-[10px] font-black transition-all cursor-pointer ${
-                          isCurr
-                            ? 'bg-orange-500 text-white shadow-sm'
-                            : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
-                        }`}
-                        title={`Preview: ${s.label}`}
-                      >
-                        {s.label}
-                      </button>
-                    );
-                  })}
+                {/* Real-Time Live Status Pill (Read-Only • Live Synchronized) */}
+                <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 text-xs font-bold shadow-sm">
+                  <span className="relative flex h-2.5 w-2.5">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+                  </span>
+                  <span className="tracking-wide uppercase text-[10px] font-black">Live Telemetry</span>
+                  <span className="text-slate-400 hidden sm:inline">•</span>
+                  <span className="text-slate-700 dark:text-slate-200 text-[11px] font-extrabold hidden sm:inline">
+                    {(() => {
+                      const s = String(activeTrackingOrder.status || '').toUpperCase();
+                      if (['PLACED', 'CONFIRMED', 'ORDER_PLACED'].includes(s)) return 'Stage 1: Placed (Waiting for Chef)';
+                      if (['PREPARING', 'KITCHEN_PREPARING'].includes(s)) return 'Stage 2: Cooking in Kitchen';
+                      if (['READY', 'KITCHEN_READY', 'READY_FOR_PICKUP'].includes(s)) return 'Stage 3: Food Ready & Packed';
+                      if (['OUT_FOR_DELIVERY', 'RIDER_ACCEPTED'].includes(s)) return 'Stage 4: Courier En Route';
+                      if (s === 'DELIVERED') return 'Stage 5: Delivered';
+                      if (s === 'CANCELLED') return 'Cancelled (Refunded)';
+                      return 'Stage 1: Order Placed';
+                    })()}
+                  </span>
                 </div>
 
-                <button
-                  onClick={() => setTimelineAnimKey(prev => prev + 1)}
-                  className="px-2.5 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-xs font-bold flex items-center gap-1 cursor-pointer"
+                <button 
+                  onClick={() => setActiveTrackingOrder(null)} 
+                  className="p-1.5 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition cursor-pointer"
+                  title="Close Live Tracking"
                 >
-                  <RefreshCw className="w-3.5 h-3.5 text-amber-500" />
-                  <span>Replay</span>
-                </button>
-                <button onClick={() => setActiveTrackingOrder(null)} className="p-1.5 rounded-xl text-slate-400 hover:text-white">
                   <X className="w-5 h-5" />
                 </button>
               </div>

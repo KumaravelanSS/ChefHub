@@ -136,6 +136,14 @@ const systemAuditLogSchema = new mongoose.Schema({
   }
 });
 
+// MongoDB Document Indexes (Accelerates NoSQL queries & aggregation pipelines)
+vendorMenuSchema.index({ vendor_id: 1 });
+riderLogisticsSchema.index({ rider_id: 1, shift_status: 1 });
+orderTrackingLogSchema.index({ order_id: 1 });
+reviewAnalyticsSchema.index({ vendor_id: 1, order_id: 1 });
+reviewAnalyticsSchema.index({ rider_id: 1 });
+systemAuditLogSchema.index({ timestamp: -1, admin_user_id: 1 });
+
 const VendorMenu = mongoose.model('VendorMenu', vendorMenuSchema);
 const RiderLogistics = mongoose.model('RiderLogistics', riderLogisticsSchema);
 const OrderTrackingLog = mongoose.model('OrderTrackingLog', orderTrackingLogSchema);
