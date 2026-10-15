@@ -190,9 +190,30 @@ export default function Navbar({ currentUser, onLogout, theme, onToggleTheme }) 
               <span>{roleInfo.label}</span>
             </div>
           )}
+
+          {/* Dynamic Customer Mode Indicator when Chef, Rider, or Admin is on Customer Site */}
+          {currentUser && currentUser.role !== 'CUSTOMER' && isCustomerPage && (
+            <div className="flex items-center gap-1.5 sm:gap-2 ml-1 sm:ml-2">
+              <div className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-gradient-to-r from-orange-500/20 via-amber-500/25 to-orange-500/20 border border-orange-500/40 text-orange-600 dark:text-orange-400 text-[11px] sm:text-xs font-black shadow-sm">
+                <span>🛒</span>
+                <span>Customer Mode</span>
+              </div>
+              <button
+                onClick={() => {
+                  if (currentUser.role === 'VENDOR') navigate('/chef/dashboard');
+                  else if (currentUser.role === 'RIDER') navigate('/rider/dashboard');
+                  else if (currentUser.role === 'ADMIN') navigate('/admin/dashboard');
+                }}
+                className="hidden md:flex items-center gap-1 px-2.5 py-1 rounded-full bg-slate-900 text-white dark:bg-white dark:text-slate-950 hover:bg-orange-500 hover:text-white dark:hover:bg-orange-500 dark:hover:text-white text-[11px] font-black shadow hover:scale-105 active:scale-95 transition-all cursor-pointer"
+                title={`Return to your ${currentUser.role} dashboard`}
+              >
+                <span>➔ Return to {currentUser.role === 'VENDOR' ? 'Chef Kitchen' : currentUser.role === 'RIDER' ? 'Rider Hub' : 'Admin Console'}</span>
+              </button>
+            </div>
+          )}
         </div>
 
-        {/* Center Navigation: HIDDEN for Customer Marketplace & Customer Login to eliminate clutter */}
+        {/* Center Navigation: Shown on role dashboards with all 4 portals (Customer, Chef, Rider, Admin) */}
         {!isCustomerPage ? (
           <div className="relative hidden md:flex items-center gap-1 p-1 backdrop-blur-2xl bg-white/70 dark:bg-slate-900/70 rounded-2xl border border-white/60 dark:border-white/10 shadow-lg shadow-black/5 dark:shadow-black/25">
             {activeTabId && (() => {
@@ -209,7 +230,7 @@ export default function Navbar({ currentUser, onLogout, theme, onToggleTheme }) 
               );
             })()}
 
-            {navTabs.filter(t => t.id !== '/').map((tab) => {
+            {navTabs.map((tab) => {
               const Icon = tab.icon;
               const isActiveTab = activeTabId === tab.id;
               const targetPath = getTabPath(tab.id);
@@ -248,6 +269,19 @@ export default function Navbar({ currentUser, onLogout, theme, onToggleTheme }) 
             )}
           </button>
 
+          {/* Quick Switch to Customer Portal for non-customer roles when on their dashboard */}
+          {currentUser && currentUser.role !== 'CUSTOMER' && !isCustomerPage && (
+            <button
+              onClick={() => navigate('/')}
+              className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-slate-950 font-black text-xs shadow-md shadow-orange-500/25 ring-1 ring-orange-300/40 transition-all hover:scale-105 active:scale-95 cursor-pointer"
+              title="Open Customer Marketplace to order food with your account"
+            >
+              <ShoppingBag className="w-3.5 h-3.5" />
+              <span>Customer Portal</span>
+              <span className="text-[9px] bg-slate-950/20 text-slate-950 px-1.5 py-0.5 rounded-full font-black uppercase">Order</span>
+            </button>
+          )}
+
           {/* Consolidated Profile Dropdown Menu */}
           {currentUser ? (
             <div className="relative" ref={profileDropdownRef}>
@@ -274,7 +308,7 @@ export default function Navbar({ currentUser, onLogout, theme, onToggleTheme }) 
 
               {/* Profile Dropdown Content */}
               {profileDropdownOpen && (
-                <div className="absolute right-0 mt-2 w-72 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl z-50 p-2.5 space-y-2 animate-in fade-in">
+                <div className="absolute right-0 mt-2 w-80 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl z-50 p-2.5 space-y-2 animate-in fade-in">
                   {/* Account Summary */}
                   <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 space-y-1">
                     <div className="flex items-center justify-between">
@@ -289,8 +323,44 @@ export default function Navbar({ currentUser, onLogout, theme, onToggleTheme }) 
                     )}
                   </div>
 
+                  {/* Featured Unique Customer Portal Card */}
+                  <div className="p-3 rounded-2xl bg-gradient-to-br from-amber-500/15 via-orange-500/20 to-amber-500/10 border-2 border-orange-500/40 shadow-sm space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-amber-500 to-orange-500 text-slate-950 flex items-center justify-center font-black shadow-md shadow-orange-500/25">
+                          🛒
+                        </div>
+                        <div>
+                          <span className="text-xs font-black text-slate-900 dark:text-white block leading-tight">Customer Portal</span>
+                          <span className="text-[10px] text-orange-600 dark:text-orange-400 font-extrabold uppercase tracking-wide">
+                            {isCustomerPage ? '● Live Ordering Active' : 'Order Food as Customer'}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                    <p className="text-[11px] text-slate-600 dark:text-slate-400 leading-snug">
+                      {currentUser.role !== 'CUSTOMER'
+                        ? `Explore menus & order gourmet dishes using your ${currentUser.role} account.`
+                        : 'Browse verified cloud kitchens and handcrafted meals.'}
+                    </p>
+                    <button
+                      onClick={() => {
+                        setProfileDropdownOpen(false);
+                        navigate('/');
+                      }}
+                      className={`w-full py-2 px-3 rounded-xl font-black text-xs shadow-md transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                        isCustomerPage
+                          ? 'bg-emerald-500 text-white shadow-emerald-500/25'
+                          : 'bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-slate-950 shadow-orange-500/25 hover:scale-[1.02] active:scale-95'
+                      }`}
+                    >
+                      <span>{isCustomerPage ? '✓ Currently in Customer Mode' : 'Switch to Customer Portal'}</span>
+                      <span>➔</span>
+                    </button>
+                  </div>
+
                   {/* Profile Settings & Security & Credentials */}
-                  <div className="space-y-1">
+                  <div className="space-y-1 pt-1">
                     <button
                       onClick={() => {
                         setProfileDropdownOpen(false);
@@ -301,16 +371,6 @@ export default function Navbar({ currentUser, onLogout, theme, onToggleTheme }) 
                       <span className="text-sm">🔑</span>
                       <span>Security & Credentials</span>
                     </button>
-                    <button
-                      onClick={() => {
-                        setProfileDropdownOpen(false);
-                        navigate('/');
-                      }}
-                      className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-bold text-slate-800 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
-                    >
-                      <ShoppingBag className="w-3.5 h-3.5 text-amber-500" />
-                      <span>Marketplace Home</span>
-                    </button>
                   </div>
 
                   {/* Switch Portal / User Role Section */}
@@ -318,12 +378,31 @@ export default function Navbar({ currentUser, onLogout, theme, onToggleTheme }) 
                     <span className="px-3 text-[10px] font-black uppercase tracking-wider text-slate-400 block mb-1">
                       Switch Role / Portal
                     </span>
+
+                    <button
+                      onClick={() => {
+                        setProfileDropdownOpen(false);
+                        navigate('/');
+                      }}
+                      className={`w-full flex items-center justify-between px-3 py-1.5 rounded-xl text-xs font-bold transition-colors cursor-pointer ${
+                        isCustomerPage ? 'bg-amber-500/15 text-amber-600 dark:text-amber-400 font-extrabold' : 'text-slate-700 dark:text-slate-300 hover:bg-amber-500/10 hover:text-amber-500'
+                      }`}
+                    >
+                      <span className="flex items-center gap-2">
+                        <ShoppingBag className="w-3.5 h-3.5 text-amber-500" />
+                        <span>Customer Marketplace</span>
+                      </span>
+                      {isCustomerPage && <span className="text-[10px] font-bold text-amber-500">Active</span>}
+                    </button>
+
                     <button
                       onClick={() => {
                         setProfileDropdownOpen(false);
                         navigate(currentUser?.role === 'VENDOR' ? '/chef/dashboard' : '/chef/login');
                       }}
-                      className="w-full flex items-center justify-between px-3 py-1.5 rounded-xl text-xs font-bold text-slate-700 dark:text-slate-300 hover:bg-emerald-500/10 hover:text-emerald-500 transition-colors cursor-pointer"
+                      className={`w-full flex items-center justify-between px-3 py-1.5 rounded-xl text-xs font-bold transition-colors cursor-pointer ${
+                        location.pathname.startsWith('/chef') ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 font-extrabold' : 'text-slate-700 dark:text-slate-300 hover:bg-emerald-500/10 hover:text-emerald-500'
+                      }`}
                     >
                       <span className="flex items-center gap-2">
                         <ChefHat className="w-3.5 h-3.5 text-emerald-500" />
@@ -331,12 +410,15 @@ export default function Navbar({ currentUser, onLogout, theme, onToggleTheme }) 
                       </span>
                       {location.pathname.startsWith('/chef') && <span className="text-[10px] font-bold text-emerald-500">Active</span>}
                     </button>
+
                     <button
                       onClick={() => {
                         setProfileDropdownOpen(false);
                         navigate(currentUser?.role === 'RIDER' ? '/rider/dashboard' : '/rider/login');
                       }}
-                      className="w-full flex items-center justify-between px-3 py-1.5 rounded-xl text-xs font-bold text-slate-700 dark:text-slate-300 hover:bg-sky-500/10 hover:text-sky-500 transition-colors cursor-pointer"
+                      className={`w-full flex items-center justify-between px-3 py-1.5 rounded-xl text-xs font-bold transition-colors cursor-pointer ${
+                        location.pathname.startsWith('/rider') ? 'bg-sky-500/15 text-sky-600 dark:text-sky-400 font-extrabold' : 'text-slate-700 dark:text-slate-300 hover:bg-sky-500/10 hover:text-sky-500'
+                      }`}
                     >
                       <span className="flex items-center gap-2">
                         <Bike className="w-3.5 h-3.5 text-sky-500" />
@@ -344,12 +426,15 @@ export default function Navbar({ currentUser, onLogout, theme, onToggleTheme }) 
                       </span>
                       {location.pathname.startsWith('/rider') && <span className="text-[10px] font-bold text-emerald-500">Active</span>}
                     </button>
+
                     <button
                       onClick={() => {
                         setProfileDropdownOpen(false);
                         navigate(currentUser?.role === 'ADMIN' ? '/admin/dashboard' : '/admin/login');
                       }}
-                      className="w-full flex items-center justify-between px-3 py-1.5 rounded-xl text-xs font-bold text-slate-700 dark:text-slate-300 hover:bg-rose-500/10 hover:text-rose-500 transition-colors cursor-pointer"
+                      className={`w-full flex items-center justify-between px-3 py-1.5 rounded-xl text-xs font-bold transition-colors cursor-pointer ${
+                        location.pathname.startsWith('/admin') ? 'bg-rose-500/15 text-rose-600 dark:text-rose-400 font-extrabold' : 'text-slate-700 dark:text-slate-300 hover:bg-rose-500/10 hover:text-rose-500'
+                      }`}
                     >
                       <span className="flex items-center gap-2">
                         <ShieldAlert className="w-3.5 h-3.5 text-rose-500" />
@@ -470,6 +555,22 @@ export default function Navbar({ currentUser, onLogout, theme, onToggleTheme }) 
                   Logout
                 </button>
               </div>
+
+              {currentUser.role !== 'CUSTOMER' && (
+                <button
+                  onClick={() => {
+                    setMobileMenuOpen(false);
+                    navigate('/');
+                  }}
+                  className="w-full py-3 px-3.5 rounded-2xl bg-gradient-to-r from-orange-500 to-amber-500 text-slate-950 font-black text-xs shadow-md flex items-center justify-between"
+                >
+                  <span className="flex items-center gap-2">
+                    <span className="text-base">🛒</span>
+                    <span>Switch to Customer Portal</span>
+                  </span>
+                  <span className="text-[10px] bg-slate-950/20 px-2 py-0.5 rounded-full uppercase">Order Food ➔</span>
+                </button>
+              )}
 
               <button
                 onClick={() => {

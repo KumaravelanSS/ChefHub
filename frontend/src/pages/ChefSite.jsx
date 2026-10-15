@@ -1816,6 +1816,16 @@ export default function ChefSite({ user, onLogin, onLogout }) {
               <User className="w-3.5 h-3.5 text-emerald-500" />
               <span>Edit Profile & Security</span>
             </button>
+
+            {/* Direct Switch to Customer Portal */}
+            <a
+              href="/"
+              className="px-3.5 py-1 rounded-full text-xs font-black bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-slate-950 flex items-center gap-1.5 shadow-md shadow-orange-500/25 ring-2 ring-orange-300/40 hover:scale-105 active:scale-95 transition-all"
+              title="Open Customer Marketplace to order food with your Chef account"
+            >
+              <span>🛒</span>
+              <span>Customer Portal (Order Food)</span>
+            </a>
           </div>
 
           {!storeProfile.is_open && storeProfile.closed_reason && (
