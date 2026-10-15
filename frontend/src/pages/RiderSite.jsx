@@ -1,3 +1,4 @@
+import React, { useState, useEffect } from 'react';
 import { Bike, MapPin, CheckCircle2, DollarSign, Navigation, Power, AlertCircle, Eye, EyeOff, Phone, Loader2 } from 'lucide-react';
 import RiderAuthPage from './RiderAuthPage';
 import LiveDeliveryMap from '../components/LiveDeliveryMap';
