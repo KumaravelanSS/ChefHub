@@ -4634,6 +4634,24 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
         </div>
       )}
 
+      {/* Subtle Marketplace Footer & Portal Access */}
+      <footer className="mt-20 pt-8 pb-12 border-t border-slate-200 dark:border-slate-800 text-center text-slate-500 text-xs">
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+          <div className="flex items-center gap-2">
+            <span className="font-black text-slate-900 dark:text-white">ChefHub</span>
+            <span className="text-slate-400">© 2026 Artisanal Cloud Kitchens & Marketplace</span>
+          </div>
+          <div className="flex flex-wrap items-center justify-center gap-4 text-xs font-bold text-slate-600 dark:text-slate-400">
+            <span className="text-[10px] uppercase tracking-wider text-slate-400">Partner Portals:</span>
+            <a href="/chef/login" className="hover:text-emerald-500 transition-colors">👨‍🍳 Chef Kitchen</a>
+            <span className="text-slate-300 dark:text-slate-700">•</span>
+            <a href="/rider/login" className="hover:text-sky-500 transition-colors">🛵 Rider Hub</a>
+            <span className="text-slate-300 dark:text-slate-700">•</span>
+            <a href="/admin/login" className="hover:text-rose-500 transition-colors">🛡️ Admin Console</a>
+          </div>
+        </div>
+      </footer>
+
       {/* Add New Saved Card Modal (RBI Tokenization Compliance) */}
       {showAddCardModal && (
         <div className="fixed inset-0 z-[85] bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in">

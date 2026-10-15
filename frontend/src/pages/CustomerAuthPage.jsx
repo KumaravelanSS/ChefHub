@@ -553,6 +553,38 @@ export default function CustomerAuthPage({ onLogin, isModal = false }) {
           <SocialButton icon="🌐" label="Google" onClick={() => handleSocial('Google')} />
           <SocialButton icon="🍎" label="Apple" onClick={() => handleSocial('Apple')} />
         </div>
+
+        {/* Subtle partner portal links for non-customer roles */}
+        <div className="pt-3 border-t border-slate-200 dark:border-slate-800 text-center space-y-1.5">
+          <p className="text-[11px] text-slate-500 font-medium">
+            Are you a registered Chef, Rider, or Administrator?
+          </p>
+          <div className="flex items-center justify-center gap-3 text-xs font-bold text-slate-600 dark:text-slate-400">
+            <button
+              type="button"
+              onClick={() => navigate('/chef/login')}
+              className="hover:text-emerald-500 transition-colors cursor-pointer"
+            >
+              👨‍🍳 Chef Portal
+            </button>
+            <span className="text-slate-300 dark:text-slate-700">•</span>
+            <button
+              type="button"
+              onClick={() => navigate('/rider/login')}
+              className="hover:text-sky-500 transition-colors cursor-pointer"
+            >
+              🛵 Rider Portal
+            </button>
+            <span className="text-slate-300 dark:text-slate-700">•</span>
+            <button
+              type="button"
+              onClick={() => navigate('/admin/login')}
+              className="hover:text-rose-500 transition-colors cursor-pointer"
+            >
+              🛡️ Admin
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   );
