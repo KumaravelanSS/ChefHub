@@ -6,40 +6,11 @@ export default function Navbar({ currentUser, onLogout, theme, onToggleTheme }) 
   const navigate = useNavigate();
   const location = useLocation();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [confirmModal, setConfirmModal] = useState({ open: false, action: null, title: '', message: '' });
-
   const isActive = (path) => location.pathname === path;
   const isCustomerPage = location.pathname === '/' || location.pathname === '/customer/login';
 
-
-
-  const handleSwitchPortalClick = (e) => {
-    e.preventDefault();
-    setConfirmModal({
-      open: true,
-      action: 'SWITCH',
-      title: 'Switch Portal?',
-      message: 'Are you sure you want to switch portals and return to the Customer Marketplace?'
-    });
-  };
-
   const handleLogoutClick = () => {
-    setConfirmModal({
-      open: true,
-      action: 'LOGOUT',
-      title: 'Confirm Logout',
-      message: 'Are you sure you want to log out of your current session?'
-    });
-  };
-
-  const confirmAction = () => {
-    const action = confirmModal.action;
-    setConfirmModal({ open: false, action: null, title: '', message: '' });
-    if (action === 'SWITCH') {
-      navigate('/');
-    } else if (action === 'LOGOUT') {
-      onLogout();
-    }
+    onLogout();
   };
 
   // Helper to format role title
@@ -531,35 +502,6 @@ export default function Navbar({ currentUser, onLogout, theme, onToggleTheme }) 
               </div>
             </div>
           )}
-        </div>
-      )}
-
-      {/* Switch Portal / Logout Confirmation Modal */}
-      {confirmModal.open && (
-        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4">
-          <div className="glass-card bg-white dark:bg-slate-900 rounded-3xl p-6 border border-slate-300 dark:border-slate-800 max-w-sm w-full space-y-4 shadow-2xl text-center">
-            <div className="w-12 h-12 rounded-2xl bg-orange-500/10 text-orange-500 font-bold flex items-center justify-center mx-auto text-xl border border-orange-500/20">
-              <ArrowRightLeft className="w-6 h-6" />
-            </div>
-            <div className="space-y-1">
-              <h3 className="text-base font-extrabold text-slate-900 dark:text-white">{confirmModal.title}</h3>
-              <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">{confirmModal.message}</p>
-            </div>
-            <div className="grid grid-cols-2 gap-3 pt-2">
-              <button
-                onClick={() => setConfirmModal({ open: false, action: null, title: '', message: '' })}
-                className="py-2.5 rounded-xl bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-bold text-xs transition-all"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={confirmAction}
-                className="py-2.5 rounded-xl bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-slate-950 font-black text-xs transition-all shadow-md shadow-orange-500/20"
-              >
-                Yes, Continue
-              </button>
-            </div>
-          </div>
         </div>
       )}
     </header>
