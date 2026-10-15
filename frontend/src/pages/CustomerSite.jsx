@@ -106,6 +106,7 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
   const [reviewOrder, setReviewOrder] = useState(null);
   const [cancelModalOrder, setCancelModalOrder] = useState(null);
   const [isCancellingOrder, setIsCancellingOrder] = useState(false);
+  const [cancellingOrderIds, setCancellingOrderIds] = useState(new Set());
   
   // Default Customer Addresses (clean empty for guests)
   const DEFAULT_SAVED_ADDRESSES = [];
@@ -1348,6 +1349,14 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
 
   const executeOrderCancellation = async (order_id) => {
     setIsCancellingOrder(true);
+    setCancellingOrderIds(prev => new Set([...prev, order_id]));
+    const prevOrders = myOrders;
+
+    // 1. Optimistic Update: Instantly reflect CANCELLED state locally so UI does not freeze
+    setMyOrders(prev => prev.map(o => (String(o.order_id || o.id) === String(order_id) ? { ...o, status: 'CANCELLED' } : o)));
+    setOrderStatusMsg(`⚡ Order #${order_id} cancelled. Processing multi-database sync in background...`);
+    setCancelModalOrder(null);
+
     try {
       const token = localStorage.getItem('chefhub_token');
       const res = await fetch(`/api/customer/orders/${order_id}/cancel`, {
@@ -1356,16 +1365,24 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
       });
       const data = await res.json();
       if (data.success) {
-        setOrderStatusMsg(`Order #${order_id} cancelled. Escrow refund initiated.`);
-        setCancelModalOrder(null);
+        setOrderStatusMsg(`✅ Order #${order_id} cancelled. Escrow refund initiated.`);
         fetchMyOrders();
       } else {
-        alert(data.message || 'Failed to cancel order.');
+        // Rollback on server failure
+        setMyOrders(prevOrders);
+        alert(data.message || 'Failed to cancel order. Reverting changes.');
       }
     } catch (err) {
-      alert('Failed to cancel order.');
+      // Rollback on network failure
+      setMyOrders(prevOrders);
+      alert('Failed to cancel order due to network issue. Reverting changes.');
     } finally {
       setIsCancellingOrder(false);
+      setCancellingOrderIds(prev => {
+        const next = new Set(prev);
+        next.delete(order_id);
+        return next;
+      });
     }
   };
 
@@ -2528,11 +2545,19 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
                       {o.status === 'PLACED' && (
                         <button
                           onClick={() => setCancelModalOrder(o)}
-                          className="py-2.5 px-3 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-500 font-bold text-xs border border-rose-500/25 transition-all flex items-center gap-1 cursor-pointer"
+                          disabled={cancellingOrderIds.has(o.order_id || o.id)}
+                          className="py-2.5 px-3 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-500 font-bold text-xs border border-rose-500/25 transition-all flex items-center gap-1 cursor-pointer disabled:opacity-50"
                         >
                           <Ban className="w-3.5 h-3.5" />
-                          <span>Cancel</span>
+                          <span>{cancellingOrderIds.has(o.order_id || o.id) ? 'Syncing...' : 'Cancel'}</span>
                         </button>
+                      )}
+
+                      {cancellingOrderIds.has(o.order_id || o.id) && (
+                        <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-blue-500/10 border border-blue-500/30 text-blue-500 dark:text-blue-400 text-[10px] font-extrabold animate-pulse">
+                          <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-ping" />
+                          ⚡ Multi-DB Syncing in background...
+                        </div>
                       )}
 
                       {o.status === 'DELIVERED' && (

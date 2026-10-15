@@ -483,17 +483,15 @@ export default function LiveDeliveryMap({
         /* OTHERWISE (Rider has accepted at Step 4 OR viewerRole is RIDER): SHOW LIVE DELIVERY DETAILS & MAP! */
         <>
           {/* Top Real-Time Telemetry & Safety Card */}
-          <div className={`p-4 rounded-2xl backdrop-blur-xl flex flex-wrap items-center justify-between gap-3 shadow-lg border ${
-            viewerRole === 'RIDER'
+          <div className={`p-4 rounded-2xl backdrop-blur-xl flex flex-wrap items-center justify-between gap-3 shadow-lg border ${viewerRole === 'RIDER'
               ? 'bg-gradient-to-r from-emerald-600/10 via-teal-600/15 to-sky-600/10 border-emerald-500/25'
               : 'bg-gradient-to-r from-blue-600/10 via-indigo-600/15 to-purple-600/10 border-blue-500/25'
-          }`}>
+            }`}>
             <div className="flex items-center gap-3">
-              <div className={`w-12 h-12 rounded-2xl flex items-center justify-center font-black text-2xl shadow-md ${
-                viewerRole === 'RIDER'
+              <div className={`w-12 h-12 rounded-2xl flex items-center justify-center font-black text-2xl shadow-md ${viewerRole === 'RIDER'
                   ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 shadow-emerald-500/20'
                   : 'bg-blue-500/20 text-blue-400 border border-blue-500/30 shadow-blue-500/20'
-              }`}>
+                }`}>
                 {viewerRole === 'RIDER' ? '🛵' : '🚴'}
               </div>
               <div>
@@ -640,11 +638,10 @@ export default function LiveDeliveryMap({
                     <button
                       key={speed}
                       onClick={() => setPlaybackSpeed(speed)}
-                      className={`px-2 py-0.5 rounded text-[11px] font-black transition-colors ${
-                        playbackSpeed === speed
+                      className={`px-2 py-0.5 rounded text-[11px] font-black transition-colors ${playbackSpeed === speed
                           ? 'bg-blue-600 text-white'
                           : 'text-slate-400 hover:text-white'
-                      }`}
+                        }`}
                     >
                       {speed}x
                     </button>

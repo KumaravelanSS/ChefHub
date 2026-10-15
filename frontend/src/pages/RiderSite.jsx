@@ -1,5 +1,4 @@
-import React, { useState, useEffect } from 'react';
-import { Bike, MapPin, CheckCircle2, DollarSign, Navigation, Power, AlertCircle, Eye, EyeOff, Phone } from 'lucide-react';
+import { Bike, MapPin, CheckCircle2, DollarSign, Navigation, Power, AlertCircle, Eye, EyeOff, Phone, Loader2 } from 'lucide-react';
 import RiderAuthPage from './RiderAuthPage';
 import LiveDeliveryMap from '../components/LiveDeliveryMap';
 
@@ -15,6 +14,7 @@ export default function RiderSite({ user, onLogin }) {
   const [shiftStatus, setShiftStatus] = useState('ONLINE');
   const [coords, setCoords] = useState({ lat: 12.9716, lng: 77.5946 });
   const [activeMapJobId, setActiveMapJobId] = useState(null);
+  const [updatingJobIds, setUpdatingJobIds] = useState({});
 
   useEffect(() => {
     if (user && user.role === 'RIDER') {
@@ -84,6 +84,17 @@ export default function RiderSite({ user, onLogin }) {
   };
 
   const acceptJob = async (order_id) => {
+    // 1. Optimistic Update: Instantly flip state in Rider view
+    const originalJobs = [...jobs];
+    setUpdatingJobIds(prev => ({ ...prev, [order_id]: 'ACCEPTING' }));
+
+    setJobs(prev => prev.map(j => j.order_id === order_id ? {
+      ...j,
+      status: 'OUT_FOR_DELIVERY',
+      rider_id: user?.user_id,
+      rider_name: user?.name || 'Courier'
+    } : j));
+
     try {
       const token = localStorage.getItem('chefhub_token');
       const res = await fetch(`/api/rider/orders/${order_id}/accept`, {
@@ -91,13 +102,36 @@ export default function RiderSite({ user, onLogin }) {
         headers: { Authorization: `Bearer ${token}` }
       });
       const data = await res.json();
-      if (data.success) fetchJobs();
+      setUpdatingJobIds(prev => {
+        const next = { ...prev };
+        delete next[order_id];
+        return next;
+      });
+      if (!data.success) {
+        setJobs(originalJobs);
+        alert(data.message || 'Failed to accept job. Reverting.');
+      }
     } catch (err) {
-      alert('Failed to accept job.');
+      setJobs(originalJobs);
+      setUpdatingJobIds(prev => {
+        const next = { ...prev };
+        delete next[order_id];
+        return next;
+      });
+      alert('Network error. Reverting job acceptance.');
     }
   };
 
   const completeDelivery = async (order_id) => {
+    // 1. Optimistic Update
+    const originalJobs = [...jobs];
+    setUpdatingJobIds(prev => ({ ...prev, [order_id]: 'COMPLETING' }));
+
+    setJobs(prev => prev.map(j => j.order_id === order_id ? {
+      ...j,
+      status: 'DELIVERED'
+    } : j));
+
     try {
       const token = localStorage.getItem('chefhub_token');
       const res = await fetch(`/api/rider/orders/${order_id}/complete`, {
@@ -105,12 +139,25 @@ export default function RiderSite({ user, onLogin }) {
         headers: { Authorization: `Bearer ${token}` }
       });
       const data = await res.json();
+      setUpdatingJobIds(prev => {
+        const next = { ...prev };
+        delete next[order_id];
+        return next;
+      });
       if (data.success) {
-        fetchJobs();
         fetchEarnings();
+      } else {
+        setJobs(originalJobs);
+        alert(data.message || 'Failed to complete delivery. Reverting.');
       }
     } catch (err) {
-      alert('Failed to complete delivery.');
+      setJobs(originalJobs);
+      setUpdatingJobIds(prev => {
+        const next = { ...prev };
+        delete next[order_id];
+        return next;
+      });
+      alert('Network error while completing delivery. Reverting.');
     }
   };
 
@@ -233,23 +280,32 @@ export default function RiderSite({ user, onLogin }) {
                       </div>
                     )}
 
-                    {job.status === 'READY' && (
-                      <button
-                        onClick={() => acceptJob(job.order_id)}
-                        className="w-full py-2.5 rounded-xl bg-sky-500 hover:bg-sky-600 text-white font-bold text-xs shadow-lg shadow-sky-500/20 transition-all"
-                      >
-                        Accept Job & Pick Up Meal
-                      </button>
-                    )}
+                    {updatingJobIds[job.order_id] ? (
+                      <div className="w-full py-2.5 rounded-xl bg-sky-500/10 border border-sky-500/25 text-sky-400 font-bold text-xs flex items-center justify-center gap-2 animate-pulse">
+                        <Loader2 className="w-3.5 h-3.5 animate-spin text-sky-400" />
+                        <span>⚡ Multi-DB Syncing in background...</span>
+                      </div>
+                    ) : (
+                      <>
+                        {job.status === 'READY' && (
+                          <button
+                            onClick={() => acceptJob(job.order_id)}
+                            className="w-full py-2.5 rounded-xl bg-sky-500 hover:bg-sky-600 text-white font-bold text-xs shadow-lg shadow-sky-500/20 transition-all cursor-pointer"
+                          >
+                            Accept Job & Pick Up Meal
+                          </button>
+                        )}
 
-                    {job.status === 'OUT_FOR_DELIVERY' && (
-                      <button
-                        onClick={() => completeDelivery(job.order_id)}
-                        className="w-full py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs shadow-lg shadow-emerald-500/20 transition-all flex items-center justify-center gap-1.5"
-                      >
-                        <CheckCircle2 className="w-4 h-4" />
-                        Mark Delivered & Disburse Escrow Payout
-                      </button>
+                        {job.status === 'OUT_FOR_DELIVERY' && (
+                          <button
+                            onClick={() => completeDelivery(job.order_id)}
+                            className="w-full py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs shadow-lg shadow-emerald-500/20 transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                          >
+                            <CheckCircle2 className="w-4 h-4" />
+                            Mark Delivered & Disburse Escrow Payout
+                          </button>
+                        )}
+                      </>
                     )}
                   </div>
                 </div>

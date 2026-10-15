@@ -33,41 +33,48 @@ router.patch('/orders/:id/accept', authenticateToken, requireRole('RIDER'), asyn
     const order_id = req.params.id;
     const rider_id = req.user.user_id;
 
-    await query(`
-      UPDATE orders 
-      SET rider_id = ?, status = 'OUT_FOR_DELIVERY', dispatched_at = COALESCE(dispatched_at, CURRENT_TIMESTAMP), updated_at = CURRENT_TIMESTAMP
-      WHERE order_id = ?
-    `, [rider_id, order_id]);
+    // 1. Parallelize primary relational updates & outbox recording
+    await Promise.all([
+      query(`
+        UPDATE orders 
+        SET rider_id = ?, status = 'OUT_FOR_DELIVERY', dispatched_at = COALESCE(dispatched_at, CURRENT_TIMESTAMP), updated_at = CURRENT_TIMESTAMP
+        WHERE order_id = ?
+      `, [rider_id, order_id]),
+      query(`UPDATE payouts SET rider_id = ? WHERE order_id = ?`, [rider_id, order_id]),
+      outboxRelay.recordEvent(null, {
+        aggregate_type: 'ORDER',
+        aggregate_id: order_id,
+        event_type: 'ORDER_STATUS_CHANGED',
+        payload: {
+          new_status: 'OUT_FOR_DELIVERY',
+          actor_role: 'RIDER',
+          note: `Rider #${rider_id} picked up the meal and is en route!`
+        }
+      })
+    ]);
 
-    await query(`
-      UPDATE payouts SET rider_id = ? WHERE order_id = ?
-    `, [rider_id, order_id]);
+    // 2. Respond immediately to unlock Rider UI in milliseconds
+    res.json({ success: true, message: `Order #${order_id} accepted and picked up!` });
 
-    await MongoAdapter.upsertRider(rider_id, {
-      shift_status: 'ON_DELIVERY',
-      assigned_order_id: Number(order_id)
-    });
-
-    await outboxRelay.recordEvent(null, {
-      aggregate_type: 'ORDER',
-      aggregate_id: order_id,
-      event_type: 'ORDER_STATUS_CHANGED',
-      payload: {
-        new_status: 'OUT_FOR_DELIVERY',
-        actor_role: 'RIDER',
-        note: `Rider #${rider_id} picked up the meal and is en route!`
+    // 3. Asynchronously sync MongoDB & dispatch outbox in background
+    setImmediate(async () => {
+      try {
+        await MongoAdapter.upsertRider(rider_id, {
+          shift_status: 'ON_DELIVERY',
+          assigned_order_id: Number(order_id)
+        });
+        outboxRelay.dispatchNow();
+        await MongoAdapter.pushTrackingLog(order_id, {
+          event: 'OUT_FOR_DELIVERY',
+          timestamp: new Date(),
+          location_note: `Rider #${rider_id} picked up the meal and is en route!`,
+          actor_role: 'RIDER'
+        });
+      } catch (bgErr) {
+        console.warn('[Background Rider Accept Sync Warning]', bgErr.message);
       }
     });
-    outboxRelay.dispatchNow();
-
-    await MongoAdapter.pushTrackingLog(order_id, {
-      event: 'OUT_FOR_DELIVERY',
-      timestamp: new Date(),
-      location_note: `Rider #${rider_id} picked up the meal and is en route!`,
-      actor_role: 'RIDER'
-    }).catch(err => console.warn('[Mongo Tracking Log Sync Warning]', err.message));
-
-    return res.json({ success: true, message: `Order #${order_id} accepted and picked up!` });
+    return;
   } catch (err) {
     console.error('Accept rider order error:', err);
     return res.status(500).json({ success: false, message: 'Failed to accept order.' });
@@ -80,47 +87,55 @@ router.patch('/orders/:id/complete', authenticateToken, requireRole('RIDER'), as
     const order_id = req.params.id;
     const rider_id = req.user.user_id;
 
-    await query(`
-      UPDATE orders 
-      SET status = 'DELIVERED', escrow_status = 'DISBURSED', delivered_at = COALESCE(delivered_at, CURRENT_TIMESTAMP), updated_at = CURRENT_TIMESTAMP
-      WHERE order_id = ? AND rider_id = ?
-    `, [order_id, rider_id]);
+    // 1. Parallelize primary SQL updates and outbox record
+    await Promise.all([
+      query(`
+        UPDATE orders 
+        SET status = 'DELIVERED', escrow_status = 'DISBURSED', delivered_at = COALESCE(delivered_at, CURRENT_TIMESTAMP), updated_at = CURRENT_TIMESTAMP
+        WHERE order_id = ? AND rider_id = ?
+      `, [order_id, rider_id]),
+      query(`
+        UPDATE payouts 
+        SET payout_status = 'PROCESSED', executed_at = CURRENT_TIMESTAMP
+        WHERE order_id = ?
+      `, [order_id]),
+      outboxRelay.recordEvent(null, {
+        aggregate_type: 'ORDER',
+        aggregate_id: order_id,
+        event_type: 'ORDER_STATUS_CHANGED',
+        payload: {
+          new_status: 'DELIVERED',
+          actor_role: 'RIDER',
+          note: 'Meal delivered safely. Escrow payouts disbursed to Vendor & Rider.'
+        }
+      })
+    ]);
 
-    await query(`
-      UPDATE payouts 
-      SET payout_status = 'PROCESSED', executed_at = CURRENT_TIMESTAMP
-      WHERE order_id = ?
-    `, [order_id]);
+    // 2. Respond immediately to unlock Rider UI
+    res.json({ success: true, message: `Order #${order_id} marked as DELIVERED. Escrow disbursed!` });
 
-    const riderProfile = await MongoAdapter.getRider(rider_id);
-    const completedCount = (riderProfile?.total_deliveries_completed || 0) + 1;
-
-    await MongoAdapter.upsertRider(rider_id, {
-      shift_status: 'ONLINE',
-      assigned_order_id: null,
-      total_deliveries_completed: completedCount
-    });
-
-    await outboxRelay.recordEvent(null, {
-      aggregate_type: 'ORDER',
-      aggregate_id: order_id,
-      event_type: 'ORDER_STATUS_CHANGED',
-      payload: {
-        new_status: 'DELIVERED',
-        actor_role: 'RIDER',
-        note: 'Meal delivered safely. Escrow payouts disbursed to Vendor & Rider.'
+    // 3. Asynchronously sync MongoDB profile & tracking log in background
+    setImmediate(async () => {
+      try {
+        const riderProfile = await MongoAdapter.getRider(rider_id);
+        const completedCount = (riderProfile?.total_deliveries_completed || 0) + 1;
+        await MongoAdapter.upsertRider(rider_id, {
+          shift_status: 'ONLINE',
+          assigned_order_id: null,
+          total_deliveries_completed: completedCount
+        });
+        outboxRelay.dispatchNow();
+        await MongoAdapter.pushTrackingLog(order_id, {
+          event: 'DELIVERED',
+          timestamp: new Date(),
+          location_note: 'Meal delivered safely. Escrow payouts disbursed to Vendor & Rider.',
+          actor_role: 'RIDER'
+        });
+      } catch (bgErr) {
+        console.warn('[Background Delivery Sync Warning]', bgErr.message);
       }
     });
-    outboxRelay.dispatchNow();
-
-    await MongoAdapter.pushTrackingLog(order_id, {
-      event: 'DELIVERED',
-      timestamp: new Date(),
-      location_note: 'Meal delivered safely. Escrow payouts disbursed to Vendor & Rider.',
-      actor_role: 'RIDER'
-    }).catch(err => console.warn('[Mongo Tracking Log Sync Warning]', err.message));
-
-    return res.json({ success: true, message: `Order #${order_id} marked as DELIVERED. Escrow disbursed!` });
+    return;
   } catch (err) {
     console.error('Complete delivery error:', err);
     return res.status(500).json({ success: false, message: 'Failed to complete delivery.' });

@@ -167,6 +167,19 @@ class OutboxRelayService {
         break;
       }
 
+      case 'ORDER_CANCELLED': {
+        const orderId = Number(aggregateId);
+        await MongoAdapter.pushTrackingLog(orderId, {
+          event: 'ORDER_CANCELLED',
+          timestamp: payload.timestamp ? new Date(payload.timestamp) : new Date(),
+          location_note: payload.note || 'Order cancelled and 100% escrow refund processed.',
+          actor_role: payload.actor_role || 'SYSTEM'
+        });
+        eventBroker.publish(`order_${orderId}`, 'ORDER_STATUS_CHANGED', { order_id: orderId, new_status: 'ORDER_CANCELLED', ...payload });
+        eventBroker.publish('global', 'ORDER_STATUS_CHANGED', { order_id: orderId, new_status: 'ORDER_CANCELLED', ...payload });
+        break;
+      }
+
       default:
         console.log(`[Outbox Relay] Unhandled event type: ${eventType}, marked processed.`);
     }

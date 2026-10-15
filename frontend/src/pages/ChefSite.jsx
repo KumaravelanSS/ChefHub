@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import {
   ChefHat, Package, Utensils, DollarSign, AlertTriangle, CheckCircle2, Clock, Plus, Trash2,
   AlertCircle, Edit3, Image as ImageIcon, X, Sparkles, Ban, Eye, EyeOff, Tag, RefreshCw, Star,
-  User, MapPin, Lock, Shield, KeyRound, Smartphone, Mail, Compass, Check, Copy, Send, Save, ArrowRight
+  User, MapPin, Lock, Shield, KeyRound, Smartphone, Mail, Compass, Check, Copy, Send, Save, ArrowRight, Loader2
 } from 'lucide-react';
 import { KitchenLoadingScreen, KitchenDataLoader, KitchenSkeletonRows } from '../components/KitchenLoading';
 import ChefAuthPage from './ChefAuthPage';
@@ -96,6 +96,7 @@ export default function ChefSite({ user, onLogin, onLogout }) {
   const [customCancelReason, setCustomCancelReason] = useState('');
   const [isCancellingOrder, setIsCancellingOrder] = useState(false);
   const [cancellingProgress, setCancellingProgress] = useState(null);
+  const [optimisticOrderSyncing, setOptimisticOrderSyncing] = useState({});
 
   const [hoursForm, setHoursForm] = useState({
     operating_hours: '11:00 AM - 10:00 PM',
@@ -862,6 +863,23 @@ export default function ChefSite({ user, onLogin, onLogout }) {
   };
 
   const updateOrderStatus = async (order_id, status, cancel_reason = null) => {
+    // 1. Optimistic Update: Instantly flip order status on UI to eliminate perception of latency
+    const originalOrders = [...orders];
+    setOptimisticOrderSyncing(prev => ({ ...prev, [order_id]: status }));
+
+    setOrders(prev => prev.map(o => {
+      if (o.order_id === order_id) {
+        return {
+          ...o,
+          status,
+          prepared_at: status === 'PREPARING' ? new Date().toISOString() : o.prepared_at,
+          ready_at: status === 'READY' ? new Date().toISOString() : o.ready_at,
+          cancelled_at: status === 'CANCELLED' ? new Date().toISOString() : o.cancelled_at
+        };
+      }
+      return o;
+    }));
+
     try {
       const token = localStorage.getItem('chefhub_token');
       const res = await fetch(`/api/vendor/orders/${order_id}/status`, {
@@ -870,15 +888,30 @@ export default function ChefSite({ user, onLogin, onLogout }) {
         body: JSON.stringify({ status, cancel_reason })
       });
       const data = await res.json();
+      
+      setOptimisticOrderSyncing(prev => {
+        const next = { ...prev };
+        delete next[order_id];
+        return next;
+      });
+
       if (data.success) {
-        fetchData();
         return true;
       } else {
-        alert(data.message || 'Failed to update order status.');
+        // Rollback state if server rejects
+        setOrders(originalOrders);
+        alert(data.message || 'Update failed, reverting changes.');
         return false;
       }
     } catch (err) {
-      alert('Failed to update order status.');
+      // Rollback state on network error
+      setOrders(originalOrders);
+      setOptimisticOrderSyncing(prev => {
+        const next = { ...prev };
+        delete next[order_id];
+        return next;
+      });
+      alert('Network update failed, reverting changes.');
       return false;
     }
   };
@@ -2661,52 +2694,77 @@ export default function ChefSite({ user, onLogin, onLogout }) {
                   </div>
 
                   <div className="pt-3 border-t border-slate-100 dark:border-slate-800 space-y-2">
-                    {o.status === 'PLACED' && (
-                      <div className="grid grid-cols-2 gap-2">
-                        <button
-                          onClick={() => updateOrderStatus(o.order_id, 'PREPARING')}
-                          className="py-3 px-2 rounded-2xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-slate-950 font-black text-xs shadow-lg shadow-amber-500/20 active:scale-95 transition-all cursor-pointer flex items-center justify-center gap-1"
-                        >
-                          <span>Accept & Prep</span>
-                        </button>
-                        <button
-                          onClick={() => {
-                            setCancelModalOrder(o);
-                            setCancelReasonPreset('Ingredient stock exhausted / Daily portions sold out');
-                            setCustomCancelReason('');
-                          }}
-                          className="py-3 px-2 rounded-2xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 dark:text-rose-400 font-extrabold text-xs border border-rose-500/25 active:scale-95 transition-all cursor-pointer flex items-center justify-center gap-1"
-                        >
-                          <Ban className="w-3.5 h-3.5 text-rose-500" />
-                          <span>Cancel / Reject</span>
-                        </button>
+                    {optimisticOrderSyncing[o.order_id] ? (
+                      <div className="py-2.5 px-3 rounded-2xl bg-amber-500/10 border border-amber-500/25 text-amber-500 text-xs font-bold flex items-center justify-center gap-2 animate-pulse">
+                        <Loader2 className="w-3.5 h-3.5 animate-spin text-amber-500" />
+                        <span>⚡ Multi-DB Syncing in background...</span>
                       </div>
-                    )}
-                    {o.status === 'PREPARING' && (
-                      <div className="space-y-2">
-                        <button
-                          onClick={() => updateOrderStatus(o.order_id, 'READY')}
-                          className="w-full py-3 rounded-2xl bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white font-black text-xs shadow-lg shadow-emerald-500/25 active:scale-95 transition-all cursor-pointer"
-                        >
-                          Mark Ready for Driver Pickup
-                        </button>
-                        <button
-                          onClick={() => {
-                            setCancelModalOrder(o);
-                            setCancelReasonPreset('Kitchen rush / Cannot fulfill within prep window');
-                            setCustomCancelReason('');
-                          }}
-                          className="w-full py-2 rounded-xl text-rose-500 hover:bg-rose-500/10 text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1"
-                        >
-                          <Ban className="w-3 h-3" />
-                          <span>Cancel Order & Issue Escrow Refund</span>
-                        </button>
-                      </div>
-                    )}
-                    {o.status === 'CANCELLED' && (
-                      <div className="p-2.5 rounded-xl bg-rose-500/10 border border-rose-500/20 text-center">
-                        <span className="text-xs font-bold text-rose-500">❌ Cancelled • 100% Escrow Refunded</span>
-                      </div>
+                    ) : (
+                      <>
+                        {o.status === 'PLACED' && (
+                          <div className="grid grid-cols-2 gap-2">
+                            <button
+                              onClick={() => updateOrderStatus(o.order_id, 'PREPARING')}
+                              className="py-3 px-2 rounded-2xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-slate-950 font-black text-xs shadow-lg shadow-amber-500/20 active:scale-95 transition-all cursor-pointer flex items-center justify-center gap-1"
+                            >
+                              <span>Accept & Prep</span>
+                            </button>
+                            <button
+                              onClick={() => {
+                                setCancelModalOrder(o);
+                                setCancelReasonPreset('Ingredient stock exhausted / Daily portions sold out');
+                                setCustomCancelReason('');
+                              }}
+                              className="py-3 px-2 rounded-2xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 dark:text-rose-400 font-extrabold text-xs border border-rose-500/25 active:scale-95 transition-all cursor-pointer flex items-center justify-center gap-1"
+                            >
+                              <Ban className="w-3.5 h-3.5 text-rose-500" />
+                              <span>Cancel / Reject</span>
+                            </button>
+                          </div>
+                        )}
+                        {o.status === 'PREPARING' && (
+                          <div className="space-y-2">
+                            <button
+                              onClick={() => updateOrderStatus(o.order_id, 'READY')}
+                              className="w-full py-3 rounded-2xl bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white font-black text-xs shadow-lg shadow-emerald-500/25 active:scale-95 transition-all cursor-pointer"
+                            >
+                              Mark Ready for Driver Pickup
+                            </button>
+                            <button
+                              onClick={() => {
+                                setCancelModalOrder(o);
+                                setCancelReasonPreset('Kitchen rush / Cannot fulfill within prep window');
+                                setCustomCancelReason('');
+                              }}
+                              className="w-full py-2 rounded-xl text-rose-500 hover:bg-rose-500/10 text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1"
+                            >
+                              <Ban className="w-3 h-3" />
+                              <span>Cancel Order & Issue Escrow Refund</span>
+                            </button>
+                          </div>
+                        )}
+                        {o.status === 'READY' && (
+                          <div className="p-2.5 rounded-xl bg-teal-500/10 border border-teal-500/20 text-center flex items-center justify-center gap-1.5 text-xs font-bold text-teal-400">
+                            <Clock className="w-3.5 h-3.5 text-teal-400" />
+                            <span>Meal packed • Waiting for courier dispatch</span>
+                          </div>
+                        )}
+                        {o.status === 'OUT_FOR_DELIVERY' && (
+                          <div className="p-2.5 rounded-xl bg-sky-500/10 border border-sky-500/20 text-center text-xs font-bold text-sky-400">
+                            🚀 Out for delivery with Courier
+                          </div>
+                        )}
+                        {o.status === 'DELIVERED' && (
+                          <div className="p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-center text-xs font-bold text-emerald-400">
+                            ✓ Delivered • Escrow Payout Disbursed
+                          </div>
+                        )}
+                        {o.status === 'CANCELLED' && (
+                          <div className="p-2.5 rounded-xl bg-rose-500/10 border border-rose-500/20 text-center">
+                            <span className="text-xs font-bold text-rose-500">❌ Cancelled • 100% Escrow Refunded</span>
+                          </div>
+                        )}
+                      </>
                     )}
                   </div>
                 </div>

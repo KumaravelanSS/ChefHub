@@ -577,20 +577,8 @@ router.post('/orders', checkoutLimiter, authenticateToken, requireRole(['CUSTOME
 
     const { order_id, totalAmount, payout, stockDeductions } = transactionResult;
 
-    // Trigger immediate Outbox Relay processing (pushes mutations to MongoDB with 0ms latency)
-    outboxRelay.dispatchNow();
-
-    // Post-Transaction Asynchronous Document Sync (Immediate local fallback)
-    InventoryEngine.autoSyncDishAvailability(vendor_id).catch(err => console.error('Menu sync error:', err));
-
-    await MongoAdapter.pushTrackingLog(order_id, {
-      event: 'ORDER_PLACED',
-      timestamp: new Date(),
-      location_note: 'Order submitted and escrow payment secured',
-      actor_role: 'CUSTOMER'
-    });
-
-    return res.json({
+    // 1. Immediately return 200 OK to frontend to unlock UI instantly
+    res.json({
       success: true,
       message: 'Order placed successfully! Inventory updated and escrow secured.',
       order: {
@@ -603,6 +591,23 @@ router.post('/orders', checkoutLimiter, authenticateToken, requireRole(['CUSTOME
         stock_deductions: stockDeductions
       }
     });
+
+    // 2. Asynchronously process Outbox Relay queue, MongoDB tracking, and auto-sync in background
+    setImmediate(async () => {
+      try {
+        outboxRelay.dispatchNow();
+        InventoryEngine.autoSyncDishAvailability(vendor_id).catch(err => console.error('Menu sync error:', err));
+        await MongoAdapter.pushTrackingLog(order_id, {
+          event: 'ORDER_PLACED',
+          timestamp: new Date(),
+          location_note: 'Order submitted and escrow payment secured',
+          actor_role: 'CUSTOMER'
+        });
+      } catch (bgErr) {
+        console.warn('[Background Order Placement Sync Warning]', bgErr.message);
+      }
+    });
+    return;
   } catch (err) {
     console.error('Create order error:', err);
     const statusCode = err.statusCode || 500;
@@ -628,51 +633,66 @@ const handleCustomerCancelOrder = async (req, res) => {
       });
     }
 
-    await query("UPDATE orders SET status = 'CANCELLED', escrow_status = 'REFUNDED', cancelled_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE order_id = ?", [order_id]);
+    const refundAmt = Number(targetOrder[0].total_amount);
 
-    // Restore dish stock
+    // 1. Parallelize relational updates: mark order cancelled, record outbox event, and restore dish stocks
     const orderItems = await query('SELECT dish_id, quantity FROM order_items WHERE order_id = ?', [order_id]);
-    for (const it of orderItems) {
-      await query('UPDATE dishes SET daily_stock = daily_stock + ? WHERE dish_id = ?', [it.quantity, it.dish_id]);
-    }
+
+    const parallelCancelTasks = [
+      query("UPDATE orders SET status = 'CANCELLED', escrow_status = 'REFUNDED', cancelled_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE order_id = ?", [order_id]),
+      outboxRelay.recordEvent(null, {
+        aggregate_type: 'ORDER',
+        aggregate_id: order_id,
+        event_type: 'ORDER_CANCELLED',
+        payload: {
+          new_status: 'ORDER_CANCELLED',
+          actor_role: 'CUSTOMER',
+          note: `Order cancelled by customer. 100% Escrow refund of ₹${refundAmt.toFixed(2)} credited to account.`,
+          refund_amount: refundAmt
+        }
+      }),
+      ...orderItems.map(it => 
+        query('UPDATE dishes SET daily_stock = daily_stock + ? WHERE dish_id = ?', [it.quantity, it.dish_id])
+      )
+    ];
 
     // Refund escrow amount to customer wallet
-    const refundAmt = Number(targetOrder[0].total_amount);
-    try {
-      const curBalRows = await query('SELECT balance FROM customer_wallets WHERE customer_id = ?', [customer_id]);
-      if (curBalRows.length > 0) {
-        await query('UPDATE customer_wallets SET balance = balance + ?, updated_at = CURRENT_TIMESTAMP WHERE customer_id = ?', [refundAmt, customer_id]);
-      } else {
-        await query('INSERT INTO customer_wallets (customer_id, balance) VALUES (?, ?)', [customer_id, 1250.00 + refundAmt]);
+    parallelCancelTasks.push((async () => {
+      try {
+        const curBalRows = await query('SELECT balance FROM customer_wallets WHERE customer_id = ?', [customer_id]);
+        if (curBalRows.length > 0) {
+          await query('UPDATE customer_wallets SET balance = balance + ?, updated_at = CURRENT_TIMESTAMP WHERE customer_id = ?', [refundAmt, customer_id]);
+        } else {
+          await query('INSERT INTO customer_wallets (customer_id, balance) VALUES (?, ?)', [customer_id, 1250.00 + refundAmt]);
+        }
+      } catch (e) {
+        console.warn('[Wallet Refund Sync Warning]', e.message);
       }
-    } catch (e) {
-      console.warn('[Wallet Refund Sync Warning]', e.message);
-    }
+    })());
 
-    await outboxRelay.recordEvent(null, {
-      aggregate_type: 'ORDER',
-      aggregate_id: order_id,
-      event_type: 'ORDER_CANCELLED',
-      payload: {
-        new_status: 'ORDER_CANCELLED',
-        actor_role: 'CUSTOMER',
-        note: `Order cancelled by customer. 100% Escrow refund of ₹${refundAmt.toFixed(2)} credited to account.`,
-        refund_amount: refundAmt
-      }
-    });
-    outboxRelay.dispatchNow();
+    await Promise.all(parallelCancelTasks);
 
-    await MongoAdapter.pushTrackingLog(order_id, {
-      event: 'ORDER_CANCELLED',
-      timestamp: new Date(),
-      location_note: `Order cancelled by customer. 100% Escrow refund of ₹${refundAmt.toFixed(2)} credited back to customer wallet.`,
-      actor_role: 'CUSTOMER'
-    });
-
-    return res.json({ 
+    // 2. Return 200 OK immediately so customer UI unlocks with zero wait
+    res.json({ 
       success: true, 
       message: `Order #${order_id} cancelled. ₹${refundAmt.toFixed(2)} 100% Escrow refund credited to your wallet.` 
     });
+
+    // 3. Process Outbox Relay and push to MongoDB in background
+    setImmediate(async () => {
+      try {
+        outboxRelay.dispatchNow();
+        await MongoAdapter.pushTrackingLog(order_id, {
+          event: 'ORDER_CANCELLED',
+          timestamp: new Date(),
+          location_note: `Order cancelled by customer. 100% Escrow refund of ₹${refundAmt.toFixed(2)} credited back to customer wallet.`,
+          actor_role: 'CUSTOMER'
+        });
+      } catch (bgErr) {
+        console.warn('[Background Cancel Sync Warning]', bgErr.message);
+      }
+    });
+    return;
   } catch (err) {
     console.error('Cancel order error:', err);
     return res.status(500).json({ success: false, message: 'Failed to cancel order.' });
