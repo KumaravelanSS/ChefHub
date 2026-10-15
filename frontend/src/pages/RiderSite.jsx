@@ -203,15 +203,6 @@ export default function RiderSite({ user, onLogin }) {
 
         {/* Shift Toggle & GPS Simulator */}
         <div className="flex items-center gap-3">
-          <a
-            href="/"
-            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-slate-950 text-xs font-black shadow-md shadow-orange-500/25 ring-1 ring-orange-300/40 hover:scale-105 active:scale-95 transition-all cursor-pointer"
-            title="Open Customer Marketplace to order food with your Rider account"
-          >
-            <span>🛒</span>
-            <span>Customer Portal</span>
-          </a>
-
           <button
             onClick={() => setShiftStatus(shiftStatus === 'ONLINE' ? 'OFFLINE' : 'ONLINE')}
             className={`flex items-center gap-2 px-4 py-2 rounded-xl backdrop-blur-xl border text-xs font-black transition-all duration-200 hover:-translate-y-0.5 active:translate-y-0 cursor-pointer shadow-sm ${

@@ -1804,28 +1804,6 @@ export default function ChefSite({ user, onLogin, onLogout }) {
               <Clock className="w-3.5 h-3.5 text-amber-500" />
               Hours: {storeProfile.operating_hours || '11:00 AM - 10:00 PM'}
             </button>
-
-            {/* Chef Profile & Security Settings Button */}
-            <button
-              onClick={() => {
-                setShowProfileModal(true);
-                setProfileModalTab('INFO');
-              }}
-              className="px-3.5 py-1 rounded-full text-xs font-bold bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700/80 transition-all flex items-center gap-1.5 border border-slate-200 dark:border-slate-700 shadow-sm active:scale-95 cursor-pointer hover:border-emerald-500/40"
-            >
-              <User className="w-3.5 h-3.5 text-emerald-500" />
-              <span>Edit Profile & Security</span>
-            </button>
-
-            {/* Direct Switch to Customer Portal */}
-            <a
-              href="/"
-              className="px-3.5 py-1 rounded-full text-xs font-black bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-slate-950 flex items-center gap-1.5 shadow-md shadow-orange-500/25 ring-2 ring-orange-300/40 hover:scale-105 active:scale-95 transition-all"
-              title="Open Customer Marketplace to order food with your Chef account"
-            >
-              <span>🛒</span>
-              <span>Customer Portal (Order Food)</span>
-            </a>
           </div>
 
           {!storeProfile.is_open && storeProfile.closed_reason && (
