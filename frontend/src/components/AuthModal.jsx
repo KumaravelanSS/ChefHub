@@ -414,13 +414,21 @@ export default function AuthModal({
 
               <div>
                 <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
-                  Phone Number
+                  Phone Number (10 digits)
                 </label>
                 <input
                   type="tel"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  maxLength={10}
                   value={regPhone}
-                  onChange={(e) => setRegPhone(e.target.value)}
-                  placeholder="+91 98765 43210"
+                  onChange={(e) => setRegPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
+                  onKeyDown={(e) => {
+                    if (!/^[0-9]$/.test(e.key) && !['Backspace', 'Delete', 'ArrowLeft', 'ArrowRight', 'Tab', 'Enter', 'Home', 'End'].includes(e.key) && !e.ctrlKey && !e.metaKey) {
+                      e.preventDefault();
+                    }
+                  }}
+                  placeholder="9876543210"
                   className="w-full mt-1 px-4 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 text-slate-900 dark:text-white text-xs focus:border-teal-500 outline-none transition-all shadow-inner"
                 />
               </div>

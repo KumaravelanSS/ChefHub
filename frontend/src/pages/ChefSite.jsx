@@ -1163,12 +1163,20 @@ export default function ChefSite({ user, onLogin, onLogout }) {
               </div>
 
               <div>
-                <label className="font-extrabold text-slate-700 dark:text-slate-300 block mb-1">Registered Mobile Number (for OTP & Delivery)</label>
+                <label className="font-extrabold text-slate-700 dark:text-slate-300 block mb-1">Registered Mobile Number (10 digits)</label>
                 <input
                   type="tel"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  maxLength={10}
                   value={profileForm.phone}
-                  onChange={(e) => setProfileForm({ ...profileForm, phone: e.target.value })}
-                  placeholder="e.g. +91 98765 43210"
+                  onChange={(e) => setProfileForm({ ...profileForm, phone: e.target.value.replace(/\D/g, '').slice(0, 10) })}
+                  onKeyDown={(e) => {
+                    if (!/^[0-9]$/.test(e.key) && !['Backspace', 'Delete', 'ArrowLeft', 'ArrowRight', 'Tab', 'Enter', 'Home', 'End'].includes(e.key) && !e.ctrlKey && !e.metaKey) {
+                      e.preventDefault();
+                    }
+                  }}
+                  placeholder="9876543210"
                   className="w-full px-3.5 py-2.5 rounded-xl bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white font-semibold outline-none focus:border-emerald-500"
                 />
               </div>

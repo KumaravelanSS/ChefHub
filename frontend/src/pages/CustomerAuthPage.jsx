@@ -110,8 +110,53 @@ export default function CustomerAuthPage({ onLogin, isModal = false }) {
   const pwdBarWidth = `${(pwd.score / 5) * 100}%`;
   const usernameCheck = evalUsername(regName);
   const rawPhoneDigits = regPhone.replace(/\D/g, '');
-  const isPhoneValid = rawPhoneDigits.length >= 10;
+  const isPhoneValid = countryCode === '+91' ? rawPhoneDigits.length === 10 : (rawPhoneDigits.length >= 7 && rawPhoneDigits.length <= 15);
   const isRegisterFormValid = usernameCheck.valid && pwd.isAcceptable && isPhoneValid && regEmail.includes('@');
+
+  const handleCountryCodeChange = (e) => {
+    const newCode = e.target.value;
+    setCountryCode(newCode);
+    if (newCode === '+91' && regPhone.length > 10) {
+      setRegPhone(regPhone.slice(0, 10));
+    }
+  };
+
+  const handlePhoneChange = (e) => {
+    const digitsOnly = e.target.value.replace(/\D/g, '');
+    const maxDigits = countryCode === '+91' ? 10 : 15;
+    setRegPhone(digitsOnly.slice(0, maxDigits));
+  };
+
+  const handlePhoneKeyDown = (e) => {
+    if (['Backspace', 'Delete', 'Tab', 'Escape', 'Enter', 'ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(e.key)) {
+      return;
+    }
+    if (e.ctrlKey || e.metaKey) {
+      return;
+    }
+    if (!/^[0-9]$/.test(e.key)) {
+      e.preventDefault();
+      return;
+    }
+    const maxDigits = countryCode === '+91' ? 10 : 15;
+    const hasSelection = e.target.selectionStart !== e.target.selectionEnd;
+    if (!hasSelection && regPhone.length >= maxDigits) {
+      e.preventDefault();
+    }
+  };
+
+  const handlePhonePaste = (e) => {
+    e.preventDefault();
+    const pastedText = e.clipboardData ? e.clipboardData.getData('text') : '';
+    const digitsOnly = pastedText.replace(/\D/g, '');
+    const maxDigits = countryCode === '+91' ? 10 : 15;
+    const input = e.target;
+    const start = input.selectionStart || 0;
+    const end = input.selectionEnd || 0;
+    const currentVal = regPhone;
+    const updated = (currentVal.slice(0, start) + digitsOnly + currentVal.slice(end)).slice(0, maxDigits);
+    setRegPhone(updated);
+  };
 
   const clearFeedback = () => { setError(''); setSuccess(''); };
 
@@ -172,7 +217,9 @@ export default function CustomerAuthPage({ onLogin, isModal = false }) {
       return;
     }
     if (!isPhoneValid) {
-      setError('A valid full-length 10-digit mobile phone number is required.');
+      setError(countryCode === '+91' 
+        ? 'A valid 10-digit Indian mobile number is required.' 
+        : 'A valid mobile phone number is required.');
       return;
     }
     if (!pwd.isAcceptable) {
@@ -461,14 +508,18 @@ export default function CustomerAuthPage({ onLogin, isModal = false }) {
                 </label>
                 {regPhone && (
                   <span className={`text-[10px] font-bold ${isPhoneValid ? 'text-emerald-500' : 'text-rose-500'}`}>
-                    {isPhoneValid ? '✓ Valid Mobile Number' : '10 digits required'}
+                    {isPhoneValid 
+                      ? '✓ Valid Mobile Number' 
+                      : (countryCode === '+91' 
+                          ? `${rawPhoneDigits.length}/10 digits (${10 - rawPhoneDigits.length} more needed)` 
+                          : 'Valid number required')}
                   </span>
                 )}
               </div>
               <div className="flex gap-2">
                 <select
                   value={countryCode}
-                  onChange={e => setCountryCode(e.target.value)}
+                  onChange={handleCountryCodeChange}
                   className="px-2.5 py-3 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white text-xs font-extrabold outline-none focus:ring-2 focus:ring-orange-400 cursor-pointer shrink-0"
                 >
                   <option value="+91">🇮🇳 +91 (IN)</option>
@@ -483,16 +534,22 @@ export default function CustomerAuthPage({ onLogin, isModal = false }) {
                   <input
                     id="cust-reg-phone"
                     type="tel"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    autoComplete="tel-national"
+                    maxLength={countryCode === '+91' ? 10 : 15}
                     required
                     value={regPhone}
-                    onChange={e => setRegPhone(e.target.value)}
-                    placeholder="98765 43210"
+                    onChange={handlePhoneChange}
+                    onKeyDown={handlePhoneKeyDown}
+                    onPaste={handlePhonePaste}
+                    placeholder={countryCode === '+91' ? '9876543210' : '9876543210'}
                     className="w-full pl-10 pr-4 py-3 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-orange-400 placeholder:text-slate-400 transition"
                   />
                 </div>
               </div>
               <p className="text-[11px] text-slate-600 dark:text-slate-400 font-medium mt-1">
-                Mandatory for delivery updates & SMS authentication.
+                {countryCode === '+91' ? 'Enter exactly 10 digits (numbers only). Mandatory for SMS OTP & updates.' : 'Mandatory for delivery updates & SMS authentication.'}
               </p>
             </div>
 
