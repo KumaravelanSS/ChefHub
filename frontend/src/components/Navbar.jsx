@@ -11,94 +11,7 @@ export default function Navbar({ currentUser, onLogout, theme, onToggleTheme }) 
   const isActive = (path) => location.pathname === path;
   const isCustomerPage = location.pathname === '/' || location.pathname === '/customer/login';
 
-  const navTabs = [
-    {
-      id: '/',
-      label: 'Customer Site',
-      icon: ShoppingBag,
-      path: '/',
-      activeColor: 'bg-gradient-to-r from-amber-500 to-orange-500 shadow-amber-500/25 ring-amber-300/40',
-      activeText: 'text-slate-950 dark:text-slate-950 font-black'
-    },
-    {
-      id: '/chef/login',
-      label: 'Chef Site',
-      icon: ChefHat,
-      path: '/chef/login',
-      activeColor: 'bg-gradient-to-r from-emerald-400 to-teal-400 shadow-emerald-500/25 ring-emerald-300/40',
-      activeText: 'text-emerald-950 dark:text-emerald-950 font-black'
-    },
-    {
-      id: '/rider/login',
-      label: 'Rider Site',
-      icon: Bike,
-      path: '/rider/login',
-      activeColor: 'bg-gradient-to-r from-sky-400 to-blue-500 shadow-sky-500/25 ring-sky-300/40',
-      activeText: 'text-sky-950 dark:text-sky-950 font-black'
-    },
-    {
-      id: '/admin/login',
-      label: 'Admin Site',
-      icon: ShieldAlert,
-      path: '/admin/login',
-      activeColor: 'bg-gradient-to-r from-rose-500 to-red-600 shadow-rose-500/25 ring-rose-300/40',
-      activeText: 'text-white font-black'
-    }
-  ];
 
-  const getActiveTabId = () => {
-    const p = location.pathname;
-    if (p.startsWith('/chef')) return '/chef/login';
-    if (p.startsWith('/rider')) return '/rider/login';
-    if (p.startsWith('/admin')) return '/admin/login';
-    if (p === '/' || p.startsWith('/customer')) return '/';
-    return null;
-  };
-
-  const getTabPath = (tabId) => {
-    if (tabId === '/chef/login') {
-      return (currentUser?.role === 'VENDOR') ? '/chef/dashboard' : '/chef/login';
-    }
-    if (tabId === '/rider/login') {
-      return (currentUser?.role === 'RIDER') ? '/rider/dashboard' : '/rider/login';
-    }
-    if (tabId === '/admin/login') {
-      return (currentUser?.role === 'ADMIN') ? '/admin/dashboard' : '/admin/login';
-    }
-    return '/';
-  };
-
-  const activeTabId = getActiveTabId();
-  const [navIndicator, setNavIndicator] = useState({ left: 0, width: 0, opacity: 0 });
-  const navRefs = useRef({});
-
-  useEffect(() => {
-    if (activeTabId && navRefs.current[activeTabId]) {
-      const el = navRefs.current[activeTabId];
-      setNavIndicator({
-        left: el.offsetLeft,
-        width: el.offsetWidth,
-        opacity: 1
-      });
-    } else {
-      setNavIndicator(prev => ({ ...prev, opacity: 0 }));
-    }
-  }, [activeTabId, location.pathname]);
-
-  useEffect(() => {
-    const handleResize = () => {
-      if (activeTabId && navRefs.current[activeTabId]) {
-        const el = navRefs.current[activeTabId];
-        setNavIndicator({
-          left: el.offsetLeft,
-          width: el.offsetWidth,
-          opacity: 1
-        });
-      }
-    };
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, [activeTabId]);
 
   const handleSwitchPortalClick = (e) => {
     e.preventDefault();
@@ -212,46 +125,6 @@ export default function Navbar({ currentUser, onLogout, theme, onToggleTheme }) 
             </div>
           )}
         </div>
-
-        {/* Center Navigation: Shown on role dashboards with all 4 portals (Customer, Chef, Rider, Admin) */}
-        {!isCustomerPage ? (
-          <div className="relative hidden md:flex items-center gap-1 p-1 backdrop-blur-2xl bg-white/70 dark:bg-slate-900/70 rounded-2xl border border-white/60 dark:border-white/10 shadow-lg shadow-black/5 dark:shadow-black/25">
-            {activeTabId && (() => {
-              const currentActive = navTabs.find(t => t.id === activeTabId);
-              return (
-                <div
-                  className={`absolute top-1 bottom-1 rounded-xl transition-all duration-300 ease-out pointer-events-none z-0 shadow-md ring-1 backdrop-blur-md ${currentActive?.activeColor || 'bg-orange-500 ring-orange-300/40'}`}
-                  style={{
-                    transform: `translateX(${navIndicator.left}px)`,
-                    width: `${navIndicator.width}px`,
-                    opacity: navIndicator.opacity
-                  }}
-                />
-              );
-            })()}
-
-            {navTabs.map((tab) => {
-              const Icon = tab.icon;
-              const isActiveTab = activeTabId === tab.id;
-              const targetPath = getTabPath(tab.id);
-              return (
-                <Link
-                  key={tab.id}
-                  to={targetPath}
-                  ref={(el) => (navRefs.current[tab.id] = el)}
-                  className={`relative z-10 flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-black transition-colors duration-200 select-none ${
-                    isActiveTab
-                      ? tab.activeText
-                      : 'text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
-                  }`}
-                >
-                  <Icon className={`w-3.5 h-3.5 transition-colors ${isActiveTab ? tab.activeText : 'opacity-80'}`} />
-                  <span>{tab.label}</span>
-                </Link>
-              );
-            })}
-          </div>
-        ) : null}
 
         {/* Top Right Controls */}
         <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
