@@ -148,6 +148,19 @@ export default function Navbar({ currentUser, onLogout, theme, onToggleTheme }) 
   const roleInfo = currentUser ? getRoleBadge(currentUser.role) : null;
   const RoleIcon = roleInfo?.icon;
 
+  const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
+  const profileDropdownRef = useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (profileDropdownRef.current && !profileDropdownRef.current.contains(e.target)) {
+        setProfileDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
   return (
     <header className="sticky top-0 z-50 backdrop-blur-2xl bg-white/80 dark:bg-slate-950/80 border-b border-slate-200/80 dark:border-white/10 px-3 sm:px-6 py-2.5 transition-colors shadow-sm">
       <div className="max-w-7xl mx-auto flex items-center justify-between gap-2">
@@ -160,12 +173,12 @@ export default function Navbar({ currentUser, onLogout, theme, onToggleTheme }) 
             </div>
             <div>
               <span className="font-black text-lg sm:text-xl tracking-tight text-slate-900 dark:text-white">Chef<span className="text-orange-500">Hub</span></span>
-              <p className="text-[10px] text-slate-400 font-medium hidden md:block">Independent Chef & Ghost Kitchen Platform</p>
+              <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium hidden md:block">Artisanal Cloud Kitchens & Marketplace</p>
             </div>
           </Link>
 
-          {/* Dynamic Active Role Badge (Shown when logged in) */}
-          {currentUser && roleInfo && (
+          {/* Dynamic Active Role Badge (Only shown when not on customer marketplace) */}
+          {currentUser && roleInfo && !isCustomerPage && (
             <div className={`hidden sm:flex items-center gap-1.5 px-3 py-1 rounded-full border text-xs font-black shadow-sm ml-2 ${roleInfo.color}`}>
               <RoleIcon className="w-3.5 h-3.5" />
               <span>{roleInfo.label}</span>
@@ -173,44 +186,45 @@ export default function Navbar({ currentUser, onLogout, theme, onToggleTheme }) 
           )}
         </div>
 
-        {/* Center Navigation Bar: ALWAYS shown to allow switching portals at any time */}
-        <div className="relative hidden md:flex items-center gap-1 p-1 backdrop-blur-2xl bg-white/70 dark:bg-slate-900/70 rounded-2xl border border-white/60 dark:border-white/10 shadow-lg shadow-black/5 dark:shadow-black/25">
-          {/* Smooth Sliding Highlight Rectangle */}
-          {activeTabId && (() => {
-            const currentActive = navTabs.find(t => t.id === activeTabId);
-            return (
-              <div
-                className={`absolute top-1 bottom-1 rounded-xl transition-all duration-300 ease-out pointer-events-none z-0 shadow-md ring-1 backdrop-blur-md ${currentActive?.activeColor || 'bg-orange-500 ring-orange-300/40'}`}
-                style={{
-                  transform: `translateX(${navIndicator.left}px)`,
-                  width: `${navIndicator.width}px`,
-                  opacity: navIndicator.opacity
-                }}
-              />
-            );
-          })()}
+        {/* Center Navigation: HIDDEN for Customer Marketplace & Customer Login to eliminate clutter */}
+        {!isCustomerPage ? (
+          <div className="relative hidden md:flex items-center gap-1 p-1 backdrop-blur-2xl bg-white/70 dark:bg-slate-900/70 rounded-2xl border border-white/60 dark:border-white/10 shadow-lg shadow-black/5 dark:shadow-black/25">
+            {activeTabId && (() => {
+              const currentActive = navTabs.find(t => t.id === activeTabId);
+              return (
+                <div
+                  className={`absolute top-1 bottom-1 rounded-xl transition-all duration-300 ease-out pointer-events-none z-0 shadow-md ring-1 backdrop-blur-md ${currentActive?.activeColor || 'bg-orange-500 ring-orange-300/40'}`}
+                  style={{
+                    transform: `translateX(${navIndicator.left}px)`,
+                    width: `${navIndicator.width}px`,
+                    opacity: navIndicator.opacity
+                  }}
+                />
+              );
+            })()}
 
-          {navTabs.map((tab) => {
-            const Icon = tab.icon;
-            const isActiveTab = activeTabId === tab.id;
-            const targetPath = getTabPath(tab.id);
-            return (
-              <Link
-                key={tab.id}
-                to={targetPath}
-                ref={(el) => (navRefs.current[tab.id] = el)}
-                className={`relative z-10 flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-black transition-colors duration-200 select-none ${
-                  isActiveTab
-                    ? tab.activeText
-                    : 'text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
-                }`}
-              >
-                <Icon className={`w-3.5 h-3.5 transition-colors ${isActiveTab ? tab.activeText : 'opacity-80'}`} />
-                <span>{tab.label}</span>
-              </Link>
-            );
-          })}
-        </div>
+            {navTabs.filter(t => t.id !== '/').map((tab) => {
+              const Icon = tab.icon;
+              const isActiveTab = activeTabId === tab.id;
+              const targetPath = getTabPath(tab.id);
+              return (
+                <Link
+                  key={tab.id}
+                  to={targetPath}
+                  ref={(el) => (navRefs.current[tab.id] = el)}
+                  className={`relative z-10 flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-black transition-colors duration-200 select-none ${
+                    isActiveTab
+                      ? tab.activeText
+                      : 'text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
+                  }`}
+                >
+                  <Icon className={`w-3.5 h-3.5 transition-colors ${isActiveTab ? tab.activeText : 'opacity-80'}`} />
+                  <span>{tab.label}</span>
+                </Link>
+              );
+            })}
+          </div>
+        ) : null}
 
         {/* Top Right Controls */}
         <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
@@ -218,7 +232,7 @@ export default function Navbar({ currentUser, onLogout, theme, onToggleTheme }) 
           {/* Theme Toggle Button */}
           <button
             onClick={onToggleTheme}
-            className="p-2 rounded-xl backdrop-blur-xl bg-white/70 dark:bg-slate-800/70 hover:bg-white/90 dark:hover:bg-slate-800/90 border border-slate-200/90 dark:border-white/10 text-amber-500 hover:text-amber-600 dark:text-amber-400 font-bold text-xs transition-all duration-200 hover:scale-105 active:scale-95 flex items-center justify-center shadow-sm shadow-slate-200/50 dark:shadow-none hover:shadow-amber-500/20 cursor-pointer"
+            className="p-2 rounded-xl backdrop-blur-xl bg-white/70 dark:bg-slate-800/70 hover:bg-white/90 dark:hover:bg-slate-800/90 border border-slate-200/90 dark:border-white/10 text-amber-500 hover:text-amber-600 dark:text-amber-400 font-bold text-xs transition-all duration-200 hover:scale-105 active:scale-95 flex items-center justify-center shadow-sm cursor-pointer"
             title={`Switch to ${theme === 'dark' ? 'Light' : 'Dark'} Mode`}
           >
             {theme === 'dark' ? (
@@ -228,26 +242,132 @@ export default function Navbar({ currentUser, onLogout, theme, onToggleTheme }) 
             )}
           </button>
 
-          {/* User Session Info */}
+          {/* Consolidated Profile Dropdown Menu */}
           {currentUser ? (
-            <div className="flex items-center gap-1.5">
-              {/* Desktop User Info */}
-              <div className="hidden sm:flex flex-col items-end text-right">
-                <span className="text-xs font-extrabold text-slate-900 dark:text-white truncate max-w-[130px]">{currentUser.name}</span>
-                <span className="text-[10px] font-extrabold text-orange-500 uppercase tracking-wider">
-                  {currentUser.role} {currentUser.user_id ? `• ID #${currentUser.user_id}` : ''}
-                </span>
-              </div>
-              
-              {/* Logout Button */}
+            <div className="relative" ref={profileDropdownRef}>
               <button
-                onClick={handleLogoutClick}
-                className="px-3.5 py-1.5 rounded-xl backdrop-blur-xl bg-white/70 dark:bg-slate-800/70 hover:bg-rose-500/15 dark:hover:bg-rose-500/20 text-slate-800 dark:text-slate-100 hover:text-rose-600 dark:hover:text-rose-400 text-xs font-black border border-slate-200/90 dark:border-white/10 hover:border-rose-500/50 shadow-sm shadow-slate-200/50 dark:shadow-none hover:shadow-rose-500/20 transition-all duration-200 hover:-translate-y-0.5 active:translate-y-0 flex items-center gap-1.5 cursor-pointer group"
-                title="Log out of session"
+                onClick={() => setProfileDropdownOpen(v => !v)}
+                className="flex items-center gap-2 p-1.5 sm:px-3 sm:py-1.5 rounded-2xl backdrop-blur-xl bg-white/80 dark:bg-slate-800/80 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200 dark:border-white/10 shadow-sm transition-all cursor-pointer group"
+                title="Account Settings & Roles"
               >
-                <LogOut className="w-3.5 h-3.5 group-hover:-translate-x-0.5 transition-transform" />
-                <span className="hidden sm:inline">Logout</span>
+                <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-gradient-to-tr from-amber-500 to-orange-500 text-slate-950 font-black flex items-center justify-center text-xs shadow-md">
+                  {currentUser.name ? currentUser.name[0].toUpperCase() : 'U'}
+                </div>
+                <div className="hidden sm:flex flex-col items-start text-left">
+                  <span className="text-xs font-black text-slate-900 dark:text-white truncate max-w-[120px] leading-tight">
+                    {currentUser.name}
+                  </span>
+                  <span className="text-[10px] font-extrabold text-orange-500 uppercase tracking-wider leading-none">
+                    {currentUser.role}
+                  </span>
+                </div>
+                <span className={`text-[11px] text-slate-400 transition-transform duration-200 ${profileDropdownOpen ? 'rotate-180' : ''}`}>
+                  ▼
+                </span>
               </button>
+
+              {/* Profile Dropdown Content */}
+              {profileDropdownOpen && (
+                <div className="absolute right-0 mt-2 w-72 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl z-50 p-2.5 space-y-2 animate-in fade-in">
+                  {/* Account Summary */}
+                  <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 space-y-1">
+                    <div className="flex items-center justify-between">
+                      <span className="font-black text-xs text-slate-900 dark:text-white truncate">{currentUser.name}</span>
+                      <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-orange-500/10 text-orange-500 border border-orange-500/20">
+                        {currentUser.role}
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-slate-600 dark:text-slate-400 truncate">{currentUser.email}</p>
+                    {currentUser.user_id && (
+                      <p className="text-[10px] font-mono font-bold text-slate-500">Customer ID #{currentUser.user_id}</p>
+                    )}
+                  </div>
+
+                  {/* Profile Settings & Security & Credentials */}
+                  <div className="space-y-1">
+                    <button
+                      onClick={() => {
+                        setProfileDropdownOpen(false);
+                        window.dispatchEvent(new CustomEvent('chefhub:open-security'));
+                      }}
+                      className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-extrabold text-slate-800 dark:text-slate-200 hover:bg-orange-500/10 hover:text-orange-500 transition-colors cursor-pointer"
+                    >
+                      <span className="text-sm">🔑</span>
+                      <span>Security & Credentials</span>
+                    </button>
+                    <button
+                      onClick={() => {
+                        setProfileDropdownOpen(false);
+                        navigate('/');
+                      }}
+                      className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-bold text-slate-800 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                    >
+                      <ShoppingBag className="w-3.5 h-3.5 text-amber-500" />
+                      <span>Marketplace Home</span>
+                    </button>
+                  </div>
+
+                  {/* Switch Portal / User Role Section */}
+                  <div className="pt-2 border-t border-slate-200 dark:border-slate-800 space-y-1">
+                    <span className="px-3 text-[10px] font-black uppercase tracking-wider text-slate-400 block mb-1">
+                      Switch Role / Portal
+                    </span>
+                    <button
+                      onClick={() => {
+                        setProfileDropdownOpen(false);
+                        navigate(currentUser?.role === 'VENDOR' ? '/chef/dashboard' : '/chef/login');
+                      }}
+                      className="w-full flex items-center justify-between px-3 py-1.5 rounded-xl text-xs font-bold text-slate-700 dark:text-slate-300 hover:bg-emerald-500/10 hover:text-emerald-500 transition-colors cursor-pointer"
+                    >
+                      <span className="flex items-center gap-2">
+                        <ChefHat className="w-3.5 h-3.5 text-emerald-500" />
+                        <span>Chef Kitchen Console</span>
+                      </span>
+                      {location.pathname.startsWith('/chef') && <span className="text-[10px] font-bold text-emerald-500">Active</span>}
+                    </button>
+                    <button
+                      onClick={() => {
+                        setProfileDropdownOpen(false);
+                        navigate(currentUser?.role === 'RIDER' ? '/rider/dashboard' : '/rider/login');
+                      }}
+                      className="w-full flex items-center justify-between px-3 py-1.5 rounded-xl text-xs font-bold text-slate-700 dark:text-slate-300 hover:bg-sky-500/10 hover:text-sky-500 transition-colors cursor-pointer"
+                    >
+                      <span className="flex items-center gap-2">
+                        <Bike className="w-3.5 h-3.5 text-sky-500" />
+                        <span>Rider Delivery Hub</span>
+                      </span>
+                      {location.pathname.startsWith('/rider') && <span className="text-[10px] font-bold text-emerald-500">Active</span>}
+                    </button>
+                    <button
+                      onClick={() => {
+                        setProfileDropdownOpen(false);
+                        navigate(currentUser?.role === 'ADMIN' ? '/admin/dashboard' : '/admin/login');
+                      }}
+                      className="w-full flex items-center justify-between px-3 py-1.5 rounded-xl text-xs font-bold text-slate-700 dark:text-slate-300 hover:bg-rose-500/10 hover:text-rose-500 transition-colors cursor-pointer"
+                    >
+                      <span className="flex items-center gap-2">
+                        <ShieldAlert className="w-3.5 h-3.5 text-rose-500" />
+                        <span>Admin Site Console</span>
+                      </span>
+                      {location.pathname.startsWith('/admin') && <span className="text-[10px] font-bold text-emerald-500">Active</span>}
+                    </button>
+                  </div>
+
+                  {/* Logout Button */}
+                  <div className="pt-2 border-t border-slate-200 dark:border-slate-800">
+                    <button
+                      onClick={() => {
+                        setProfileDropdownOpen(false);
+                        handleLogoutClick();
+                      }}
+                      className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-extrabold text-rose-600 dark:text-rose-400 hover:bg-rose-500/10 transition-colors cursor-pointer"
+                    >
+                      <LogOut className="w-3.5 h-3.5" />
+                      <span>Log Out of Session</span>
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           ) : (
             <Link
@@ -262,7 +382,7 @@ export default function Navbar({ currentUser, onLogout, theme, onToggleTheme }) 
           {/* Mobile Menu Button (< 768px) */}
           <button
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            className="md:hidden p-2 rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 text-slate-800 dark:text-slate-200"
+            className="md:hidden p-2 rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 text-slate-800 dark:text-slate-200 cursor-pointer"
             title="Toggle Menu"
           >
             {mobileMenuOpen ? <X className="w-4 h-4 text-orange-500" /> : <Menu className="w-4 h-4" />}
@@ -274,57 +394,82 @@ export default function Navbar({ currentUser, onLogout, theme, onToggleTheme }) 
 
       {/* Mobile Navigation Drawer (< 768px) */}
       {mobileMenuOpen && (
-        <div className="md:hidden mt-3 pt-3 border-t border-slate-800/80 space-y-3">
-          {currentUser && (
-            <div className="flex items-center justify-between p-3 rounded-xl bg-slate-900 border border-slate-800">
-              <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-lg bg-orange-500/20 text-orange-400 font-bold flex items-center justify-center text-xs">
-                  {currentUser.name[0]}
+        <div className="md:hidden mt-3 pt-3 border-t border-slate-200 dark:border-slate-800 space-y-3">
+          {currentUser ? (
+            <div className="space-y-2">
+              <div className="flex items-center justify-between p-3 rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-lg bg-orange-500/20 text-orange-500 font-bold flex items-center justify-center text-xs">
+                    {currentUser.name ? currentUser.name[0].toUpperCase() : 'U'}
+                  </div>
+                  <div>
+                    <h5 className="text-xs font-extrabold text-slate-900 dark:text-white">{currentUser.name}</h5>
+                    <span className="text-[10px] text-orange-500 font-bold uppercase">{currentUser.role} Account</span>
+                  </div>
                 </div>
-                <div>
-                  <h5 className="text-xs font-extrabold text-white">{currentUser.name}</h5>
-                  <span className="text-[10px] text-orange-400 font-bold uppercase">{currentUser.role} Account</span>
-                </div>
+                <button
+                  onClick={() => {
+                    setMobileMenuOpen(false);
+                    handleLogoutClick();
+                  }}
+                  className="px-2.5 py-1 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-500 font-bold text-xs border border-rose-500/20 cursor-pointer"
+                >
+                  Logout
+                </button>
               </div>
+
               <button
                 onClick={() => {
                   setMobileMenuOpen(false);
-                  handleLogoutClick();
+                  window.dispatchEvent(new CustomEvent('chefhub:open-security'));
                 }}
-                className="px-2.5 py-1 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 font-bold text-xs border border-rose-500/20"
+                className="w-full py-2.5 px-3 rounded-xl bg-orange-500/10 text-orange-600 dark:text-orange-400 font-extrabold text-xs flex items-center gap-2"
               >
-                Logout
+                <span>🔑</span>
+                <span>Security & Credentials</span>
               </button>
-            </div>
-          )}
 
-          <div className="grid grid-cols-2 gap-2 text-xs font-bold">
-            {navTabs.map((tab) => {
-              const Icon = tab.icon;
-              const isCurrent = activeTabId === tab.id;
-              return (
+              <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-1">
+                <span className="text-[10px] font-black uppercase text-slate-400 block px-2">Switch Portal / Account</span>
                 <Link
-                  key={tab.id}
-                  to={getTabPath(tab.id)}
+                  to="/"
                   onClick={() => setMobileMenuOpen(false)}
-                  className={`flex items-center gap-2 p-2.5 rounded-xl border transition-colors ${
-                    isCurrent
-                      ? 'bg-orange-500/15 border-orange-500/40 text-orange-400'
-                      : 'bg-slate-100 dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-300 dark:border-slate-800'
-                  }`}
+                  className="flex items-center gap-2 p-2 rounded-lg text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-800"
                 >
-                  <Icon className="w-4 h-4" />
-                  <span>{tab.label}</span>
+                  <ShoppingBag className="w-4 h-4 text-amber-500" />
+                  <span>Customer Marketplace</span>
                 </Link>
-              );
-            })}
-          </div>
-
-          {!currentUser && (
+                <Link
+                  to={currentUser.role === 'VENDOR' ? '/chef/dashboard' : '/chef/login'}
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="flex items-center gap-2 p-2 rounded-lg text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-800"
+                >
+                  <ChefHat className="w-4 h-4 text-emerald-500" />
+                  <span>Chef Kitchen Console</span>
+                </Link>
+                <Link
+                  to={currentUser.role === 'RIDER' ? '/rider/dashboard' : '/rider/login'}
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="flex items-center gap-2 p-2 rounded-lg text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-800"
+                >
+                  <Bike className="w-4 h-4 text-sky-500" />
+                  <span>Rider Delivery Hub</span>
+                </Link>
+                <Link
+                  to={currentUser.role === 'ADMIN' ? '/admin/dashboard' : '/admin/login'}
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="flex items-center gap-2 p-2 rounded-lg text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-800"
+                >
+                  <ShieldAlert className="w-4 h-4 text-rose-500" />
+                  <span>Admin Site Console</span>
+                </Link>
+              </div>
+            </div>
+          ) : (
             <Link
               to="/customer/login"
               onClick={() => setMobileMenuOpen(false)}
-              className="flex items-center justify-center gap-2 p-2.5 rounded-xl bg-gradient-to-r from-orange-500 to-amber-500 text-slate-950 font-black text-xs shadow-md"
+              className="flex items-center justify-center gap-2 p-3 rounded-xl bg-gradient-to-r from-orange-500 to-amber-500 text-slate-950 font-black text-xs shadow-md"
             >
               <UserCheck className="w-4 h-4" />
               <span>Login / Sign Up</span>

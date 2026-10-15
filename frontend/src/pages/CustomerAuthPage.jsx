@@ -87,9 +87,20 @@ export default function CustomerAuthPage({ onLogin, isModal = false }) {
 
   const [regName, setRegName] = useState('');
   const [regEmail, setRegEmail] = useState('');
+  const [countryCode, setCountryCode] = useState('+91');
   const [regPhone, setRegPhone] = useState('');
   const [regPwd, setRegPwd] = useState('');
   const [showRegPwd, setShowRegPwd] = useState(false);
+
+  // Phone OTP Verification Modal for Registration
+  const [phoneOtpModal, setPhoneOtpModal] = useState({
+    isOpen: false,
+    phone: '',
+    otpInput: '',
+    devOtp: '',
+    loading: false,
+    error: ''
+  });
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -98,6 +109,10 @@ export default function CustomerAuthPage({ onLogin, isModal = false }) {
   const pwd = evalPwd(regPwd);
   const pwdBarWidth = `${(pwd.score / 5) * 100}%`;
   const usernameCheck = evalUsername(regName);
+  const rawPhoneDigits = regPhone.replace(/\D/g, '');
+  const isPhoneValid = rawPhoneDigits.length >= 10;
+  const isRegisterFormValid = usernameCheck.valid && pwd.isAcceptable && isPhoneValid && regEmail.includes('@');
+
   const clearFeedback = () => { setError(''); setSuccess(''); };
 
   const handleLogin = async (e) => {
@@ -125,9 +140,15 @@ export default function CustomerAuthPage({ onLogin, isModal = false }) {
       setLoading(false);
       if (data.success) {
         if (!isModal && data.user.role !== 'CUSTOMER') {
-          setError('This is not a customer account. Use the correct portal.');
+          setError('This is not a customer account. Please use the appropriate portal.');
           return;
         }
+
+        // Intercept weak password warning and flag it for session reminder
+        if (data.weakPasswordWarning) {
+          sessionStorage.setItem('chefhub_weak_password_warning', 'true');
+        }
+
         localStorage.setItem('chefhub_token', data.token);
         localStorage.setItem('chefhub_user', JSON.stringify(data.user));
         onLogin(data.user, data.token);
@@ -141,7 +162,8 @@ export default function CustomerAuthPage({ onLogin, isModal = false }) {
     }
   };
 
-  const handleRegister = async (e) => {
+  // Step 1 of Registration: Validate and dispatch Phone SMS OTP
+  const handleInitiateRegistration = async (e) => {
     e.preventDefault();
     clearFeedback();
     const uCheck = evalUsername(regName);
@@ -149,39 +171,109 @@ export default function CustomerAuthPage({ onLogin, isModal = false }) {
       setError(uCheck.message || 'Please enter a valid username (3-50 characters).');
       return;
     }
+    if (!isPhoneValid) {
+      setError('A valid full-length 10-digit mobile phone number is required.');
+      return;
+    }
     if (!pwd.isAcceptable) {
       setError('Password must be rated "Good" or higher to create an account.');
       return;
     }
+
+    const fullPhone = `${countryCode} ${regPhone.trim()}`;
     setLoading(true);
+
     try {
-      const res = await fetch('/api/auth/register', {
+      const res = await fetch('/api/auth/send-phone-otp', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: regName.trim(), email: regEmail.trim(), password: regPwd, role: 'CUSTOMER', phone: regPhone.trim() || null, primary_address: null })
+        body: JSON.stringify({ phone: fullPhone })
       });
       const data = await res.json();
       setLoading(false);
+
       if (data.success) {
-        setSuccess('Account created! Signing you in…');
+        setPhoneOtpModal({
+          isOpen: true,
+          phone: fullPhone,
+          otpInput: '',
+          devOtp: data.dev_otp || '123456',
+          loading: false,
+          error: ''
+        });
+      } else {
+        setError(data.message || 'Failed to dispatch phone verification OTP.');
+      }
+    } catch (err) {
+      setLoading(false);
+      setError('Connection error dispatching SMS OTP.');
+    }
+  };
+
+  // Step 2 of Registration: Verify Phone OTP and finalize Account Creation
+  const handleVerifyOtpAndCreateAccount = async (e) => {
+    e.preventDefault();
+    if (!phoneOtpModal.otpInput.trim()) {
+      setPhoneOtpModal(prev => ({ ...prev, error: 'Please enter the 6-digit OTP code.' }));
+      return;
+    }
+
+    setPhoneOtpModal(prev => ({ ...prev, loading: true, error: '' }));
+
+    try {
+      // 1. Verify Phone OTP
+      const vRes = await fetch('/api/auth/verify-phone-otp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone: phoneOtpModal.phone, otp: phoneOtpModal.otpInput })
+      });
+      const vData = await vRes.json();
+
+      if (!vData.success) {
+        setPhoneOtpModal(prev => ({ ...prev, loading: false, error: vData.message || 'Invalid or expired OTP code.' }));
+        return;
+      }
+
+      // 2. Finalize registration in DB with verified phone
+      const rRes = await fetch('/api/auth/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: regName.trim(),
+          email: regEmail.trim(),
+          password: regPwd,
+          role: 'CUSTOMER',
+          phone: phoneOtpModal.phone,
+          primary_address: null
+        })
+      });
+      const rData = await rRes.json();
+
+      if (rData.success) {
+        setPhoneOtpModal(prev => ({ ...prev, isOpen: false, loading: false }));
+        setSuccess('🎉 Account verified and created! Logging you in…');
         setTimeout(() => {
-          localStorage.setItem('chefhub_token', data.token);
-          localStorage.setItem('chefhub_user', JSON.stringify(data.user));
-          onLogin(data.user, data.token);
+          localStorage.setItem('chefhub_token', rData.token);
+          localStorage.setItem('chefhub_user', JSON.stringify(rData.user));
+          onLogin(rData.user, rData.token);
           navigate('/');
         }, 900);
       } else {
-        setError(data.message || 'Registration failed.');
+        setPhoneOtpModal(prev => ({ ...prev, loading: false, error: rData.message || 'Failed to create customer account.' }));
       }
-    } catch {
-      setLoading(false);
-      setError('Backend error during registration.');
+    } catch (err) {
+      setPhoneOtpModal(prev => ({ ...prev, loading: false, error: 'Network error completing account registration.' }));
     }
   };
 
   const handleSocial = (provider) => {
-    setSuccess(`${provider} OAuth would redirect in production. Loading demo credentials…`);
-    setTimeout(() => { setLoginId('alex.customer@gmail.com'); setLoginPwd('customer123'); setMode('login'); setSuccess(''); }, 1800);
+    setSuccess(`${provider} OAuth connects via Auth0 in production. Loading demo customer credentials…`);
+    setTimeout(() => { 
+      setLoginId('alex.customer@gmail.com'); 
+      setLoginPwd('customer123'); 
+      setMode('login'); 
+      setSuccess(''); 
+    }, 1200);
   };
 
   const authCard = (
@@ -195,9 +287,9 @@ export default function CustomerAuthPage({ onLogin, isModal = false }) {
             </div>
             <div>
               <h2 className="text-lg font-black text-slate-900 dark:text-white leading-none">
-                {mode === 'login' ? 'Welcome Back!' : 'Join ChefHub'}
+                {mode === 'login' ? 'Customer Sign In' : 'Create Account'}
               </h2>
-              <p className="text-xs text-slate-500 dark:text-slate-400 font-semibold mt-0.5">Customer Portal</p>
+              <p className="text-xs text-slate-600 dark:text-slate-400 font-semibold mt-0.5">ChefHub Gourmet Marketplace</p>
             </div>
           </div>
           <span className="px-3 py-1 rounded-full bg-orange-500/10 text-orange-600 dark:text-orange-400 text-[11px] font-extrabold uppercase border border-orange-500/20">
@@ -214,7 +306,7 @@ export default function CustomerAuthPage({ onLogin, isModal = false }) {
               className={`py-2 rounded-lg text-xs font-extrabold transition-all capitalize cursor-pointer ${
                 mode === m
                   ? 'bg-orange-500 text-white shadow-md shadow-orange-500/25'
-                  : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
               }`}
             >
               {m === 'login' ? 'Sign In' : 'Create Account'}
@@ -239,7 +331,7 @@ export default function CustomerAuthPage({ onLogin, isModal = false }) {
           <form onSubmit={handleLogin} className="space-y-4">
             <div>
               <div className="flex items-center justify-between mb-1.5">
-                <label className="block text-xs font-extrabold text-slate-700 dark:text-slate-300">
+                <label className="block text-xs font-extrabold text-slate-800 dark:text-slate-200">
                   Email, Username, or Customer ID
                 </label>
                 {loginId && (() => {
@@ -263,17 +355,17 @@ export default function CustomerAuthPage({ onLogin, isModal = false }) {
                   required
                 />
               </div>
-              <p className="text-[11px] text-slate-400 mt-1">
+              <p className="text-[11px] text-slate-600 dark:text-slate-400 font-medium mt-1">
                 You can log in via registered <strong>Email</strong>, <strong>Username</strong>, or numeric <strong>Customer ID</strong> (e.g. #4).
               </p>
             </div>
             <div>
-              <label className="block text-xs font-extrabold text-slate-700 dark:text-slate-300 mb-1.5">Password</label>
+              <label className="block text-xs font-extrabold text-slate-800 dark:text-slate-200 mb-1.5">Password</label>
               <PasswordInput
                 id="cust-login-pwd"
                 value={loginPwd}
                 onChange={setLoginPwd}
-                placeholder="Your password"
+                placeholder="Your account password"
                 show={showLoginPwd}
                 onToggle={() => setShowLoginPwd(v => !v)}
               />
@@ -283,35 +375,42 @@ export default function CustomerAuthPage({ onLogin, isModal = false }) {
               disabled={loading}
               className="w-full py-3 rounded-xl bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white font-extrabold text-sm shadow-lg shadow-orange-500/20 transition-all disabled:opacity-60 cursor-pointer"
             >
-              {loading ? 'Signing in…' : 'Sign In to ChefHub'}
+              {loading ? 'Signing in…' : 'Sign In to Customer Marketplace'}
             </button>
-            <div className="grid grid-cols-2 gap-2 pt-1">
-              <button
-                type="button"
-                onClick={() => { setLoginId('alex.customer@gmail.com'); setLoginPwd('customer123'); }}
-                className="py-2 px-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 text-[11px] font-bold hover:bg-slate-50 dark:hover:bg-slate-800 transition cursor-pointer text-center truncate"
-                title="Autofill via Email"
-              >
-                📧 Demo Email
-              </button>
-              <button
-                type="button"
-                onClick={() => { setLoginId('#4'); setLoginPwd('customer123'); }}
-                className="py-2 px-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 text-[11px] font-bold hover:bg-slate-50 dark:hover:bg-slate-800 transition cursor-pointer text-center truncate"
-                title="Autofill via Customer ID"
-              >
-                🆔 Customer ID (#4)
-              </button>
+
+            {/* Clean Test Account Login Toolbar */}
+            <div className="pt-2 border-t border-slate-200 dark:border-slate-800">
+              <span className="block text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 text-center mb-2">
+                ⚡ Quick Demo Accounts
+              </span>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => { setLoginId('alex.customer@gmail.com'); setLoginPwd('customer123'); }}
+                  className="py-2 px-3 rounded-xl bg-slate-100 hover:bg-orange-500/10 dark:bg-slate-800 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 hover:border-orange-500/40 text-slate-700 dark:text-slate-200 text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer truncate"
+                  title="Autofill Alex via Email"
+                >
+                  <span>📧 Demo Email</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setLoginId('#4'); setLoginPwd('customer123'); }}
+                  className="py-2 px-3 rounded-xl bg-slate-100 hover:bg-orange-500/10 dark:bg-slate-800 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 hover:border-orange-500/40 text-slate-700 dark:text-slate-200 text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer truncate"
+                  title="Autofill Alex via Customer ID #4"
+                >
+                  <span>🆔 Customer ID (#4)</span>
+                </button>
+              </div>
             </div>
           </form>
         )}
 
         {mode === 'register' && (
-          <form onSubmit={handleRegister} className="space-y-3.5">
+          <form onSubmit={handleInitiateRegistration} className="space-y-3.5">
             <div>
               <div className="flex items-center justify-between mb-1.5">
-                <label className="block text-xs font-extrabold text-slate-700 dark:text-slate-300">
-                  Username / Full Name
+                <label className="block text-xs font-extrabold text-slate-800 dark:text-slate-200">
+                  Username / Full Name <span className="text-rose-500">*</span>
                 </label>
                 {regName && (
                   <span className={`text-[10px] font-bold ${usernameCheck.valid ? 'text-emerald-500' : 'text-amber-500'}`}>
@@ -331,12 +430,15 @@ export default function CustomerAuthPage({ onLogin, isModal = false }) {
                   required
                 />
               </div>
-              <p className="text-[11px] text-slate-400 mt-1">
+              <p className="text-[11px] text-slate-600 dark:text-slate-400 font-medium mt-1">
                 3-50 characters. Letters, numbers, and spaces allowed.
               </p>
             </div>
+
             <div>
-              <label className="block text-xs font-extrabold text-slate-700 dark:text-slate-300 mb-1.5">Email Address</label>
+              <label className="block text-xs font-extrabold text-slate-800 dark:text-slate-200 mb-1.5">
+                Email Address <span className="text-rose-500">*</span>
+              </label>
               <div className="relative">
                 <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                 <input
@@ -344,28 +446,60 @@ export default function CustomerAuthPage({ onLogin, isModal = false }) {
                   type="email"
                   value={regEmail}
                   onChange={e => setRegEmail(e.target.value)}
-                  placeholder="your@email.com"
+                  placeholder="your.email@domain.com"
                   className="w-full pl-10 pr-4 py-3 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-orange-400 placeholder:text-slate-400 transition"
                   required
                 />
               </div>
             </div>
+
+            {/* Mandatory Phone Number Field with Country Code Selector */}
             <div>
-              <label className="block text-xs font-extrabold text-slate-700 dark:text-slate-300 mb-1.5">Phone (optional)</label>
-              <div className="relative">
-                <Phone className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                <input
-                  id="cust-reg-phone"
-                  type="tel"
-                  value={regPhone}
-                  onChange={e => setRegPhone(e.target.value)}
-                  placeholder="+91 98765 43210"
-                  className="w-full pl-10 pr-4 py-3 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-orange-400 placeholder:text-slate-400 transition"
-                />
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="block text-xs font-extrabold text-slate-800 dark:text-slate-200">
+                  Phone Number <span className="text-rose-500">*</span>
+                </label>
+                {regPhone && (
+                  <span className={`text-[10px] font-bold ${isPhoneValid ? 'text-emerald-500' : 'text-rose-500'}`}>
+                    {isPhoneValid ? '✓ Valid Mobile Number' : '10 digits required'}
+                  </span>
+                )}
               </div>
+              <div className="flex gap-2">
+                <select
+                  value={countryCode}
+                  onChange={e => setCountryCode(e.target.value)}
+                  className="px-2.5 py-3 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white text-xs font-extrabold outline-none focus:ring-2 focus:ring-orange-400 cursor-pointer shrink-0"
+                >
+                  <option value="+91">🇮🇳 +91 (IN)</option>
+                  <option value="+1">🇺🇸 +1 (US)</option>
+                  <option value="+44">🇬🇧 +44 (UK)</option>
+                  <option value="+971">🇦🇪 +971 (UAE)</option>
+                  <option value="+65">🇸🇬 +65 (SG)</option>
+                  <option value="+61">🇦🇺 +61 (AU)</option>
+                </select>
+                <div className="relative flex-1">
+                  <Phone className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                  <input
+                    id="cust-reg-phone"
+                    type="tel"
+                    required
+                    value={regPhone}
+                    onChange={e => setRegPhone(e.target.value)}
+                    placeholder="98765 43210"
+                    className="w-full pl-10 pr-4 py-3 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-orange-400 placeholder:text-slate-400 transition"
+                  />
+                </div>
+              </div>
+              <p className="text-[11px] text-slate-600 dark:text-slate-400 font-medium mt-1">
+                Mandatory for delivery updates & SMS authentication.
+              </p>
             </div>
+
             <div>
-              <label className="block text-xs font-extrabold text-slate-700 dark:text-slate-300 mb-1.5">Password</label>
+              <label className="block text-xs font-extrabold text-slate-800 dark:text-slate-200 mb-1.5">
+                Password <span className="text-rose-500">*</span>
+              </label>
               <PasswordInput
                 id="cust-reg-pwd"
                 value={regPwd}
@@ -386,35 +520,33 @@ export default function CustomerAuthPage({ onLogin, isModal = false }) {
                         <Check className="w-3 h-3" />Accepted
                       </span>
                     ) : (
-                      <span className="text-[11px] font-bold text-rose-500">Cannot create account yet</span>
+                      <span className="text-[11px] font-bold text-rose-500">Too weak to register</span>
                     )}
                   </div>
                   <div className="grid grid-cols-2 gap-1">
                     {[['length', '8+ characters'], ['upper', 'Uppercase'], ['lower', 'Lowercase'], ['number', 'Number'], ['special', 'Special char']].map(([k, l]) => (
-                      <div key={k} className={`flex items-center gap-1 text-[11px] font-bold ${pwd.checks[k] ? 'text-emerald-500' : 'text-slate-400'}`}>
-                        {pwd.checks[k] ? <Check className="w-3 h-3" /> : <X className="w-3 h-3" />}{l}
+                      <div key={k} className={`flex items-center gap-1 text-[11px] font-bold ${pwd.checks[k] ? 'text-emerald-500' : 'text-slate-500'}`}>
+                        {pwd.checks[k] ? <Check className="w-3 h-3 text-emerald-500" /> : <X className="w-3 h-3 text-rose-400" />}{l}
                       </div>
                     ))}
                   </div>
                 </div>
               )}
             </div>
-            <div className="p-2.5 rounded-xl bg-blue-500/8 border border-blue-500/15 text-blue-500 dark:text-blue-400 text-[11px] font-semibold">
-              📍 Delivery address can be added from your Profile page after signing up.
-            </div>
+
             <button
               type="submit"
-              disabled={loading || !pwd.isAcceptable}
+              disabled={loading || !isRegisterFormValid}
               className="w-full py-3 rounded-xl bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white font-extrabold text-sm shadow-lg shadow-orange-500/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
             >
-              {loading ? 'Creating account…' : 'Create Customer Account'}
+              {loading ? 'Sending SMS OTP…' : 'Verify Phone & Create Account'}
             </button>
           </form>
         )}
 
         <div className="flex items-center gap-3">
           <div className="flex-1 h-px bg-slate-200 dark:bg-slate-700" />
-          <span className="text-xs text-slate-400 font-bold">or continue with</span>
+          <span className="text-xs text-slate-500 dark:text-slate-400 font-bold">or continue with</span>
           <div className="flex-1 h-px bg-slate-200 dark:bg-slate-700" />
         </div>
         <div className="flex gap-3">
@@ -425,50 +557,130 @@ export default function CustomerAuthPage({ onLogin, isModal = false }) {
     </div>
   );
 
-  if (isModal) {
-    return authCard;
-  }
-
   return (
-    <div className="min-h-screen flex bg-[var(--bg-main)]">
-      {/* Left hero */}
-      <div className="hidden lg:flex lg:w-[45%] relative flex-col justify-between p-12 overflow-hidden bg-gradient-to-br from-orange-600 via-amber-500 to-yellow-400">
-        <div className="absolute -top-24 -left-24 w-80 h-80 rounded-full bg-white/10 blur-3xl pointer-events-none" />
-        <div className="absolute bottom-0 right-0 w-[480px] h-[480px] rounded-full bg-orange-900/25 blur-3xl pointer-events-none" />
-        <div className="relative z-10">
-          <div className="flex items-center gap-3 mb-14">
-            <span className="text-4xl">🍽️</span>
-            <div>
-              <h1 className="text-white font-black text-3xl leading-none">ChefHub</h1>
-              <p className="text-white/70 text-sm font-semibold mt-0.5">Customer Marketplace</p>
+    <>
+      {isModal ? (
+        authCard
+      ) : (
+        <div className="min-h-[calc(100vh-64px)] flex flex-col lg:flex-row bg-[var(--bg-main)]">
+          {/* Left hero: Exactly 50% split */}
+          <div className="hidden lg:flex lg:w-1/2 relative flex-col justify-between p-12 lg:p-16 overflow-hidden bg-gradient-to-br from-orange-600 via-amber-500 to-yellow-400">
+            <div className="absolute -top-24 -left-24 w-80 h-80 rounded-full bg-white/10 blur-3xl pointer-events-none" />
+            <div className="absolute bottom-0 right-0 w-[480px] h-[480px] rounded-full bg-orange-900/25 blur-3xl pointer-events-none" />
+            <div className="relative z-10">
+              <div className="flex items-center gap-3 mb-14">
+                <span className="text-4xl">🍽️</span>
+                <div>
+                  <h1 className="text-white font-black text-3xl leading-none">ChefHub</h1>
+                  <p className="text-white/80 text-sm font-semibold mt-0.5">Customer Marketplace</p>
+                </div>
+              </div>
+              <h2 className="font-display text-5xl text-white leading-tight mb-5">
+                Home-Cooked<br /><em>Perfection</em>,<br />Delivered.
+              </h2>
+              <p className="text-white/90 text-base leading-relaxed max-w-md">
+                Discover independent cloud kitchens, order artisanal meals from verified home chefs, and track your food in real time.
+              </p>
+            </div>
+            <div className="relative z-10 space-y-3.5">
+              {[['🏠', 'Verified Cloud Kitchens'], ['⭐', 'Authentic Local Chefs'], ['🗺️', 'Live Courier Telemetry'], ['🎟️', '100% Escrow Protection']].map(([icon, text]) => (
+                <div key={text} className="flex items-center gap-3 text-white font-bold text-sm">
+                  <span className="text-xl">{icon}</span>
+                  <span>{text}</span>
+                </div>
+              ))}
             </div>
           </div>
-          <h2 className="font-display text-5xl text-white leading-tight mb-5">
-            Home-Cooked<br /><em>Perfection</em>,<br />Delivered.
-          </h2>
-          <p className="text-white/80 text-base leading-relaxed max-w-sm">
-            Discover local ghost kitchens, order from verified independent chefs, and track your meal in real time.
-          </p>
-        </div>
-        <div className="relative z-10 space-y-3">
-          {[['🏠', 'Ghost Kitchen Delivery'], ['⭐', 'Top-Rated Chefs'], ['🗺️', 'Live GPS Tracking'], ['🎟️', 'Coupon Codes']].map(([icon, text]) => (
-            <div key={text} className="flex items-center gap-3 text-white/90">
-              <span className="text-xl">{icon}</span>
-              <span className="font-bold text-sm">{text}</span>
-            </div>
-          ))}
-        </div>
-      </div>
 
-      {/* Right auth panel */}
-      <div className="flex-1 flex flex-col items-center justify-center p-6 sm:p-10">
-        <div className="w-full max-w-md mb-5">
-          <button onClick={() => navigate('/')} className="flex items-center gap-1.5 text-slate-500 hover:text-orange-500 text-sm font-bold transition-colors cursor-pointer">
-            <ArrowLeft className="w-4 h-4" /> Customer Marketplace
-          </button>
+          {/* Right auth panel: Exactly 50% split with centered content */}
+          <div className="w-full lg:w-1/2 flex flex-col items-center justify-center p-6 sm:p-12 lg:p-16 my-auto">
+            <div className="w-full max-w-md mb-4 flex items-center justify-between">
+              <button 
+                onClick={() => navigate('/')} 
+                className="flex items-center gap-1.5 text-slate-600 dark:text-slate-400 hover:text-orange-500 text-xs font-bold transition-colors cursor-pointer"
+              >
+                <ArrowLeft className="w-4 h-4" /> Return to Marketplace
+              </button>
+              <span className="text-[11px] text-slate-500 font-bold">Bangalore Hub</span>
+            </div>
+            {authCard}
+          </div>
         </div>
-        {authCard}
-      </div>
-    </div>
+      )}
+
+      {/* Phone OTP Verification Modal */}
+      {phoneOtpModal.isOpen && (
+        <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in">
+          <div className="glass-card rounded-3xl p-6 sm:p-7 border border-orange-500/30 bg-white dark:bg-slate-900 text-slate-900 dark:text-white max-w-md w-full space-y-4 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
+              <div className="flex items-center gap-2">
+                <div className="w-9 h-9 rounded-xl bg-orange-500/10 text-orange-500 flex items-center justify-center font-bold">
+                  📱
+                </div>
+                <div>
+                  <h3 className="font-black text-sm">Verify Phone Number</h3>
+                  <p className="text-[10px] text-slate-500">{phoneOtpModal.phone}</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setPhoneOtpModal(prev => ({ ...prev, isOpen: false }))}
+                className="text-slate-400 hover:text-slate-200"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
+              We've dispatched a 6-digit SMS verification code to your mobile device. Enter it below to activate your ChefHub account.
+            </p>
+
+            {phoneOtpModal.devOtp && (
+              <div className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-between text-xs">
+                <span className="text-amber-700 dark:text-amber-300 font-bold">⚡ Demo OTP Code:</span>
+                <span className="font-mono font-black text-amber-600 dark:text-amber-400 tracking-widest">{phoneOtpModal.devOtp}</span>
+              </div>
+            )}
+
+            {phoneOtpModal.error && (
+              <div className="p-2.5 rounded-xl bg-rose-500/10 border border-rose-500/25 text-rose-500 text-xs font-bold">
+                {phoneOtpModal.error}
+              </div>
+            )}
+
+            <form onSubmit={handleVerifyOtpAndCreateAccount} className="space-y-4">
+              <div>
+                <label className="text-[11px] font-bold text-slate-500 block mb-1">Enter 6-Digit SMS OTP</label>
+                <input
+                  type="text"
+                  maxLength={6}
+                  required
+                  value={phoneOtpModal.otpInput}
+                  onChange={e => setPhoneOtpModal(prev => ({ ...prev, otpInput: e.target.value.replace(/\D/g, '') }))}
+                  placeholder="123456"
+                  className="w-full px-4 py-3 text-center rounded-xl bg-slate-100 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 text-base font-mono font-black tracking-widest outline-none focus:border-orange-500"
+                />
+              </div>
+
+              <div className="flex gap-2">
+                <button
+                  type="submit"
+                  disabled={phoneOtpModal.loading || phoneOtpModal.otpInput.length < 6}
+                  className="flex-1 py-3 rounded-xl bg-orange-500 hover:bg-orange-600 text-white font-extrabold text-xs shadow-md transition cursor-pointer disabled:opacity-50"
+                >
+                  {phoneOtpModal.loading ? 'Verifying OTP…' : 'Confirm & Complete Registration'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPhoneOtpModal(prev => ({ ...prev, isOpen: false }))}
+                  className="px-4 py-3 rounded-xl bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold text-xs cursor-pointer"
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </>
   );
 }

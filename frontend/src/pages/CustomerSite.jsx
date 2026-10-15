@@ -41,28 +41,32 @@ const getDishImage = (dish) => {
 const CHEF_AVATARS = {
   'chef.mario@chefhub.com': {
     name: 'Chef Mario Rossi',
-    title: 'Michelin Artisan • Italian',
+    title: 'Michelin Artisan • Italian Pasta',
+    specialtyTag: 'Truffle & Pasta',
     avatar: 'https://images.unsplash.com/photo-1577219491135-ce391730fb2c?auto=format&fit=crop&w=240&q=80',
     locality: 'Indiranagar 100ft Rd',
     coords: { lat: 12.9784, lng: 77.6408 }
   },
   'chef.priya@chefhub.com': {
     name: 'Chef Priya Sharma',
-    title: 'Royal Mughal & Lucknowi',
+    title: 'Royal Mughal & Lucknowi Biryani',
+    specialtyTag: 'Mughlai & Biryani',
     avatar: 'https://images.unsplash.com/photo-1581299894007-aaa50297cf16?auto=format&fit=crop&w=240&q=80',
     locality: 'Koramangala 5th Block',
     coords: { lat: 12.9352, lng: 77.6245 }
   },
   'chef.kenji@chefhub.com': {
     name: 'Chef Kenji Sato',
-    title: 'Tokyo Ramen Master',
+    title: 'Tokyo Tonkotsu Ramen Master',
+    specialtyTag: 'Japanese Ramen',
     avatar: 'https://images.unsplash.com/photo-1583394293214-28ded15ee548?auto=format&fit=crop&w=240&q=80',
     locality: 'MG Road, Church Street',
     coords: { lat: 12.9756, lng: 77.6066 }
   },
   'chef.ramu@chefhub.com': {
     name: 'Chef Ramu Pillai',
-    title: 'Chettinad Heritage Master',
+    title: 'Chettinad Heritage Master • Dosa',
+    specialtyTag: 'Chettinad & Dosa',
     avatar: 'https://images.unsplash.com/photo-1566554273541-37a9ca77b91f?auto=format&fit=crop&w=240&q=80',
     locality: 'HSR Layout Sector 1',
     coords: { lat: 12.9121, lng: 77.6446 }
@@ -107,6 +111,181 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
   const [cancelModalOrder, setCancelModalOrder] = useState(null);
   const [isCancellingOrder, setIsCancellingOrder] = useState(false);
   const [cancellingOrderIds, setCancellingOrderIds] = useState(new Set());
+
+  // Weak Password Reminder (Assessment + Flag)
+  const [showWeakPasswordReminder, setShowWeakPasswordReminder] = useState(() => {
+    return sessionStorage.getItem('chefhub_weak_password_warning') === 'true' &&
+      !sessionStorage.getItem('chefhub_weak_password_dismissed');
+  });
+
+  // Profile Settings: Security & Credentials Modal
+  const [showSecurityModal, setShowSecurityModal] = useState(false);
+  const [securityActiveTab, setSecurityActiveTab] = useState('PASSWORD'); // 'PASSWORD' | 'EMAIL'
+
+  // Change Password Form State
+  const [pwdForm, setPwdForm] = useState({
+    currentPassword: '',
+    newPassword: '',
+    confirmPassword: '',
+    loading: false,
+    error: '',
+    success: ''
+  });
+
+  // Change Email (MFA) Form State
+  const [emailMfaForm, setEmailMfaForm] = useState({
+    step: 1, // 1: Request OTP, 2: Enter OTP & New Email
+    method: 'PHONE',
+    targetMasked: '',
+    otpInput: '',
+    devOtp: '',
+    newEmailInput: '',
+    loading: false,
+    error: '',
+    success: ''
+  });
+
+  useEffect(() => {
+    const handleOpenSec = () => {
+      setShowSecurityModal(true);
+    };
+    window.addEventListener('chefhub:open-security', handleOpenSec);
+    return () => window.removeEventListener('chefhub:open-security', handleOpenSec);
+  }, []);
+
+  const evalChangePwd = (pwd) => {
+    const checks = {
+      length: pwd.length >= 8,
+      upper: /[A-Z]/.test(pwd),
+      lower: /[a-z]/.test(pwd),
+      number: /[0-9]/.test(pwd),
+      special: /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>/?]/.test(pwd)
+    };
+    const score = Object.values(checks).filter(Boolean).length;
+    return { checks, score, isAcceptable: score >= 4 && checks.length };
+  };
+
+  const handleChangePasswordSubmit = async (e) => {
+    e.preventDefault();
+    setPwdForm(prev => ({ ...prev, error: '', success: '', loading: true }));
+    if (!pwdForm.currentPassword || !pwdForm.newPassword) {
+      setPwdForm(prev => ({ ...prev, loading: false, error: 'Current password and new password are required.' }));
+      return;
+    }
+    if (pwdForm.newPassword !== pwdForm.confirmPassword) {
+      setPwdForm(prev => ({ ...prev, loading: false, error: 'New password and confirm password do not match.' }));
+      return;
+    }
+    const check = evalChangePwd(pwdForm.newPassword);
+    if (!check.isAcceptable) {
+      setPwdForm(prev => ({ ...prev, loading: false, error: 'New password must have at least 8 characters, numbers, and special symbols.' }));
+      return;
+    }
+
+    try {
+      const token = localStorage.getItem('chefhub_token');
+      const res = await fetch('/api/auth/profile/change-password', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          current_password: pwdForm.currentPassword,
+          new_password: pwdForm.newPassword,
+          confirm_new_password: pwdForm.confirmPassword
+        })
+      });
+      const data = await res.json();
+      if (data.success) {
+        setPwdForm({
+          currentPassword: '',
+          newPassword: '',
+          confirmPassword: '',
+          loading: false,
+          error: '',
+          success: '🎉 Password changed successfully! Your account security is updated.'
+        });
+        sessionStorage.removeItem('chefhub_weak_password_warning');
+        setShowWeakPasswordReminder(false);
+      } else {
+        setPwdForm(prev => ({ ...prev, loading: false, error: data.message || 'Failed to update password.' }));
+      }
+    } catch {
+      setPwdForm(prev => ({ ...prev, loading: false, error: 'Network error updating password.' }));
+    }
+  };
+
+  const handleRequestEmailChangeOtp = async () => {
+    setEmailMfaForm(prev => ({ ...prev, loading: true, error: '', success: '' }));
+    try {
+      const token = localStorage.getItem('chefhub_token');
+      const res = await fetch('/api/auth/profile/request-email-otp', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (data.success) {
+        setEmailMfaForm(prev => ({
+          ...prev,
+          loading: false,
+          step: 2,
+          method: data.method,
+          targetMasked: data.target_masked,
+          devOtp: data.dev_otp || '123456',
+          error: ''
+        }));
+      } else {
+        setEmailMfaForm(prev => ({ ...prev, loading: false, error: data.message || 'Failed to dispatch verification OTP.' }));
+      }
+    } catch {
+      setEmailMfaForm(prev => ({ ...prev, loading: false, error: 'Network error dispatching OTP.' }));
+    }
+  };
+
+  const handleVerifyEmailOtpAndUpdate = async (e) => {
+    e.preventDefault();
+    if (!emailMfaForm.otpInput || !emailMfaForm.newEmailInput) {
+      setEmailMfaForm(prev => ({ ...prev, error: 'OTP code and new email address are required.' }));
+      return;
+    }
+    setEmailMfaForm(prev => ({ ...prev, loading: true, error: '', success: '' }));
+
+    try {
+      const token = localStorage.getItem('chefhub_token');
+      const res = await fetch('/api/auth/profile/verify-email-otp-and-update', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          otp: emailMfaForm.otpInput,
+          new_email: emailMfaForm.newEmailInput
+        })
+      });
+      const data = await res.json();
+      if (data.success) {
+        if (user) {
+          const updatedUser = { ...user, email: data.new_email };
+          localStorage.setItem('chefhub_user', JSON.stringify(updatedUser));
+        }
+        setEmailMfaForm(prev => ({
+          ...prev,
+          loading: false,
+          success: `🎉 Email successfully changed to ${data.new_email}!`,
+          error: ''
+        }));
+        setTimeout(() => {
+          setShowSecurityModal(false);
+        }, 1500);
+      } else {
+        setEmailMfaForm(prev => ({ ...prev, loading: false, error: data.message || 'Failed to verify OTP or update email.' }));
+      }
+    } catch {
+      setEmailMfaForm(prev => ({ ...prev, loading: false, error: 'Network error updating email address.' }));
+    }
+  };
   
   // Default Customer Addresses (clean empty for guests)
   const DEFAULT_SAVED_ADDRESSES = [];
@@ -1608,18 +1787,63 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
   return (
     <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-6 space-y-6">
       
-      {/* Top Banner Promo Bar */}
-      <div className="p-3 rounded-2xl bg-gradient-to-r from-emerald-500/15 via-teal-500/20 to-emerald-500/15 border border-emerald-500/30 text-emerald-300 text-xs font-bold flex flex-wrap items-center justify-between gap-3 shadow-lg">
+      {/* Top Banner Promo Bar with High-Contrast WCAG Compliant Palette */}
+      <div className="p-3.5 rounded-2xl bg-gradient-to-r from-emerald-800 via-teal-800 to-emerald-900 text-white border border-emerald-600/50 text-xs font-bold flex flex-wrap items-center justify-between gap-3 shadow-lg">
         <div className="flex items-center gap-2">
-          <Sparkles className="w-4 h-4 text-emerald-400 animate-spin" />
-          <span><strong>Zero Platform Surcharge:</strong> Direct local kitchens payout (85% Chef • 10% Rider • 5% Platform Escrow)</span>
+          <Sparkles className="w-4 h-4 text-emerald-300 animate-spin" />
+          <span><strong className="text-emerald-200">Zero Platform Surcharge:</strong> Direct local kitchens payout (85% Chef • 10% Rider • 5% Platform Escrow)</span>
         </div>
         <div className="flex items-center gap-2">
-          <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-white text-[10px] font-black uppercase tracking-wider">
+          <span className="px-2.5 py-0.5 rounded-full bg-emerald-600/40 text-white text-[10px] font-black uppercase tracking-wider border border-emerald-400/30">
             20km Radius Guaranteed
           </span>
         </div>
       </div>
+
+      {/* Weak Password Reminder Banner (Assessment + Flag) */}
+      {showWeakPasswordReminder && (
+        <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-amber-500/15 via-orange-500/20 to-amber-500/15 border border-amber-500/40 flex flex-wrap items-center justify-between gap-4 shadow-lg animate-in fade-in">
+          <div className="flex items-center gap-3.5">
+            <div className="w-11 h-11 rounded-2xl bg-amber-500/20 text-amber-500 border border-amber-500/30 flex items-center justify-center text-xl shrink-0 shadow-md">
+              🛡️
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h4 className="text-sm font-black text-slate-900 dark:text-white">
+                  Account Security Recommendation
+                </h4>
+                <span className="px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-700 dark:text-amber-400 text-[10px] font-black uppercase">
+                  Action Recommended
+                </span>
+              </div>
+              <p className="text-xs text-slate-700 dark:text-slate-300 mt-0.5">
+                Your account security could be improved. Please take a moment to update to a stronger password.
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2.5 shrink-0">
+            <button
+              onClick={() => {
+                setShowSecurityModal(true);
+                setSecurityActiveTab('PASSWORD');
+              }}
+              className="px-4 py-2.5 rounded-xl bg-orange-500 hover:bg-orange-600 text-white font-extrabold text-xs shadow-md transition-all cursor-pointer flex items-center gap-1.5"
+            >
+              <span>Update Now</span>
+              <span>➔</span>
+            </button>
+            <button
+              onClick={() => {
+                setShowWeakPasswordReminder(false);
+                sessionStorage.setItem('chefhub_weak_password_dismissed', 'true');
+              }}
+              className="px-4 py-2.5 rounded-xl bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-300 dark:hover:bg-slate-700 font-bold text-xs transition cursor-pointer"
+            >
+              Later
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Guest Mode or Non-Customer Role Switcher Notice */}
       {!user ? (
@@ -1913,17 +2137,24 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
               )}
             </div>
 
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 sm:gap-6 w-full">
               {vendors.map((v) => {
                 const isSelected = selectedChefFilter === v.vendor_id;
                 const chefMeta = CHEF_AVATARS[v.email?.toLowerCase()] || {
                   avatar: 'https://images.unsplash.com/photo-1577219491135-ce391730fb2c?auto=format&fit=crop&w=240&q=80',
-                  locality: v.primary_address || 'Artisanal Kitchen'
+                  locality: v.primary_address || 'Artisanal Kitchen',
+                  title: 'Artisanal Cloud Kitchen',
+                  specialtyTag: 'Daily Specialties'
                 };
                 const chefAvatar = v.avatar_url || chefMeta.avatar;
                 const chefLocality = v.primary_address || chefMeta.locality;
                 const isClosed = v.is_currently_open === false || v.menu?.is_currently_open === false;
                 const isOutOfRadius = enforceRadius && v.is_within_20km === false;
+
+                // Format chef name with specialty tag to guarantee 100% layout consistency across cards
+                const formattedChefName = v.business_name.includes('(')
+                  ? v.business_name
+                  : `${v.business_name} (${chefMeta.specialtyTag || 'Daily Specialties'})`;
 
                 return (
                   <button
@@ -1932,42 +2163,51 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
                       setSelectedChefFilter(v.vendor_id);
                       setSelectedVendor(v);
                     }}
-                    className={`p-3.5 rounded-2xl border text-left transition-all duration-300 flex flex-col justify-between space-y-3 backdrop-blur-xl hover:-translate-y-1 cursor-pointer ${
+                    className={`p-4 rounded-2xl border text-left transition-all duration-300 flex flex-col justify-between h-full backdrop-blur-xl hover:-translate-y-1 cursor-pointer ${
                       isSelected
                         ? 'border-orange-500 bg-orange-500/10 text-slate-900 dark:text-white shadow-xl shadow-orange-500/20 ring-2 ring-orange-500/40'
                         : isOutOfRadius
                         ? 'border-rose-500/30 bg-rose-500/5 opacity-60'
-                        : 'border-slate-200/90 dark:border-white/10 bg-white/70 dark:bg-slate-900/70 text-slate-700 dark:text-slate-400 hover:border-orange-400/60'
+                        : 'border-slate-200/90 dark:border-white/10 bg-white/80 dark:bg-slate-900/80 text-slate-700 dark:text-slate-300 hover:border-orange-400/60 shadow-sm'
                     }`}
                   >
-                    <div className="flex items-center gap-3">
-                      <div className="relative w-12 h-12 rounded-2xl overflow-hidden shrink-0 shadow-md">
-                        <img
-                          src={chefAvatar}
-                          alt={v.business_name}
-                          className="w-full h-full object-cover"
-                        />
-                        {isClosed && (
-                          <div className="absolute inset-0 bg-slate-950/70 flex items-center justify-center">
-                            <Ban className="w-4 h-4 text-rose-400" />
-                          </div>
-                        )}
-                      </div>
-                      <div className="overflow-hidden">
-                        <h4 className="text-xs sm:text-sm font-extrabold text-slate-900 dark:text-white truncate">{v.business_name}</h4>
-                        <p className="text-[11px] text-slate-500 truncate">{chefLocality}</p>
+                    <div className="space-y-3 w-full">
+                      <div className="flex items-center gap-3">
+                        <div className="relative w-12 h-12 rounded-2xl overflow-hidden shrink-0 shadow-md">
+                          <img
+                            src={chefAvatar}
+                            alt={v.business_name}
+                            className="w-full h-full object-cover"
+                          />
+                          {isClosed && (
+                            <div className="absolute inset-0 bg-slate-950/70 flex items-center justify-center">
+                              <Ban className="w-4 h-4 text-rose-400" />
+                            </div>
+                          )}
+                        </div>
+                        <div className="overflow-hidden min-w-0 flex-1">
+                          <h4 className="text-xs sm:text-sm font-black text-slate-900 dark:text-white truncate">
+                            {formattedChefName}
+                          </h4>
+                          <p className="text-[11px] font-bold text-orange-600 dark:text-orange-400 truncate mt-0.5">
+                            {chefMeta.title || 'Artisanal Home Kitchen'}
+                          </p>
+                          <p className="text-[10px] text-slate-600 dark:text-slate-400 truncate mt-0.5 font-medium">
+                            📍 {chefLocality}
+                          </p>
+                        </div>
                       </div>
                     </div>
 
-                    <div className="flex items-center justify-between text-[11px] pt-2 border-t border-slate-200 dark:border-slate-800 font-semibold gap-1">
+                    <div className="flex items-center justify-between text-[11px] pt-3 mt-3 border-t border-slate-200 dark:border-slate-800 font-semibold gap-1 w-full">
                       {v.is_new_arrival ? (
-                        <span className="text-emerald-600 dark:text-emerald-400 font-black flex items-center gap-1 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/25 text-[10px]">
+                        <span className="text-emerald-700 dark:text-emerald-400 font-black flex items-center gap-1 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/25 text-[10px]">
                           <Sparkles className="w-3 h-3 text-emerald-500 shrink-0" />
                           <span>New Arrival</span>
                         </span>
                       ) : (
                         <span className="text-amber-500 flex items-center gap-0.5 font-black">
-                          <Star className="w-3 h-3 fill-amber-500 text-amber-500" /> {v.rating} <span className="text-[10px] text-slate-400 font-normal">({v.review_count})</span>
+                          <Star className="w-3 h-3 fill-amber-500 text-amber-500" /> {v.rating} <span className="text-[10px] text-slate-500 dark:text-slate-400 font-normal">({v.review_count})</span>
                         </span>
                       )}
                       <span className={`font-extrabold shrink-0 ${
@@ -1975,7 +2215,7 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
                           ? 'text-rose-500'
                           : isClosed
                           ? 'text-slate-400'
-                          : 'text-emerald-500'
+                          : 'text-emerald-600 dark:text-emerald-400'
                       }`}>
                         {isOutOfRadius ? `${v.distance_km} km (>20km)` : `${v.distance_km || 2.4} km • ${v.estimated_delivery_mins || 25}m`}
                       </span>
@@ -4539,6 +4779,249 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
                 }}
               />
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Account Settings: Security & Credentials Modal (Change Password & Change Email MFA) */}
+      {showSecurityModal && (
+        <div className="fixed inset-0 z-[88] bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto animate-in fade-in">
+          <div className="glass-card bg-white dark:bg-slate-900 rounded-3xl p-6 sm:p-7 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white max-w-md w-full space-y-4 shadow-2xl">
+            {/* Header */}
+            <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-10 h-10 rounded-2xl bg-orange-500/10 text-orange-500 flex items-center justify-center font-bold text-lg">
+                  🔑
+                </div>
+                <div>
+                  <h3 className="font-black text-sm sm:text-base">Security & Credentials</h3>
+                  <p className="text-[11px] text-slate-500">Manage account password & email authentication</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowSecurityModal(false)}
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-white p-1 cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Tab Switcher */}
+            <div className="grid grid-cols-2 gap-1 p-1 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+              <button
+                onClick={() => {
+                  setSecurityActiveTab('PASSWORD');
+                  setPwdForm(prev => ({ ...prev, error: '', success: '' }));
+                }}
+                className={`py-2 rounded-lg text-xs font-extrabold transition-all cursor-pointer ${
+                  securityActiveTab === 'PASSWORD'
+                    ? 'bg-orange-500 text-white shadow-md'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                }`}
+              >
+                🔒 Change Password
+              </button>
+              <button
+                onClick={() => {
+                  setSecurityActiveTab('EMAIL');
+                  setEmailMfaForm(prev => ({ ...prev, error: '', success: '', step: 1 }));
+                }}
+                className={`py-2 rounded-lg text-xs font-extrabold transition-all cursor-pointer ${
+                  securityActiveTab === 'EMAIL'
+                    ? 'bg-orange-500 text-white shadow-md'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                }`}
+              >
+                📧 Change Email (MFA)
+              </button>
+            </div>
+
+            {/* TAB 1: Change Password */}
+            {securityActiveTab === 'PASSWORD' && (
+              <form onSubmit={handleChangePasswordSubmit} className="space-y-3.5">
+                {pwdForm.error && (
+                  <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/25 text-rose-500 text-xs font-bold">
+                    {pwdForm.error}
+                  </div>
+                )}
+                {pwdForm.success && (
+                  <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/25 text-emerald-500 text-xs font-bold">
+                    {pwdForm.success}
+                  </div>
+                )}
+
+                <div>
+                  <label className="text-xs font-extrabold text-slate-700 dark:text-slate-300 block mb-1">
+                    Current Password <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    type="password"
+                    required
+                    value={pwdForm.currentPassword}
+                    onChange={e => setPwdForm(prev => ({ ...prev, currentPassword: e.target.value }))}
+                    placeholder="Enter existing password"
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-xs outline-none focus:border-orange-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-xs font-extrabold text-slate-700 dark:text-slate-300 block mb-1">
+                    New Password <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    type="password"
+                    required
+                    value={pwdForm.newPassword}
+                    onChange={e => setPwdForm(prev => ({ ...prev, newPassword: e.target.value }))}
+                    placeholder="At least 8 chars with symbols & numbers"
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-xs outline-none focus:border-orange-500"
+                  />
+                  {pwdForm.newPassword && (() => {
+                    const check = evalChangePwd(pwdForm.newPassword);
+                    return (
+                      <div className="mt-2 space-y-1.5">
+                        <div className="w-full h-1.5 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
+                          <div
+                            className={`h-full transition-all duration-300 ${check.score >= 4 ? 'bg-emerald-500' : check.score >= 2 ? 'bg-amber-500' : 'bg-rose-500'}`}
+                            style={{ width: `${(check.score / 5) * 100}%` }}
+                          />
+                        </div>
+                        <div className="flex items-center justify-between text-[10px]">
+                          <span className={check.score >= 4 ? 'text-emerald-500 font-bold' : 'text-slate-500'}>
+                            {check.score >= 4 ? '✓ Strong Password' : 'Requires numbers, letters & symbols'}
+                          </span>
+                          <span className="text-slate-400 font-mono">{check.score}/5 checks</span>
+                        </div>
+                      </div>
+                    );
+                  })()}
+                </div>
+
+                <div>
+                  <label className="text-xs font-extrabold text-slate-700 dark:text-slate-300 block mb-1">
+                    Confirm New Password <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    type="password"
+                    required
+                    value={pwdForm.confirmPassword}
+                    onChange={e => setPwdForm(prev => ({ ...prev, confirmPassword: e.target.value }))}
+                    placeholder="Re-type new password"
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-xs outline-none focus:border-orange-500"
+                  />
+                </div>
+
+                <div className="pt-2">
+                  <button
+                    type="submit"
+                    disabled={pwdForm.loading}
+                    className="w-full py-3 rounded-xl bg-orange-500 hover:bg-orange-600 text-white font-extrabold text-xs shadow-md transition cursor-pointer disabled:opacity-50"
+                  >
+                    {pwdForm.loading ? 'Updating Password…' : 'Save New Password'}
+                  </button>
+                </div>
+              </form>
+            )}
+
+            {/* TAB 2: Change Email (Multi-Factor Verification Flow) */}
+            {securityActiveTab === 'EMAIL' && (
+              <div className="space-y-3.5">
+                {emailMfaForm.error && (
+                  <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/25 text-rose-500 text-xs font-bold">
+                    {emailMfaForm.error}
+                  </div>
+                )}
+                {emailMfaForm.success && (
+                  <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/25 text-emerald-500 text-xs font-bold">
+                    {emailMfaForm.success}
+                  </div>
+                )}
+
+                <div className="p-3 rounded-xl bg-slate-100 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 space-y-1">
+                  <span className="text-[10px] uppercase font-black tracking-wider text-slate-500 block">Current Registered Email</span>
+                  <p className="text-xs font-black text-slate-900 dark:text-white">{user?.email || 'N/A'}</p>
+                </div>
+
+                {emailMfaForm.step === 1 ? (
+                  <div className="space-y-3">
+                    <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
+                      To safeguard your account identity, updating your primary email address requires multi-factor identity verification.
+                    </p>
+                    <div className="p-3 rounded-xl bg-blue-500/10 border border-blue-500/25 text-blue-600 dark:text-blue-400 text-xs">
+                      <span className="font-bold block">🛡️ Multi-Factor Protocol:</span>
+                      <span>Primary: SMS OTP to your registered phone ({user?.phone || 'Linked Mobile'}). Fallback: Email verification code.</span>
+                    </div>
+                    <button
+                      type="button"
+                      disabled={emailMfaForm.loading}
+                      onClick={handleRequestEmailChangeOtp}
+                      className="w-full py-3 rounded-xl bg-orange-500 hover:bg-orange-600 text-white font-extrabold text-xs shadow-md transition cursor-pointer disabled:opacity-50"
+                    >
+                      {emailMfaForm.loading ? 'Sending Verification Code…' : 'Send Verification OTP'}
+                    </button>
+                  </div>
+                ) : (
+                  <form onSubmit={handleVerifyEmailOtpAndUpdate} className="space-y-3">
+                    <div className="p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-xs font-bold">
+                      ✓ Verification code sent to {emailMfaForm.targetMasked}
+                    </div>
+
+                    {emailMfaForm.devOtp && (
+                      <div className="p-2 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-700 dark:text-amber-300 text-xs flex justify-between items-center font-mono">
+                        <span>⚡ Demo Code:</span>
+                        <span className="font-black text-sm tracking-widest">{emailMfaForm.devOtp}</span>
+                      </div>
+                    )}
+
+                    <div>
+                      <label className="text-xs font-extrabold text-slate-700 dark:text-slate-300 block mb-1">
+                        Enter 6-Digit Verification Code <span className="text-rose-500">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        maxLength={6}
+                        required
+                        value={emailMfaForm.otpInput}
+                        onChange={e => setEmailMfaForm(prev => ({ ...prev, otpInput: e.target.value.replace(/\D/g, '') }))}
+                        placeholder="123456"
+                        className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-xs font-mono font-bold tracking-widest outline-none focus:border-orange-500"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="text-xs font-extrabold text-slate-700 dark:text-slate-300 block mb-1">
+                        New Email Address <span className="text-rose-500">*</span>
+                      </label>
+                      <input
+                        type="email"
+                        required
+                        value={emailMfaForm.newEmailInput}
+                        onChange={e => setEmailMfaForm(prev => ({ ...prev, newEmailInput: e.target.value }))}
+                        placeholder="new.email@domain.com"
+                        className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-xs outline-none focus:border-orange-500"
+                      />
+                    </div>
+
+                    <div className="flex gap-2 pt-1">
+                      <button
+                        type="submit"
+                        disabled={emailMfaForm.loading || !emailMfaForm.otpInput || !emailMfaForm.newEmailInput}
+                        className="flex-1 py-3 rounded-xl bg-orange-500 hover:bg-orange-600 text-white font-extrabold text-xs shadow-md transition cursor-pointer disabled:opacity-50"
+                      >
+                        {emailMfaForm.loading ? 'Updating Email…' : 'Verify OTP & Save New Email'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setEmailMfaForm(prev => ({ ...prev, step: 1 }))}
+                        className="px-4 py-3 rounded-xl bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold text-xs cursor-pointer"
+                      >
+                        Back
+                      </button>
+                    </div>
+                  </form>
+                )}
+              </div>
+            )}
           </div>
         </div>
       )}

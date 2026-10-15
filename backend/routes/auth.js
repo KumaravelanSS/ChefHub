@@ -134,8 +134,15 @@ router.post('/login', async (req, res) => {
 
     const token = jwt.sign(tokenPayload, JWT_SECRET, { expiresIn: '24h' });
 
+    // Assessment for weak password reminder (Assessment + Flag)
+    const pwdStrength = validatePasswordStrength(password);
+    const commonWeakPatterns = ['customer123', 'vendor123', 'rider123', 'admin123', '123456', 'password', 'chefhub123'];
+    const isWeakPassword = !pwdStrength.valid || pwdStrength.score < 4 || commonWeakPatterns.includes(password.toLowerCase());
+
     return res.json({
       success: true,
+      loginSuccess: true,
+      weakPasswordWarning: isWeakPassword,
       message: `Successfully logged in as ${user.role} (Customer ID #${user.user_id})`,
       token,
       user: {
@@ -175,9 +182,18 @@ router.post('/register', async (req, res) => {
       });
     }
 
+    // 2. Mandatory Phone Number Validation & Unique Constraint
+    if (!phone || typeof phone !== 'string' || phone.trim().replace(/\D/g, '').length < 10) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'A valid, full-length mobile phone number (at least 10 digits) is mandatory for registration.' 
+      });
+    }
+    const cleanPhone = phone.trim();
+
     const targetRole = ['CUSTOMER', 'VENDOR', 'RIDER'].includes(role) ? role : 'CUSTOMER';
 
-    // 2. Strict Password Security Check
+    // 3. Strict Password Security Check
     const pwdCheck = validatePasswordStrength(password);
     if (!pwdCheck.valid) {
       return res.status(400).json({
@@ -187,9 +203,17 @@ router.post('/register', async (req, res) => {
       });
     }
 
-    // 3. Check existing email or username
-    const existing = await query('SELECT user_id FROM users WHERE LOWER(email) = LOWER(?) OR LOWER(name) = LOWER(?)', [email.trim(), name.trim()]);
-    if (existing.length > 0) {
+    // 4. Check existing email, username, or phone number
+    const existing = await query(`
+      SELECT user_id, email, name, phone FROM users 
+      WHERE LOWER(email) = LOWER(?) OR LOWER(name) = LOWER(?) OR phone = ?
+    `, [email.trim(), name.trim(), cleanPhone]);
+
+    if (existing && existing.length > 0) {
+      const match = existing[0];
+      if (match.phone === cleanPhone) {
+        return res.status(400).json({ success: false, message: 'This phone number is already registered to an account.' });
+      }
       return res.status(400).json({ success: false, message: 'An account with this email or username already exists.' });
     }
 
@@ -201,7 +225,7 @@ router.post('/register', async (req, res) => {
     const result = await query(`
       INSERT INTO users (name, email, password_hash, plain_password, role, phone, primary_address, latitude, longitude, status)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'ACTIVE')
-    `, [name.trim(), email.trim(), hashed, password, targetRole, phone || null, defaultAddress, defaultLat, defaultLng]);
+    `, [name.trim(), email.trim(), hashed, password, targetRole, cleanPhone, defaultAddress, defaultLat, defaultLng]);
 
     const newUserId = result.insertId;
 
@@ -319,6 +343,233 @@ router.put('/admin/update-credentials', authenticateToken, requireRole('ADMIN'),
   } catch (err) {
     console.error('Update admin credentials error:', err);
     return res.status(500).json({ success: false, message: 'Failed to update admin credentials.' });
+  }
+});
+
+// In-Memory Secure OTP Store for Phone & Email Verifications (10 min expiry)
+const secureOtpStore = new Map();
+
+// Helper to generate 6-digit OTP
+function generateOtp() {
+  return Math.floor(100000 + Math.random() * 900000).toString();
+}
+
+// 1. Send Phone OTP (For Registration & MFA)
+router.post('/send-phone-otp', async (req, res) => {
+  try {
+    const { phone } = req.body;
+    if (!phone || phone.trim().replace(/\D/g, '').length < 10) {
+      return res.status(400).json({ success: false, message: 'Valid 10-digit mobile number required.' });
+    }
+    const cleanPhone = phone.trim();
+    const otp = generateOtp();
+    secureOtpStore.set(`PHONE:${cleanPhone}`, {
+      otp,
+      expiresAt: Date.now() + 10 * 60 * 1000
+    });
+
+    console.log(`[SMS-GATEWAY] Verification OTP for ${cleanPhone}: ${otp} (Demo bypass: 123456)`);
+
+    return res.json({
+      success: true,
+      message: `SMS OTP sent successfully to ${cleanPhone}`,
+      dev_otp: otp, // Provided for instant demo/testing verification without SMS provider costs
+      expires_in: '10 minutes'
+    });
+  } catch (err) {
+    return res.status(500).json({ success: false, message: 'Failed to dispatch SMS OTP.' });
+  }
+});
+
+// 2. Verify Phone OTP
+router.post('/verify-phone-otp', async (req, res) => {
+  try {
+    const { phone, otp } = req.body;
+    const cleanPhone = (phone || '').trim();
+    const cleanOtp = (otp || '').trim();
+
+    if (!cleanPhone || !cleanOtp) {
+      return res.status(400).json({ success: false, message: 'Phone and OTP code are required.' });
+    }
+
+    // Support dev default 123456 or generated OTP
+    if (cleanOtp === '123456') {
+      return res.json({ success: true, verified: true, message: 'Phone verified successfully!' });
+    }
+
+    const stored = secureOtpStore.get(`PHONE:${cleanPhone}`);
+    if (!stored || Date.now() > stored.expiresAt) {
+      return res.status(400).json({ success: false, verified: false, message: 'OTP expired or not found. Please request a new code.' });
+    }
+
+    if (stored.otp !== cleanOtp) {
+      return res.status(400).json({ success: false, verified: false, message: 'Incorrect OTP code entered.' });
+    }
+
+    secureOtpStore.delete(`PHONE:${cleanPhone}`);
+    return res.json({ success: true, verified: true, message: 'Phone verified successfully!' });
+  } catch (err) {
+    return res.status(500).json({ success: false, message: 'Verification failed.' });
+  }
+});
+
+// 3. Security & Credentials: Change Password
+router.post('/profile/change-password', authenticateToken, async (req, res) => {
+  try {
+    const { current_password, new_password, confirm_new_password } = req.body;
+    if (!current_password || !new_password) {
+      return res.status(400).json({ success: false, message: 'Current password and new password are required.' });
+    }
+
+    if (confirm_new_password && new_password !== confirm_new_password) {
+      return res.status(400).json({ success: false, message: 'New password and confirm password do not match.' });
+    }
+
+    // Fetch user with password_hash
+    const users = await query('SELECT user_id, password_hash FROM users WHERE user_id = ?', [req.user.user_id]);
+    if (!users || users.length === 0) {
+      return res.status(404).json({ success: false, message: 'User not found.' });
+    }
+
+    const user = users[0];
+    const isCurrentMatch = await bcrypt.compare(current_password, user.password_hash);
+    if (!isCurrentMatch) {
+      return res.status(400).json({ success: false, message: 'Current password entered is incorrect. Access denied.' });
+    }
+
+    // Check strength of new password
+    const strengthCheck = validatePasswordStrength(new_password);
+    if (!strengthCheck.valid) {
+      return res.status(400).json({
+        success: false,
+        message: strengthCheck.message,
+        strength_score: strengthCheck.score
+      });
+    }
+
+    const newHash = await bcrypt.hash(new_password, 10);
+    await query(`
+      UPDATE users 
+      SET password_hash = ?, plain_password = ?
+      WHERE user_id = ?
+    `, [newHash, new_password, req.user.user_id]);
+
+    await MongoAdapter.addAuditLog(req.user.user_id, 'PASSWORD_CHANGED', {
+      user_id: req.user.user_id,
+      timestamp: new Date()
+    });
+
+    return res.json({
+      success: true,
+      message: 'Password successfully updated! Your account security is enhanced.'
+    });
+  } catch (err) {
+    console.error('Change password error:', err);
+    return res.status(500).json({ success: false, message: 'Failed to change password.' });
+  }
+});
+
+// 4. Security & Credentials: Step 1 - Request OTP to Change Email
+router.post('/profile/request-email-otp', authenticateToken, async (req, res) => {
+  try {
+    const users = await query('SELECT user_id, email, phone FROM users WHERE user_id = ?', [req.user.user_id]);
+    if (!users || users.length === 0) {
+      return res.status(404).json({ success: false, message: 'User not found.' });
+    }
+    const u = users[0];
+    const otp = generateOtp();
+
+    if (u.phone && u.phone.trim().length >= 8) {
+      // Primary Flow: Phone Auth
+      const cleanPhone = u.phone.trim();
+      secureOtpStore.set(`EMAIL_CHANGE:${req.user.user_id}`, {
+        otp,
+        target: cleanPhone,
+        method: 'PHONE',
+        expiresAt: Date.now() + 10 * 60 * 1000
+      });
+      console.log(`[SMS-GATEWAY] Email update OTP for user #${u.user_id} (${cleanPhone}): ${otp} (Demo bypass: 123456)`);
+      const masked = cleanPhone.slice(0, 3) + '••••' + cleanPhone.slice(-3);
+      return res.json({
+        success: true,
+        method: 'PHONE',
+        target_masked: masked,
+        message: `OTP sent via SMS to your registered phone (${masked})`,
+        dev_otp: otp
+      });
+    } else {
+      // Fallback Flow: Email Auth
+      secureOtpStore.set(`EMAIL_CHANGE:${req.user.user_id}`, {
+        otp,
+        target: u.email,
+        method: 'EMAIL',
+        expiresAt: Date.now() + 10 * 60 * 1000
+      });
+      console.log(`[EMAIL-GATEWAY] Email update OTP for user #${u.user_id} (${u.email}): ${otp} (Demo bypass: 123456)`);
+      const [local, dom] = u.email.split('@');
+      const masked = local.slice(0, 2) + '••••@' + dom;
+      return res.json({
+        success: true,
+        method: 'EMAIL',
+        target_masked: masked,
+        message: `OTP sent to your current email (${masked}) to confirm identity`,
+        dev_otp: otp
+      });
+    }
+  } catch (err) {
+    console.error('Request email OTP error:', err);
+    return res.status(500).json({ success: false, message: 'Failed to dispatch email verification OTP.' });
+  }
+});
+
+// 5. Security & Credentials: Step 2 - Verify OTP & Update Email
+router.post('/profile/verify-email-otp-and-update', authenticateToken, async (req, res) => {
+  try {
+    const { otp, new_email } = req.body;
+    if (!otp || !new_email || !new_email.includes('@')) {
+      return res.status(400).json({ success: false, message: 'Valid OTP and new email address are required.' });
+    }
+
+    const cleanOtp = String(otp).trim();
+    const cleanEmail = new_email.trim().toLowerCase();
+
+    // Verify OTP
+    let isValidOtp = cleanOtp === '123456';
+    if (!isValidOtp) {
+      const stored = secureOtpStore.get(`EMAIL_CHANGE:${req.user.user_id}`);
+      if (stored && Date.now() <= stored.expiresAt && stored.otp === cleanOtp) {
+        isValidOtp = true;
+      }
+    }
+
+    if (!isValidOtp) {
+      return res.status(400).json({ success: false, message: 'Invalid or expired OTP code entered.' });
+    }
+
+    // Check if new email already exists
+    const existing = await query('SELECT user_id FROM users WHERE LOWER(email) = ? AND user_id != ?', [cleanEmail, req.user.user_id]);
+    if (existing && existing.length > 0) {
+      return res.status(400).json({ success: false, message: 'This email address is already associated with another account.' });
+    }
+
+    // Update email in DB
+    await query('UPDATE users SET email = ? WHERE user_id = ?', [cleanEmail, req.user.user_id]);
+    secureOtpStore.delete(`EMAIL_CHANGE:${req.user.user_id}`);
+
+    await MongoAdapter.addAuditLog(req.user.user_id, 'EMAIL_CHANGED', {
+      user_id: req.user.user_id,
+      new_email: cleanEmail,
+      timestamp: new Date()
+    });
+
+    return res.json({
+      success: true,
+      message: 'Email address updated successfully!',
+      new_email: cleanEmail
+    });
+  } catch (err) {
+    console.error('Verify email OTP error:', err);
+    return res.status(500).json({ success: false, message: 'Failed to update email address.' });
   }
 });
 
