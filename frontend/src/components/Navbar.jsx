@@ -54,7 +54,7 @@ export default function Navbar({ currentUser, onLogout, theme, onToggleTheme }) 
   return (
     <header className="sticky top-0 z-50 backdrop-blur-2xl bg-white/80 dark:bg-slate-950/80 border-b border-slate-200/80 dark:border-white/10 px-3 sm:px-6 py-2.5 transition-colors shadow-sm">
       <div className="max-w-7xl mx-auto flex items-center justify-between gap-2">
-        
+
         {/* Top Left: Logo & Brand + Dynamic Role Badge */}
         <div className="flex items-center gap-3">
           <Link to="/" className="flex items-center gap-2 group shrink-0">
@@ -99,7 +99,7 @@ export default function Navbar({ currentUser, onLogout, theme, onToggleTheme }) 
 
         {/* Top Right Controls */}
         <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
-          
+
           {/* Theme Toggle Button */}
           <button
             onClick={onToggleTheme}
@@ -192,11 +192,10 @@ export default function Navbar({ currentUser, onLogout, theme, onToggleTheme }) 
                         setProfileDropdownOpen(false);
                         navigate('/');
                       }}
-                      className={`w-full py-2 px-3 rounded-xl font-black text-xs shadow-md transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
-                        isCustomerPage
+                      className={`w-full py-2 px-3 rounded-xl font-black text-xs shadow-md transition-all flex items-center justify-center gap-1.5 cursor-pointer ${isCustomerPage
                           ? 'bg-emerald-500 text-white shadow-emerald-500/25'
                           : 'bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-slate-950 shadow-orange-500/25 hover:scale-[1.02] active:scale-95'
-                      }`}
+                        }`}
                     >
                       <span>{isCustomerPage ? '✓ Currently in Customer Mode' : 'Switch to Customer Portal'}</span>
                       <span>➔</span>
@@ -228,9 +227,8 @@ export default function Navbar({ currentUser, onLogout, theme, onToggleTheme }) 
                         setProfileDropdownOpen(false);
                         navigate('/');
                       }}
-                      className={`w-full flex items-center justify-between px-3 py-1.5 rounded-xl text-xs font-bold transition-colors cursor-pointer ${
-                        isCustomerPage ? 'bg-amber-500/15 text-amber-600 dark:text-amber-400 font-extrabold' : 'text-slate-700 dark:text-slate-300 hover:bg-amber-500/10 hover:text-amber-500'
-                      }`}
+                      className={`w-full flex items-center justify-between px-3 py-1.5 rounded-xl text-xs font-bold transition-colors cursor-pointer ${isCustomerPage ? 'bg-amber-500/15 text-amber-600 dark:text-amber-400 font-extrabold' : 'text-slate-700 dark:text-slate-300 hover:bg-amber-500/10 hover:text-amber-500'
+                        }`}
                     >
                       <span className="flex items-center gap-2">
                         <ShoppingBag className="w-3.5 h-3.5 text-amber-500" />
@@ -244,9 +242,8 @@ export default function Navbar({ currentUser, onLogout, theme, onToggleTheme }) 
                         setProfileDropdownOpen(false);
                         navigate(currentUser?.role === 'VENDOR' ? '/chef/dashboard' : '/chef/login');
                       }}
-                      className={`w-full flex items-center justify-between px-3 py-1.5 rounded-xl text-xs font-bold transition-colors cursor-pointer ${
-                        location.pathname.startsWith('/chef') ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 font-extrabold' : 'text-slate-700 dark:text-slate-300 hover:bg-emerald-500/10 hover:text-emerald-500'
-                      }`}
+                      className={`w-full flex items-center justify-between px-3 py-1.5 rounded-xl text-xs font-bold transition-colors cursor-pointer ${location.pathname.startsWith('/chef') ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 font-extrabold' : 'text-slate-700 dark:text-slate-300 hover:bg-emerald-500/10 hover:text-emerald-500'
+                        }`}
                     >
                       <span className="flex items-center gap-2">
                         <ChefHat className="w-3.5 h-3.5 text-emerald-500" />
@@ -260,9 +257,8 @@ export default function Navbar({ currentUser, onLogout, theme, onToggleTheme }) 
                         setProfileDropdownOpen(false);
                         navigate(currentUser?.role === 'RIDER' ? '/rider/dashboard' : '/rider/login');
                       }}
-                      className={`w-full flex items-center justify-between px-3 py-1.5 rounded-xl text-xs font-bold transition-colors cursor-pointer ${
-                        location.pathname.startsWith('/rider') ? 'bg-sky-500/15 text-sky-600 dark:text-sky-400 font-extrabold' : 'text-slate-700 dark:text-slate-300 hover:bg-sky-500/10 hover:text-sky-500'
-                      }`}
+                      className={`w-full flex items-center justify-between px-3 py-1.5 rounded-xl text-xs font-bold transition-colors cursor-pointer ${location.pathname.startsWith('/rider') ? 'bg-sky-500/15 text-sky-600 dark:text-sky-400 font-extrabold' : 'text-slate-700 dark:text-slate-300 hover:bg-sky-500/10 hover:text-sky-500'
+                        }`}
                     >
                       <span className="flex items-center gap-2">
                         <Bike className="w-3.5 h-3.5 text-sky-500" />
@@ -276,9 +272,8 @@ export default function Navbar({ currentUser, onLogout, theme, onToggleTheme }) 
                         setProfileDropdownOpen(false);
                         navigate(currentUser?.role === 'ADMIN' ? '/admin/dashboard' : '/admin/login');
                       }}
-                      className={`w-full flex items-center justify-between px-3 py-1.5 rounded-xl text-xs font-bold transition-colors cursor-pointer ${
-                        location.pathname.startsWith('/admin') ? 'bg-rose-500/15 text-rose-600 dark:text-rose-400 font-extrabold' : 'text-slate-700 dark:text-slate-300 hover:bg-rose-500/10 hover:text-rose-500'
-                      }`}
+                      className={`w-full flex items-center justify-between px-3 py-1.5 rounded-xl text-xs font-bold transition-colors cursor-pointer ${location.pathname.startsWith('/admin') ? 'bg-rose-500/15 text-rose-600 dark:text-rose-400 font-extrabold' : 'text-slate-700 dark:text-slate-300 hover:bg-rose-500/10 hover:text-rose-500'
+                        }`}
                     >
                       <span className="flex items-center gap-2">
                         <ShieldAlert className="w-3.5 h-3.5 text-rose-500" />
@@ -310,7 +305,9 @@ export default function Navbar({ currentUser, onLogout, theme, onToggleTheme }) 
               <div className="relative" ref={guestPortalsRef}>
                 <button
                   onClick={() => setGuestPortalsOpen(v => !v)}
-                  className="flex items-center gap-1 px-2.5 py-1.5 sm:px-3 sm:py-2 rounded-xl border border-slate-200/90 dark:border-white/10 bg-white/70 dark:bg-slate-800/70 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs font-bold transition-all cursor-pointer shadow-sm hover:scale-105 active:scale-95"
+                  aria-expanded={guestPortalsOpen}
+                  aria-haspopup="true"
+                  className="flex transform items-center gap-1.5 rounded-xl border border-slate-200/90 bg-white/70 px-2.5 py-1.5 text-xs font-bold text-slate-700 shadow-sm transition-all duration-200 hover:scale-105 hover:bg-slate-50 active:scale-95 dark:border-white/10 dark:bg-slate-800/70 dark:text-slate-300 dark:hover:bg-slate-700/60 sm:px-3 sm:py-2"
                   title="Switch to Chef, Rider, or Admin Portals"
                 >
                   <ArrowRightLeft className="w-3.5 h-3.5 text-orange-500" />

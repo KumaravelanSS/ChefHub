@@ -100,6 +100,20 @@ const PROMO_CHIPS = [
   { code: 'FREESHIP', title: 'FREE DELIVERY', desc: 'Zero delivery fee' }
 ];
 
+const STAGE_HIERARCHY = {
+  PLACED: 0,
+  ORDER_PLACED: 0,
+  CONFIRMED: 0,
+  PREPARING: 1,
+  KITCHEN_PREPARING: 1,
+  READY: 2,
+  KITCHEN_READY: 2,
+  READY_FOR_PICKUP: 2,
+  OUT_FOR_DELIVERY: 3,
+  RIDER_ACCEPTED: 3,
+  DELIVERED: 4
+};
+
 export default function CustomerSite({ user, onLogin, onLogout }) {
   const [vendors, setVendors] = useState([]);
   const [selectedVendor, setSelectedVendor] = useState(null);
@@ -544,6 +558,7 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
   const lastFetchMetaRef = useRef({ lat: null, lng: null, time: 0 });
   const currentCoordsRef = useRef(currentCoords);
   const sseDebounceTimerRef = useRef(null);
+  const orderFetchSeqRef = useRef(0);
 
   // Keep coords ref synced
   useEffect(() => {
@@ -619,6 +634,7 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
   };
 
   const fetchMyOrders = async () => {
+    const seq = ++orderFetchSeqRef.current;
     try {
       const token = localStorage.getItem('chefhub_token');
       if (!token) return;
@@ -626,12 +642,54 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
         headers: { Authorization: `Bearer ${token}` }
       });
       const data = await res.json();
-      if (data.success) {
-        setMyOrders(data.orders);
+      // Drop response if a newer fetch was initiated while this request was in flight
+      if (seq < orderFetchSeqRef.current) return;
+
+      if (data.success && Array.isArray(data.orders)) {
+        setMyOrders(prevOrders => {
+          return data.orders.map(newOrd => {
+            const existing = prevOrders.find(p => Number(p.order_id) === Number(newOrd.order_id));
+            if (!existing) return newOrd;
+            const existingStage = STAGE_HIERARCHY[String(existing.status || '').toUpperCase()] || 0;
+            const newStage = STAGE_HIERARCHY[String(newOrd.status || '').toUpperCase()] || 0;
+            // Prevent backwards regression if response is stale compared to confirmed local status
+            if (newOrd.status !== 'CANCELLED' && existingStage > newStage) {
+              return { ...newOrd, status: existing.status };
+            }
+            return newOrd;
+          });
+        });
+
         setActiveTrackingOrder(prev => {
           if (!prev) return null;
-          const updated = data.orders.find(o => o.order_id === prev.order_id);
-          return updated ? { ...prev, ...updated } : prev;
+          const updated = data.orders.find(o => Number(o.order_id) === Number(prev.order_id));
+          if (!updated) return prev;
+
+          const currentStage = STAGE_HIERARCHY[String(prev.status || '').toUpperCase()] || 0;
+          const updatedStage = STAGE_HIERARCHY[String(updated.status || '').toUpperCase()] || 0;
+
+          // Never regress to a lower stage unless the order was cancelled
+          const effectiveStatus = (updated.status === 'CANCELLED' || updatedStage >= currentStage)
+            ? updated.status
+            : prev.status;
+
+          // Merge tracking events monotonically so earlier confirmed milestones aren't dropped
+          const prevTracking = Array.isArray(prev.tracking) ? prev.tracking : [];
+          const newTracking = Array.isArray(updated.tracking) ? updated.tracking : [];
+          const trackingMap = new Map();
+          [...prevTracking, ...newTracking].forEach(item => {
+            if (item && item.event) {
+              trackingMap.set(String(item.event).toUpperCase(), item);
+            }
+          });
+          const mergedTracking = Array.from(trackingMap.values());
+
+          return {
+            ...prev,
+            ...updated,
+            status: effectiveStatus,
+            tracking: mergedTracking.length > 0 ? mergedTracking : (updated.tracking || prev.tracking)
+          };
         });
       }
     } catch (err) {
@@ -761,12 +819,41 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
           if (event && event.data) {
             const parsed = JSON.parse(event.data);
             if (parsed && parsed.order_id) {
+              const oId = Number(parsed.order_id);
+              const newStat = parsed.new_status;
+
+              // Immediately update active tracking order with non-regressive guard
               setActiveTrackingOrder(prev => {
-                if (prev && Number(prev.order_id) === Number(parsed.order_id)) {
-                  return { ...prev, status: parsed.new_status || prev.status };
+                if (!prev || Number(prev.order_id) !== oId) return prev;
+                const prevStage = STAGE_HIERARCHY[String(prev.status || '').toUpperCase()] || 0;
+                const newStage = STAGE_HIERARCHY[String(newStat || '').toUpperCase()] || 0;
+                if (newStat !== 'ORDER_CANCELLED' && newStage < prevStage) return prev;
+
+                const trackingList = Array.isArray(prev.tracking) ? [...prev.tracking] : [];
+                if (newStat && !trackingList.some(t => String(t.event || '').toUpperCase() === String(newStat).toUpperCase())) {
+                  trackingList.push({
+                    event: newStat,
+                    location_note: parsed.note || `Status updated to ${newStat}`,
+                    timestamp: new Date().toISOString(),
+                    actor_role: parsed.actor_role || 'VENDOR'
+                  });
                 }
-                return prev;
+
+                return {
+                  ...prev,
+                  status: newStat || prev.status,
+                  tracking: trackingList
+                };
               });
+
+              // Immediately update myOrders list
+              setMyOrders(prevOrders => prevOrders.map(o => {
+                if (Number(o.order_id) !== oId) return o;
+                const prevStage = STAGE_HIERARCHY[String(o.status || '').toUpperCase()] || 0;
+                const newStage = STAGE_HIERARCHY[String(newStat || '').toUpperCase()] || 0;
+                if (newStat !== 'ORDER_CANCELLED' && newStage < prevStage) return o;
+                return { ...o, status: newStat || o.status };
+              }));
             }
           }
         } catch (e) {}
@@ -1568,6 +1655,7 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
   const handleOpenTracking = (order) => {
     setActiveTrackingOrder(order);
     setTimelineAnimKey(prev => prev + 1);
+    fetchMyOrders();
   };
 
   const getTimelineStages = (order) => {

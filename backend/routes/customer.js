@@ -757,46 +757,51 @@ router.get('/my-orders', authenticateToken, requireRole(['CUSTOMER', 'VENDOR', '
             actor_role: 'CUSTOMER' 
           }
         ];
-        if (o.status === 'CANCELLED') {
+      }
+
+      if (o.status === 'CANCELLED') {
+        const hasCancel = timeline.some(t => ['CANCELLED', 'ORDER_CANCELLED'].includes(String(t.event || '').toUpperCase()));
+        if (!hasCancel) {
           timeline.push({ 
             event: 'ORDER_CANCELLED', 
             location_note: 'Order cancelled. 100% Escrow refund credited back to customer account.', 
             timestamp: o.cancelled_at || o.updated_at || o.timestamp || new Date(), 
             actor_role: 'VENDOR' 
           });
-        } else {
-          if (['PREPARING', 'READY', 'OUT_FOR_DELIVERY', 'DELIVERED'].includes(o.status)) {
-            timeline.push({ 
-              event: 'KITCHEN_PREPARING', 
-              location_note: 'Chef started preparing your handcrafted meal', 
-              timestamp: o.prepared_at || o.timestamp || new Date(), 
-              actor_role: 'VENDOR' 
-            });
-          }
-          if (['READY', 'OUT_FOR_DELIVERY', 'DELIVERED'].includes(o.status)) {
-            timeline.push({ 
-              event: 'KITCHEN_READY', 
-              location_note: 'Meal packed & waiting for delivery pickup', 
-              timestamp: o.ready_at || o.prepared_at || o.timestamp || new Date(), 
-              actor_role: 'VENDOR' 
-            });
-          }
-          if (['OUT_FOR_DELIVERY', 'DELIVERED'].includes(o.status)) {
-            timeline.push({ 
-              event: 'RIDER_ACCEPTED', 
-              location_note: 'Courier picked up order and is en route', 
-              timestamp: o.dispatched_at || o.ready_at || o.timestamp || new Date(), 
-              actor_role: 'RIDER' 
-            });
-          }
-          if (o.status === 'DELIVERED') {
-            timeline.push({ 
-              event: 'DELIVERED', 
-              location_note: 'Order delivered successfully to your doorstep', 
-              timestamp: o.delivered_at || o.dispatched_at || o.timestamp || new Date(), 
-              actor_role: 'RIDER' 
-            });
-          }
+        }
+      } else {
+        const hasEv = (patterns) => timeline.some(t => patterns.includes(String(t.event || '').toUpperCase()));
+        if (['PREPARING', 'READY', 'OUT_FOR_DELIVERY', 'DELIVERED'].includes(o.status) && !hasEv(['KITCHEN_PREPARING', 'PREPARING'])) {
+          timeline.push({ 
+            event: 'KITCHEN_PREPARING', 
+            location_note: 'Chef started preparing your handcrafted meal', 
+            timestamp: o.prepared_at || o.timestamp || new Date(), 
+            actor_role: 'VENDOR' 
+          });
+        }
+        if (['READY', 'OUT_FOR_DELIVERY', 'DELIVERED'].includes(o.status) && !hasEv(['KITCHEN_READY', 'READY', 'READY_FOR_PICKUP'])) {
+          timeline.push({ 
+            event: 'KITCHEN_READY', 
+            location_note: 'Meal packed & waiting for delivery pickup', 
+            timestamp: o.ready_at || o.prepared_at || o.timestamp || new Date(), 
+            actor_role: 'VENDOR' 
+          });
+        }
+        if (['OUT_FOR_DELIVERY', 'DELIVERED'].includes(o.status) && !hasEv(['RIDER_ACCEPTED', 'OUT_FOR_DELIVERY'])) {
+          timeline.push({ 
+            event: 'RIDER_ACCEPTED', 
+            location_note: 'Courier picked up order and is en route', 
+            timestamp: o.dispatched_at || o.ready_at || o.timestamp || new Date(), 
+            actor_role: 'RIDER' 
+          });
+        }
+        if (o.status === 'DELIVERED' && !hasEv(['DELIVERED'])) {
+          timeline.push({ 
+            event: 'DELIVERED', 
+            location_note: 'Order delivered successfully to your doorstep', 
+            timestamp: o.delivered_at || o.dispatched_at || o.timestamp || new Date(), 
+            actor_role: 'RIDER' 
+          });
         }
       }
 

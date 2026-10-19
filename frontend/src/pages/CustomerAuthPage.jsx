@@ -173,12 +173,12 @@ export default function CustomerAuthPage({ onLogin, isModal = false }) {
       const res = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          identifier: cleanId, 
-          email: cleanId, 
-          username: cleanId, 
-          customer_id: cleanId, 
-          password: loginPwd 
+        body: JSON.stringify({
+          identifier: cleanId,
+          email: cleanId,
+          username: cleanId,
+          customer_id: cleanId,
+          password: loginPwd
         })
       });
       const data = await res.json();
@@ -217,8 +217,8 @@ export default function CustomerAuthPage({ onLogin, isModal = false }) {
       return;
     }
     if (!isPhoneValid) {
-      setError(countryCode === '+91' 
-        ? 'A valid 10-digit Indian mobile number is required.' 
+      setError(countryCode === '+91'
+        ? 'A valid 10-digit Indian mobile number is required.'
         : 'A valid mobile phone number is required.');
       return;
     }
@@ -315,11 +315,11 @@ export default function CustomerAuthPage({ onLogin, isModal = false }) {
 
   const handleSocial = (provider) => {
     setSuccess(`${provider} OAuth connects via Auth0 in production. Loading demo customer credentials…`);
-    setTimeout(() => { 
-      setLoginId('alex.customer@gmail.com'); 
-      setLoginPwd('customer123'); 
-      setMode('login'); 
-      setSuccess(''); 
+    setTimeout(() => {
+      setLoginId('alex.customer@gmail.com');
+      setLoginPwd('customer123');
+      setMode('login');
+      setSuccess('');
     }, 1200);
   };
 
@@ -350,11 +350,10 @@ export default function CustomerAuthPage({ onLogin, isModal = false }) {
               key={m}
               type="button"
               onClick={() => { setMode(m); clearFeedback(); }}
-              className={`py-2 rounded-lg text-xs font-extrabold transition-all capitalize cursor-pointer ${
-                mode === m
+              className={`py-2 rounded-lg text-xs font-extrabold transition-all capitalize cursor-pointer ${mode === m
                   ? 'bg-orange-500 text-white shadow-md shadow-orange-500/25'
                   : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-              }`}
+                }`}
             >
               {m === 'login' ? 'Sign In' : 'Create Account'}
             </button>
@@ -403,7 +402,7 @@ export default function CustomerAuthPage({ onLogin, isModal = false }) {
                 />
               </div>
               <p className="text-[11px] text-slate-600 dark:text-slate-400 font-medium mt-1">
-                You can log in via registered <strong>Email</strong>, <strong>Username</strong>, or numeric <strong>Customer ID</strong> (e.g. #4).
+                You can log in via registered <strong>Email</strong>, <strong>Username</strong>, or numeric <strong>Customer ID</strong>
               </p>
             </div>
             <div>
@@ -508,11 +507,11 @@ export default function CustomerAuthPage({ onLogin, isModal = false }) {
                 </label>
                 {regPhone && (
                   <span className={`text-[10px] font-bold ${isPhoneValid ? 'text-emerald-500' : 'text-rose-500'}`}>
-                    {isPhoneValid 
-                      ? '✓ Valid Mobile Number' 
-                      : (countryCode === '+91' 
-                          ? `${rawPhoneDigits.length}/10 digits (${10 - rawPhoneDigits.length} more needed)` 
-                          : 'Valid number required')}
+                    {isPhoneValid
+                      ? '✓ Valid Mobile Number'
+                      : (countryCode === '+91'
+                        ? `${rawPhoneDigits.length}/10 digits (${10 - rawPhoneDigits.length} more needed)`
+                        : 'Valid number required')}
                   </span>
                 )}
               </div>
@@ -684,8 +683,8 @@ export default function CustomerAuthPage({ onLogin, isModal = false }) {
           {/* Right auth panel: Exactly 50% split with centered content */}
           <div className="w-full lg:w-1/2 flex flex-col items-center justify-center p-6 sm:p-12 lg:p-16 my-auto">
             <div className="w-full max-w-md mb-4 flex items-center justify-between">
-              <button 
-                onClick={() => navigate('/')} 
+              <button
+                onClick={() => navigate('/')}
                 className="flex items-center gap-1.5 text-slate-600 dark:text-slate-400 hover:text-orange-500 text-xs font-bold transition-colors cursor-pointer"
               >
                 <ArrowLeft className="w-4 h-4" /> Return to Marketplace
@@ -711,7 +710,7 @@ export default function CustomerAuthPage({ onLogin, isModal = false }) {
                   <p className="text-[10px] text-slate-500">{phoneOtpModal.phone}</p>
                 </div>
               </div>
-              <button 
+              <button
                 onClick={() => setPhoneOtpModal(prev => ({ ...prev, isOpen: false }))}
                 className="text-slate-400 hover:text-slate-200"
               >

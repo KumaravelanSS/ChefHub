@@ -159,7 +159,7 @@ router.patch('/orders/:id/status', authenticateToken, requireRole('VENDOR'), asy
     if (status === 'PREPARING') {
       timeColUpdate = ', prepared_at = COALESCE(prepared_at, CURRENT_TIMESTAMP)';
     } else if (status === 'READY') {
-      timeColUpdate = ', ready_at = COALESCE(ready_at, CURRENT_TIMESTAMP)';
+      timeColUpdate = ', ready_at = COALESCE(ready_at, CURRENT_TIMESTAMP), prepared_at = COALESCE(prepared_at, CURRENT_TIMESTAMP)';
     }
 
     // 1. Parallelize primary database update and outbox record
