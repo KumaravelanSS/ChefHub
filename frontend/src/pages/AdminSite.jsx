@@ -1,8 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { ShieldAlert, Users, DollarSign, Activity, Lock, Database, AlertCircle, Ban, CheckCircle2, KeyRound, UserPlus, Trash2, Eye, EyeOff, Edit3, X, Utensils, Package, Tag, AlertTriangle, RefreshCw, Sparkles } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { ShieldAlert, Users, DollarSign, Activity, Lock, Database, AlertCircle, Ban, CheckCircle2, KeyRound, UserPlus, Trash2, Eye, EyeOff, Edit3, X, Utensils, Package, Tag, AlertTriangle, RefreshCw, Sparkles, ArrowLeft, ShoppingBag } from 'lucide-react';
 import { KitchenLoadingScreen, KitchenDataLoader, KitchenSkeletonRows } from '../components/KitchenLoading';
 
 export default function AdminSite({ user, onLogin }) {
+  const navigate = useNavigate();
   const [loginUsername, setLoginUsername] = useState('admin');
   const [loginPassword, setLoginPassword] = useState('admin');
   const [showLoginPassword, setShowLoginPassword] = useState(false);
@@ -361,6 +363,19 @@ export default function AdminSite({ user, onLogin }) {
     if (!user || user.role !== 'ADMIN') {
       return (
         <div className="max-w-md mx-auto py-12 px-4">
+          <div className="mb-4 flex items-center justify-between">
+            <button
+              type="button"
+              onClick={() => navigate('/')}
+              className="group flex items-center gap-2 px-3.5 py-2 rounded-xl bg-white/90 dark:bg-slate-900/90 hover:bg-white dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-200 hover:text-orange-600 dark:hover:text-orange-400 text-xs sm:text-sm font-black shadow-sm hover:shadow transition-all duration-200 hover:-translate-x-0.5 cursor-pointer"
+            >
+              <ArrowLeft className="w-4 h-4 text-orange-500 transition-transform group-hover:-translate-x-1" />
+              <ShoppingBag className="w-4 h-4 text-orange-500" />
+              <span>Return to Customer Marketplace</span>
+            </button>
+            <span className="text-[11px] font-bold text-slate-400 hidden sm:inline">Admin Portal</span>
+          </div>
+
           <div className="glass-card rounded-2xl p-6 border border-slate-800 space-y-6 shadow-2xl">
             <div className="text-center space-y-2">
               <div className="w-12 h-12 rounded-xl bg-rose-500/10 text-rose-400 border border-rose-500/20 flex items-center justify-center mx-auto">
@@ -445,6 +460,16 @@ export default function AdminSite({ user, onLogin }) {
           </div>
 
           <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => navigate('/')}
+              className="px-3.5 py-2 rounded-xl bg-orange-500/10 hover:bg-orange-500/20 border border-orange-500/30 text-orange-600 dark:text-orange-400 font-bold text-xs transition-all flex items-center gap-1.5 cursor-pointer shadow-sm hover:scale-105 active:scale-95"
+              title="Open Customer Marketplace"
+            >
+              <ShoppingBag className="w-3.5 h-3.5 text-orange-500" />
+              <span>Customer Marketplace</span>
+            </button>
+
             <button
               onClick={() => fetchData()}
               className="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-900 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 font-bold text-xs transition-all flex items-center gap-1.5 cursor-pointer shadow-sm hover:shadow"

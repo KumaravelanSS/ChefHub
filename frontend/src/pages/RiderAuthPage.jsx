@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Eye, EyeOff, Check, X, AlertCircle, Bike, ArrowLeft, User, Lock, Mail, Phone, Truck } from 'lucide-react';
+import { Eye, EyeOff, Check, X, AlertCircle, Bike, ArrowLeft, User, Lock, Mail, Phone, Truck, ShoppingBag } from 'lucide-react';
 
 function evalPwd(pwd) {
   const checks = { length: pwd.length >= 8, upper: /[A-Z]/.test(pwd), lower: /[a-z]/.test(pwd), number: /[0-9]/.test(pwd), special: /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>/?]/.test(pwd) };
@@ -133,10 +133,17 @@ export default function RiderAuthPage({ onLogin }) {
 
       {/* Right auth panel */}
       <div className="flex-1 flex flex-col items-center justify-center p-6 sm:p-10">
-        <div className="w-full max-w-md mb-5">
-          <button onClick={() => navigate('/')} className="flex items-center gap-1.5 text-slate-500 hover:text-sky-500 text-sm font-bold transition-colors">
-            <ArrowLeft className="w-4 h-4" /> Customer Marketplace
+        <div className="w-full max-w-md mb-5 flex items-center justify-between">
+          <button
+            type="button"
+            onClick={() => navigate('/')}
+            className="group flex items-center gap-2 px-3.5 py-2 rounded-xl bg-white/90 dark:bg-slate-900/90 hover:bg-white dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-200 hover:text-orange-600 dark:hover:text-orange-400 text-xs sm:text-sm font-black shadow-sm hover:shadow transition-all duration-200 hover:-translate-x-0.5 cursor-pointer"
+          >
+            <ArrowLeft className="w-4 h-4 text-orange-500 transition-transform group-hover:-translate-x-1" />
+            <ShoppingBag className="w-4 h-4 text-orange-500" />
+            <span>Return to Customer Marketplace</span>
           </button>
+          <span className="text-[11px] font-bold text-slate-400 hidden sm:inline">Rider Portal</span>
         </div>
 
         <div className="w-full max-w-md bg-white dark:bg-slate-900 rounded-3xl shadow-2xl border border-slate-200 dark:border-slate-800 overflow-hidden">

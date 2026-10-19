@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { Bike, MapPin, CheckCircle2, DollarSign, Navigation, Power, AlertCircle, Eye, EyeOff, Phone, Loader2 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Bike, MapPin, CheckCircle2, DollarSign, Navigation, Power, AlertCircle, Eye, EyeOff, Phone, Loader2, ShoppingBag } from 'lucide-react';
 import RiderAuthPage from './RiderAuthPage';
 import LiveDeliveryMap from '../components/LiveDeliveryMap';
 
 export default function RiderSite({ user, onLogin }) {
+  const navigate = useNavigate();
   const [loginEmail, setLoginEmail] = useState('david.rider@chefhub.com');
   const [loginPassword, setLoginPassword] = useState('rider123');
   const [showPassword, setShowPassword] = useState(false);
@@ -204,6 +206,15 @@ export default function RiderSite({ user, onLogin }) {
 
         {/* Shift Toggle & GPS Simulator */}
         <div className="flex items-center gap-3">
+          <button
+            onClick={() => navigate('/')}
+            className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-orange-500/10 hover:bg-orange-500/20 text-orange-600 dark:text-orange-400 border border-orange-500/30 text-xs font-bold transition-all shadow-sm active:scale-95 cursor-pointer"
+            title="Return to Customer Marketplace to order food"
+          >
+            <ShoppingBag className="w-4 h-4 text-orange-500" />
+            <span>Customer Marketplace</span>
+          </button>
+
           <button
             onClick={() => setShiftStatus(shiftStatus === 'ONLINE' ? 'OFFLINE' : 'ONLINE')}
             className={`flex items-center gap-2 px-4 py-2 rounded-xl backdrop-blur-xl border text-xs font-black transition-all duration-200 hover:-translate-y-0.5 active:translate-y-0 cursor-pointer shadow-sm ${

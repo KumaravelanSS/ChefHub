@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   ChefHat, Package, Utensils, DollarSign, AlertTriangle, CheckCircle2, Clock, Plus, Trash2,
   AlertCircle, Edit3, Image as ImageIcon, X, Sparkles, Ban, Eye, EyeOff, Tag, RefreshCw, Star,
-  User, MapPin, Lock, Shield, KeyRound, Smartphone, Mail, Compass, Check, Copy, Send, Save, ArrowRight, Loader2
+  User, MapPin, Lock, Shield, KeyRound, Smartphone, Mail, Compass, Check, Copy, Send, Save, ArrowRight, Loader2, ShoppingBag
 } from 'lucide-react';
 import { KitchenLoadingScreen, KitchenDataLoader, KitchenSkeletonRows } from '../components/KitchenLoading';
 import ChefAuthPage from './ChefAuthPage';
@@ -38,6 +39,7 @@ const KITCHEN_HUBS = [
 ];
 
 export default function ChefSite({ user, onLogin, onLogout }) {
+  const navigate = useNavigate();
   const [loginEmail, setLoginEmail] = useState('chef.mario@chefhub.com');
   const [loginPassword, setLoginPassword] = useState('vendor123');
   const [showPassword, setShowPassword] = useState(false);
@@ -1789,6 +1791,16 @@ export default function ChefSite({ user, onLogin, onLogout }) {
             <span className="px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-700 dark:text-emerald-400 text-xs font-black uppercase tracking-wider flex items-center gap-1.5 shadow-sm">
               <ChefHat className="w-3.5 h-3.5" /> Kitchen Management Console
             </span>
+
+            {/* Quick Return to Customer Marketplace */}
+            <button
+              onClick={() => navigate('/')}
+              className="px-3 py-1 rounded-full text-xs font-bold bg-orange-500/10 hover:bg-orange-500/20 text-orange-600 dark:text-orange-400 border border-orange-500/30 transition-all flex items-center gap-1.5 shadow-sm active:scale-95 cursor-pointer"
+              title="Return to Customer Marketplace to order food"
+            >
+              <ShoppingBag className="w-3.5 h-3.5 text-orange-500" />
+              <span>Customer Marketplace</span>
+            </button>
 
             {/* Live Store Open / Closed Status Toggle Button */}
             <button

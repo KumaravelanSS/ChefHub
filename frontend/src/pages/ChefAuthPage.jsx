@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Eye, EyeOff, Check, X, AlertCircle, ChefHat, ArrowLeft, User, Lock, Mail, Phone, UtensilsCrossed } from 'lucide-react';
+import { Eye, EyeOff, Check, X, AlertCircle, ChefHat, ArrowLeft, User, Lock, Mail, Phone, UtensilsCrossed, ShoppingBag } from 'lucide-react';
 
 function evalPwd(pwd) {
   const checks = { length: pwd.length >= 8, upper: /[A-Z]/.test(pwd), lower: /[a-z]/.test(pwd), number: /[0-9]/.test(pwd), special: /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>/?]/.test(pwd) };
@@ -125,7 +125,7 @@ export default function ChefAuthPage({ onLogin }) {
           </p>
         </div>
         <div className="relative z-10 space-y-3">
-          {[['📋','Live Kitchen Order Board (KDS)'],['🧪','Recipe & Ingredient Manager'],['📦','Auto Stock Deduction'],['💰','Instant Escrow Payouts']].map(([icon,text]) => (
+          {[['📋', 'Live Kitchen Order Board (KDS)'], ['🧪', 'Recipe & Ingredient Manager'], ['📦', 'Auto Stock Deduction'], ['💰', 'Instant Escrow Payouts']].map(([icon, text]) => (
             <div key={text} className="flex items-center gap-3 text-white/90"><span className="text-xl">{icon}</span><span className="font-bold text-sm">{text}</span></div>
           ))}
         </div>
@@ -133,10 +133,17 @@ export default function ChefAuthPage({ onLogin }) {
 
       {/* Right auth panel */}
       <div className="flex-1 flex flex-col items-center justify-center p-6 sm:p-10">
-        <div className="w-full max-w-md mb-5">
-          <button onClick={() => navigate('/')} className="flex items-center gap-1.5 text-slate-500 hover:text-emerald-500 text-sm font-bold transition-colors">
-            <ArrowLeft className="w-4 h-4" /> Customer Marketplace
+        <div className="w-full max-w-md mb-5 flex items-center justify-between">
+          <button
+            type="button"
+            onClick={() => navigate('/')}
+            className="group flex items-center gap-2 px-3.5 py-2 rounded-xl bg-white/90 dark:bg-slate-900/90 hover:bg-white dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-200 hover:text-orange-600 dark:hover:text-orange-400 text-xs sm:text-sm font-black shadow-sm hover:shadow transition-all duration-200 hover:-translate-x-0.5 cursor-pointer"
+          >
+            <ArrowLeft className="w-4 h-4 text-orange-500 transition-transform group-hover:-translate-x-1" />
+            <ShoppingBag className="w-4 h-4 text-orange-500" />
+            <span>Return to Customer Marketplace</span>
           </button>
+          <span className="text-[11px] font-bold text-slate-400 hidden sm:inline">Chef Portal</span>
         </div>
 
         <div className="w-full max-w-md bg-white dark:bg-slate-900 rounded-3xl shadow-2xl border border-slate-200 dark:border-slate-800 overflow-hidden">
@@ -156,9 +163,9 @@ export default function ChefAuthPage({ onLogin }) {
             </div>
 
             <div className="grid grid-cols-2 gap-1 p-1 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
-              {['login','register'].map(m => (
+              {['login', 'register'].map(m => (
                 <button key={m} type="button" onClick={() => { setMode(m); clearFeedback(); }}
-                  className={`py-2 rounded-lg text-xs font-extrabold transition-all capitalize ${mode===m ? 'bg-emerald-500 text-white shadow-md shadow-emerald-500/25' : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'}`}>
+                  className={`py-2 rounded-lg text-xs font-extrabold transition-all capitalize ${mode === m ? 'bg-emerald-500 text-white shadow-md shadow-emerald-500/25' : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'}`}>
                   {m === 'login' ? 'Sign In' : 'Register Kitchen'}
                 </button>
               ))}
@@ -171,18 +178,18 @@ export default function ChefAuthPage({ onLogin }) {
               <form onSubmit={handleLogin} className="space-y-4">
                 <div>
                   <label className="block text-xs font-extrabold text-slate-700 dark:text-slate-300 mb-1.5">Username or Email</label>
-                  <div className="relative"><User className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" /><input id="chef-login-id" type="text" value={loginId} onChange={e=>setLoginId(e.target.value)} placeholder="Chef username or email" className="w-full pl-10 pr-4 py-3 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:border-emerald-400 placeholder:text-slate-400 transition" required /></div>
+                  <div className="relative"><User className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" /><input id="chef-login-id" type="text" value={loginId} onChange={e => setLoginId(e.target.value)} placeholder="Chef username or email" className="w-full pl-10 pr-4 py-3 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:border-emerald-400 placeholder:text-slate-400 transition" required /></div>
                 </div>
                 <div>
                   <label className="block text-xs font-extrabold text-slate-700 dark:text-slate-300 mb-1.5">Password</label>
-                  <PasswordInput id="chef-login-pwd" value={loginPwd} onChange={setLoginPwd} placeholder="Your password" show={showLoginPwd} onToggle={() => setShowLoginPwd(v=>!v)} />
+                  <PasswordInput id="chef-login-pwd" value={loginPwd} onChange={setLoginPwd} placeholder="Your password" show={showLoginPwd} onToggle={() => setShowLoginPwd(v => !v)} />
                 </div>
                 <button type="submit" disabled={loading} className="w-full py-3 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-extrabold text-sm shadow-lg shadow-emerald-500/20 transition-all disabled:opacity-60">
                   {loading ? 'Signing in…' : 'Enter Kitchen Console'}
                 </button>
-                <button type="button" onClick={() => { setLoginId('chef.mario@chefhub.com'); setLoginPwd('vendor123'); }}
+                <button type="button" onClick={() => { setLoginId('chef.mario@chefhub.com'); setLoginPwd('Vendor@123'); }}
                   className="w-full py-2 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 text-xs font-bold hover:bg-slate-50 dark:hover:bg-slate-800 transition">
-                  ⚡ Autofill Demo Chef Credentials
+
                 </button>
               </form>
             )}
@@ -191,34 +198,34 @@ export default function ChefAuthPage({ onLogin }) {
               <form onSubmit={handleRegister} className="space-y-3.5">
                 <div>
                   <label className="block text-xs font-extrabold text-slate-700 dark:text-slate-300 mb-1.5">Chef / Owner Name</label>
-                  <div className="relative"><User className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" /><input id="chef-reg-name" type="text" value={regName} onChange={e=>setRegName(e.target.value)} placeholder="Your name" className="w-full pl-10 pr-4 py-3 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:border-emerald-400 placeholder:text-slate-400 transition" required /></div>
+                  <div className="relative"><User className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" /><input id="chef-reg-name" type="text" value={regName} onChange={e => setRegName(e.target.value)} placeholder="Your name" className="w-full pl-10 pr-4 py-3 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:border-emerald-400 placeholder:text-slate-400 transition" required /></div>
                 </div>
                 <div>
                   <label className="block text-xs font-extrabold text-slate-700 dark:text-slate-300 mb-1.5">Kitchen / Restaurant Name</label>
-                  <div className="relative"><UtensilsCrossed className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" /><input id="chef-reg-kitchen" type="text" value={regKitchen} onChange={e=>setRegKitchen(e.target.value)} placeholder="e.g. Mario's Ghost Kitchen" className="w-full pl-10 pr-4 py-3 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:border-emerald-400 placeholder:text-slate-400 transition" /></div>
+                  <div className="relative"><UtensilsCrossed className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" /><input id="chef-reg-kitchen" type="text" value={regKitchen} onChange={e => setRegKitchen(e.target.value)} placeholder="e.g. Mario's Ghost Kitchen" className="w-full pl-10 pr-4 py-3 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:border-emerald-400 placeholder:text-slate-400 transition" /></div>
                 </div>
                 <div>
                   <label className="block text-xs font-extrabold text-slate-700 dark:text-slate-300 mb-1.5">Email Address</label>
-                  <div className="relative"><Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" /><input id="chef-reg-email" type="email" value={regEmail} onChange={e=>setRegEmail(e.target.value)} placeholder="chef@yourkitchen.com" className="w-full pl-10 pr-4 py-3 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:border-emerald-400 placeholder:text-slate-400 transition" required /></div>
+                  <div className="relative"><Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" /><input id="chef-reg-email" type="email" value={regEmail} onChange={e => setRegEmail(e.target.value)} placeholder="chef@yourkitchen.com" className="w-full pl-10 pr-4 py-3 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:border-emerald-400 placeholder:text-slate-400 transition" required /></div>
                 </div>
                 <div>
                   <label className="block text-xs font-extrabold text-slate-700 dark:text-slate-300 mb-1.5">Phone (optional, 10 digits)</label>
-                  <div className="relative"><Phone className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" /><input id="chef-reg-phone" type="tel" inputMode="numeric" pattern="[0-9]*" maxLength={10} value={regPhone} onChange={e=>setRegPhone(e.target.value.replace(/\D/g, '').slice(0, 10))} onKeyDown={e=>{if(!/^[0-9]$/.test(e.key)&&!['Backspace','Delete','ArrowLeft','ArrowRight','Tab','Enter','Home','End'].includes(e.key)&&!e.ctrlKey&&!e.metaKey){e.preventDefault();}}} placeholder="9876543210" className="w-full pl-10 pr-4 py-3 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:border-emerald-400 placeholder:text-slate-400 transition" /></div>
+                  <div className="relative"><Phone className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" /><input id="chef-reg-phone" type="tel" inputMode="numeric" pattern="[0-9]*" maxLength={10} value={regPhone} onChange={e => setRegPhone(e.target.value.replace(/\D/g, '').slice(0, 10))} onKeyDown={e => { if (!/^[0-9]$/.test(e.key) && !['Backspace', 'Delete', 'ArrowLeft', 'ArrowRight', 'Tab', 'Enter', 'Home', 'End'].includes(e.key) && !e.ctrlKey && !e.metaKey) { e.preventDefault(); } }} placeholder="9876543210" className="w-full pl-10 pr-4 py-3 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:border-emerald-400 placeholder:text-slate-400 transition" /></div>
                 </div>
                 <div>
                   <label className="block text-xs font-extrabold text-slate-700 dark:text-slate-300 mb-1.5">Password</label>
-                  <PasswordInput id="chef-reg-pwd" value={regPwd} onChange={setRegPwd} placeholder="Create a strong password" show={showRegPwd} onToggle={() => setShowRegPwd(v=>!v)} />
+                  <PasswordInput id="chef-reg-pwd" value={regPwd} onChange={setRegPwd} placeholder="Create a strong password" show={showRegPwd} onToggle={() => setShowRegPwd(v => !v)} />
                   {regPwd.length > 0 && (
                     <div className="mt-2.5 space-y-2">
                       <div className="w-full h-1.5 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
-                        <div className={`h-full rounded-full transition-all duration-500 ${pwd.bar}`} style={{ width: `${(pwd.score/5)*100}%` }} />
+                        <div className={`h-full rounded-full transition-all duration-500 ${pwd.bar}`} style={{ width: `${(pwd.score / 5) * 100}%` }} />
                       </div>
                       <div className="flex items-center justify-between">
                         <span className={`text-[11px] font-extrabold ${pwd.text}`}>{pwd.label}</span>
                         {pwd.isAcceptable ? <span className="text-[11px] font-bold text-emerald-500 flex items-center gap-1"><Check className="w-3 h-3" />Accepted</span> : <span className="text-[11px] font-bold text-rose-500">Too weak</span>}
                       </div>
                       <div className="grid grid-cols-2 gap-1">
-                        {[['length','8+ characters'],['upper','Uppercase'],['lower','Lowercase'],['number','Number'],['special','Special char']].map(([k,l]) => (
+                        {[['length', '8+ characters'], ['upper', 'Uppercase'], ['lower', 'Lowercase'], ['number', 'Number'], ['special', 'Special char']].map(([k, l]) => (
                           <div key={k} className={`flex items-center gap-1 text-[11px] font-bold ${pwd.checks[k] ? 'text-emerald-500' : 'text-slate-400'}`}>
                             {pwd.checks[k] ? <Check className="w-3 h-3" /> : <X className="w-3 h-3" />}{l}
                           </div>
@@ -236,8 +243,8 @@ export default function ChefAuthPage({ onLogin }) {
 
             <div className="flex items-center gap-3"><div className="flex-1 h-px bg-slate-200 dark:bg-slate-700" /><span className="text-xs text-slate-400 font-bold">or continue with</span><div className="flex-1 h-px bg-slate-200 dark:bg-slate-700" /></div>
             <div className="flex gap-3">
-              <SocialButton icon="🌐" label="Google" onClick={() => handleSocial('Google')} />
-              <SocialButton icon="🍎" label="Apple" onClick={() => handleSocial('Apple')} />
+              <SocialButton icon="https://upload.wikimedia.org/wikipedia/commons/0/09/IOS_Google_icon.png?utm_source=commons.wikimedia.org&utm_campaign=index&utm_content=original" label="Google" onClick={() => handleSocial('Google')} />
+              <SocialButton icon="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcT3Dr-PrP2MaGAyJvafRH4LYk0kFkWHA6qHkz77dJQuXA&s=10" label="Apple" onClick={() => handleSocial('Apple')} />
             </div>
           </div>
         </div>

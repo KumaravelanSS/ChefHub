@@ -317,7 +317,7 @@ export default function CustomerAuthPage({ onLogin, isModal = false }) {
     setSuccess(`${provider} OAuth connects via Auth0 in production. Loading demo customer credentials…`);
     setTimeout(() => {
       setLoginId('alex.customer@gmail.com');
-      setLoginPwd('customer123');
+      setLoginPwd('Customer@123');
       setMode('login');
       setSuccess('');
     }, 1200);
@@ -402,7 +402,7 @@ export default function CustomerAuthPage({ onLogin, isModal = false }) {
                 />
               </div>
               <p className="text-[11px] text-slate-600 dark:text-slate-400 font-medium mt-1">
-                You can log in via registered <strong>Email</strong>, <strong>Username</strong>, or numeric <strong>Customer ID</strong>
+                You can log in via registered <strong>Email</strong>, <strong>Username</strong>, or numeric <strong>Customer ID</strong> (e.g. #4).
               </p>
             </div>
             <div>
@@ -426,9 +426,6 @@ export default function CustomerAuthPage({ onLogin, isModal = false }) {
 
             {/* Clean Test Account Login Toolbar */}
             <div className="pt-2 border-t border-slate-200 dark:border-slate-800">
-              <span className="block text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 text-center mb-2">
-                ⚡ Quick Demo Accounts
-              </span>
               <div className="grid grid-cols-2 gap-2">
                 <button
                   type="button"
@@ -606,13 +603,13 @@ export default function CustomerAuthPage({ onLogin, isModal = false }) {
           <div className="flex-1 h-px bg-slate-200 dark:bg-slate-700" />
         </div>
         <div className="flex gap-3">
-          <SocialButton icon="🌐" label="Google" onClick={() => handleSocial('Google')} />
-          <SocialButton icon="🍎" label="Apple" onClick={() => handleSocial('Apple')} />
+          <SocialButton icon="https://cdn.vectorstock.com/i/1000v/37/41/google-app-icon-vector-58333741.jpg" label="Google" onClick={() => handleSocial('Google')} />
+          <SocialButton icon="https://uxwing.com/wp-content/themes/uxwing/download/brands-and-social-media/apple-icon.png" label="Apple" onClick={() => handleSocial('Apple')} />
         </div>
 
         {/* Subtle partner portal links for non-customer roles */}
         <div className="pt-3 border-t border-slate-200 dark:border-slate-800 text-center space-y-1.5">
-          <p className="text-[11px] text-slate-500 font-medium">
+          <p className="text-[15px] text-slate-500 font-medium">
             Are you a registered Chef, Rider, or Administrator?
           </p>
           <div className="flex items-center justify-center gap-3 text-xs font-bold text-slate-600 dark:text-slate-400">
@@ -623,7 +620,7 @@ export default function CustomerAuthPage({ onLogin, isModal = false }) {
             >
               👨‍🍳 Chef Portal
             </button>
-            <span className="text-slate-300 dark:text-slate-700">•</span>
+
             <button
               type="button"
               onClick={() => navigate('/rider/login')}
