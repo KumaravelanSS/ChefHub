@@ -167,40 +167,6 @@ export default function Navbar({ currentUser, onLogout, theme, onToggleTheme }) 
                     )}
                   </div>
 
-                  {/* Featured Unique Customer Portal Card */}
-                  <div className="p-3 rounded-2xl bg-gradient-to-br from-amber-500/15 via-orange-500/20 to-amber-500/10 border-2 border-orange-500/40 shadow-sm space-y-2">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-amber-500 to-orange-500 text-slate-950 flex items-center justify-center font-black shadow-md shadow-orange-500/25">
-                          🛒
-                        </div>
-                        <div>
-                          <span className="text-xs font-black text-slate-900 dark:text-white block leading-tight">Customer Portal</span>
-                          <span className="text-[10px] text-orange-600 dark:text-orange-400 font-extrabold uppercase tracking-wide">
-                            {isCustomerPage ? '● Live Ordering Active' : 'Order Food as Customer'}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                    <p className="text-[11px] text-slate-600 dark:text-slate-400 leading-snug">
-                      {currentUser.role !== 'CUSTOMER'
-                        ? `Explore menus & order gourmet dishes using your ${currentUser.role} account.`
-                        : 'Browse verified cloud kitchens and handcrafted meals.'}
-                    </p>
-                    <button
-                      onClick={() => {
-                        setProfileDropdownOpen(false);
-                        navigate('/');
-                      }}
-                      className={`w-full py-2 px-3 rounded-xl font-black text-xs shadow-md transition-all flex items-center justify-center gap-1.5 cursor-pointer ${isCustomerPage
-                          ? 'bg-emerald-500 text-white shadow-emerald-500/25'
-                          : 'bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-slate-950 shadow-orange-500/25 hover:scale-[1.02] active:scale-95'
-                        }`}
-                    >
-                      <span>{isCustomerPage ? '✓ Currently in Customer Mode' : 'Switch to Customer Portal'}</span>
-                      <span>➔</span>
-                    </button>
-                  </div>
 
                   {/* Profile Settings & Security & Credentials */}
                   <div className="space-y-1 pt-1">
