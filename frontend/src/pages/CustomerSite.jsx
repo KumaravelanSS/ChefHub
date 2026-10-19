@@ -10,6 +10,11 @@ import {
 import { KitchenLoadingScreen } from '../components/KitchenLoading';
 import CustomerAuthPage from './CustomerAuthPage';
 import LiveDeliveryMap from '../components/LiveDeliveryMap';
+import {
+  GooglePayIcon, PhonePeIcon, PaytmIcon, BhimIcon, UpiIcon,
+  VisaIcon, MastercardIcon, RupayIcon, CreditCardTabIcon, NetBankingTabIcon,
+  getBankIcon, getCardBrandIcon
+} from '../components/PaymentIcons';
 
 const DELIVERY_FEE = 40.00;
 
@@ -2979,8 +2984,8 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
             {/* Header */}
             <div className="flex justify-between items-center border-b border-slate-200 dark:border-slate-800 pb-3">
               <div className="flex items-center gap-2.5">
-                <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-orange-500 to-amber-500 text-white flex items-center justify-center font-bold text-xl shadow-md">
-                  👛
+                <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-orange-500 to-amber-500 text-white flex items-center justify-center shadow-md">
+                  <Wallet className="w-5 h-5 text-white" />
                 </div>
                 <div>
                   <h3 className="font-black text-base sm:text-lg">Top-Up Escrow Wallet</h3>
@@ -3008,8 +3013,9 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
                 <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Current Wallet Balance</span>
                 <span className="text-2xl font-black font-mono text-slate-900 dark:text-white">₹{walletBalance.toFixed(2)}</span>
               </div>
-              <span className="px-3 py-1 rounded-full bg-emerald-500/15 border border-emerald-500/25 text-emerald-500 text-[10px] font-extrabold uppercase tracking-wider">
-                🛡️ Active Escrow
+              <span className="px-3 py-1 rounded-full bg-emerald-500/15 border border-emerald-500/25 text-emerald-500 text-[10px] font-extrabold uppercase tracking-wider flex items-center gap-1">
+                <ShieldCheck className="w-3.5 h-3.5 text-emerald-500" />
+                <span>Active Escrow</span>
               </span>
             </div>
 
@@ -3053,9 +3059,9 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
               <label className="text-xs font-black text-slate-500 uppercase tracking-wider">Choose Payment Method</label>
               <div className="grid grid-cols-3 gap-2">
                 {[
-                  { id: 'CARD', label: 'Debit / Card', icon: '💳' },
-                  { id: 'UPI', label: 'UPI / QR', icon: '⚡' },
-                  { id: 'NETBANKING', label: 'Net Banking', icon: '🏦' }
+                  { id: 'CARD', label: 'Debit / Card', icon: <CreditCardTabIcon className="w-4 h-4" /> },
+                  { id: 'UPI', label: 'UPI / QR', icon: <UpiIcon className="w-7 h-3.5" /> },
+                  { id: 'NETBANKING', label: 'Net Banking', icon: <NetBankingTabIcon className="w-4 h-4" /> }
                 ].map(m => (
                   <button
                     key={m.id}
@@ -3078,7 +3084,7 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
                 <div className="p-4 rounded-2xl bg-slate-100 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 space-y-3 animate-in fade-in">
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-black uppercase tracking-wider text-slate-500">Saved Cards (RBI Compliant)</span>
-                    <span className="text-[10px] text-slate-400">100% Tokenized</span>
+                    <span className="text-[10px] text-slate-400 font-bold">100% Tokenized</span>
                   </div>
 
                   {/* List of saved cards with DELETE option */}
@@ -3098,8 +3104,8 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
                             onClick={() => setTopUpCardDetails(prev => ({ ...prev, selectedCardId: c.id, isNewCard: false }))}
                             className="flex items-center gap-3 flex-1 cursor-pointer"
                           >
-                            <div className="w-8 h-8 rounded-lg bg-orange-500/10 text-orange-500 flex items-center justify-center font-bold text-xs">
-                              💳
+                            <div className="w-9 h-7 rounded-lg bg-slate-50 dark:bg-slate-800 flex items-center justify-center p-1 border border-slate-200 dark:border-slate-700 shrink-0">
+                              {getCardBrandIcon(c.brand)}
                             </div>
                             <div>
                               <div className="flex items-center gap-2">
@@ -3189,8 +3195,9 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
                             className="w-full px-3 py-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-800 text-xs font-mono font-bold outline-none focus:border-orange-500"
                           />
                         </div>
+
                         <div>
-                          <label className="text-[11px] font-bold text-slate-500 block mb-1">CVV / Security Code</label>
+                          <label className="text-[11px] font-bold text-slate-500 block mb-1">CVV</label>
                           <input
                             type="password"
                             maxLength={4}
@@ -3231,10 +3238,10 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
 
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                     {[
-                      { id: 'gpay', name: 'Google Pay', icon: '🔵', handle: '@okaxis' },
-                      { id: 'phonepe', name: 'PhonePe', icon: '🟣', handle: '@ybl' },
-                      { id: 'paytm', name: 'Paytm UPI', icon: '🔷', handle: '@paytm' },
-                      { id: 'bhim', name: 'BHIM UPI', icon: '🟠', handle: '@upi' }
+                      { id: 'gpay', name: 'Google Pay', icon: <GooglePayIcon className="w-7 h-7" />, handle: '@okaxis' },
+                      { id: 'phonepe', name: 'PhonePe', icon: <PhonePeIcon className="w-7 h-7" />, handle: '@ybl' },
+                      { id: 'paytm', name: 'Paytm UPI', icon: <PaytmIcon className="w-8 h-4" />, handle: '@paytm' },
+                      { id: 'bhim', name: 'BHIM UPI', icon: <BhimIcon className="w-7 h-7" />, handle: '@upi' }
                     ].map(app => (
                       <button
                         key={app.id}
@@ -3245,14 +3252,14 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
                           upiId: `alex.customer${app.handle}`,
                           isVerified: true
                         }))}
-                        className={`p-2.5 rounded-xl border flex flex-col items-center justify-center gap-1 transition-all cursor-pointer ${
+                        className={`p-2.5 rounded-xl border flex flex-col items-center justify-center gap-1.5 transition-all cursor-pointer ${
                           topUpUpiDetails.upiApp === app.id
-                            ? 'border-orange-500 bg-orange-500/15 text-orange-600 dark:text-orange-400 font-black ring-1 ring-orange-500'
+                            ? 'border-orange-500 bg-orange-500/15 text-orange-600 dark:text-orange-400 font-black ring-1 ring-orange-500 shadow-sm'
                             : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 hover:border-slate-400'
                         }`}
                       >
-                        <span className="text-xl">{app.icon}</span>
-                        <span className="text-xs font-extrabold text-center">{app.name}</span>
+                        <div className="h-7 flex items-center justify-center">{app.icon}</div>
+                        <span className="text-[11px] font-extrabold text-center leading-tight">{app.name}</span>
                       </button>
                     ))}
                   </div>
@@ -3280,7 +3287,7 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
                     {topUpUpiDetails.isVerified && (
                       <div className="flex items-center gap-1.5 text-[11px] text-emerald-500 font-bold">
                         <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
-                        <span>Verified NPCI UPI ID ({user?.name || 'Verified Customer'})</span>
+                        <span>Verified NPCI UPI ID • Instant Auto-Pay Ready</span>
                       </div>
                     )}
                   </div>
@@ -3356,11 +3363,11 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
                         onClick={() => setTopUpNetBankingDetails({ bankName: bank })}
                         className={`p-2.5 rounded-xl border text-xs font-bold transition-all text-left flex items-center gap-2 cursor-pointer ${
                           topUpNetBankingDetails.bankName === bank
-                            ? 'border-orange-500 bg-orange-500/15 text-orange-600 dark:text-orange-400 font-black ring-1 ring-orange-500'
+                            ? 'border-orange-500 bg-orange-500/15 text-orange-600 dark:text-orange-400 font-black ring-1 ring-orange-500 shadow-sm'
                             : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 hover:border-slate-400'
                         }`}
                       >
-                        <span>🏦</span>
+                        {getBankIcon(bank)}
                         <span className="truncate">{bank}</span>
                       </button>
                     ))}
@@ -3396,10 +3403,19 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
                 type="button"
                 onClick={handleInitiateWalletTopUp}
                 disabled={isAddingMoney || !topUpAmountInput || Number(topUpAmountInput) <= 0}
-                className="flex-1 py-3.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white font-black text-xs shadow-lg transition-all cursor-pointer disabled:opacity-50 flex items-center justify-center gap-2"
+                className="flex-1 py-3.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white font-black text-xs shadow-lg shadow-emerald-500/25 transition-all cursor-pointer disabled:opacity-50 flex items-center justify-center gap-2"
               >
-                <ShieldCheck className="w-4 h-4" />
-                <span>Proceed to Add ₹{Number(topUpAmountInput || 0).toFixed(2)} to Wallet</span>
+                {isAddingMoney ? (
+                  <>
+                    <RefreshCw className="w-4 h-4 animate-spin" />
+                    <span>Processing Top-Up…</span>
+                  </>
+                ) : (
+                  <>
+                    <ShieldCheck className="w-4 h-4" />
+                    <span>Proceed to Add ₹{Number(topUpAmountInput || 0).toFixed(2)} to Wallet</span>
+                  </>
+                )}
               </button>
               <button
                 type="button"
@@ -3963,16 +3979,16 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
                   <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Payment Method</label>
                   <div className="grid grid-cols-4 gap-2">
                     {[
-                      { id: 'CARD', label: 'Card', icon: '💳' },
-                      { id: 'UPI', label: 'UPI', icon: '⚡' },
-                      { id: 'NETBANKING', label: 'NetBank', icon: '🏦' },
-                      { id: 'ESCROW_WALLET', label: 'Wallet', icon: '👛' }
+                      { id: 'CARD', label: 'Card', icon: <CreditCardTabIcon className="w-4 h-4" /> },
+                      { id: 'UPI', label: 'UPI', icon: <UpiIcon className="w-6 h-3" /> },
+                      { id: 'NETBANKING', label: 'NetBank', icon: <NetBankingTabIcon className="w-4 h-4" /> },
+                      { id: 'ESCROW_WALLET', label: 'Wallet', icon: <Wallet className="w-4 h-4" /> }
                     ].map((m) => (
                       <button
                         key={m.id}
                         type="button"
                         onClick={() => setPaymentForm({ ...paymentForm, paymentMethod: m.id })}
-                        className={`py-2 px-1 rounded-xl text-xs font-bold transition-all cursor-pointer flex flex-col sm:flex-row items-center justify-center gap-1 ${
+                        className={`py-2 px-1 rounded-xl text-xs font-bold transition-all cursor-pointer flex flex-col sm:flex-row items-center justify-center gap-1.5 ${
                           paymentForm.paymentMethod === m.id
                             ? 'bg-orange-500 text-white font-black shadow-md'
                             : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
@@ -3990,9 +4006,9 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
                       <div className="flex items-center justify-between">
                         <span className="text-xs font-black uppercase tracking-wider text-slate-500">Credit / Debit Card Details</span>
                         <div className="flex items-center gap-1.5 text-xs">
-                          <span className="px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-500 font-extrabold text-[10px]">VISA</span>
-                          <span className="px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-500 font-extrabold text-[10px]">Mastercard</span>
-                          <span className="px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-500 font-extrabold text-[10px]">RuPay</span>
+                          <VisaIcon className="w-6 h-4" />
+                          <MastercardIcon className="w-6 h-4" />
+                          <RupayIcon className="w-6 h-4" />
                         </div>
                       </div>
 
@@ -4019,10 +4035,15 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
                                     expiry: c.exp,
                                     cvv: c.cvv || '888'
                                   }))}
-                                  className="text-left flex-1 cursor-pointer"
+                                  className="text-left flex-1 cursor-pointer flex items-center gap-2"
                                 >
-                                  <span className="block font-bold text-xs">💳 {c.bank}</span>
-                                  <span className="font-mono text-[10px] text-slate-400">•••• {c.last4} ({c.brand})</span>
+                                  <div className="w-8 h-6 rounded bg-slate-100 dark:bg-slate-800 flex items-center justify-center p-0.5 border border-slate-200 dark:border-slate-700 shrink-0">
+                                    {getCardBrandIcon(c.brand)}
+                                  </div>
+                                  <div>
+                                    <span className="block font-bold text-xs">{c.bank}</span>
+                                    <span className="font-mono text-[10px] text-slate-400">•••• {c.last4} ({c.brand})</span>
+                                  </div>
                                 </button>
                                 <button
                                   type="button"
@@ -4131,10 +4152,10 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
                         <label className="text-[11px] font-bold text-slate-500">Choose Instant UPI Application</label>
                         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                           {[
-                            { id: 'gpay', name: 'Google Pay', icon: '🔵', handle: '@okaxis' },
-                            { id: 'phonepe', name: 'PhonePe', icon: '🟣', handle: '@ybl' },
-                            { id: 'paytm', name: 'Paytm UPI', icon: '🔷', handle: '@paytm' },
-                            { id: 'bhim', name: 'BHIM UPI', icon: '🟠', handle: '@upi' }
+                            { id: 'gpay', name: 'Google Pay', icon: <GooglePayIcon className="w-7 h-7" />, handle: '@okaxis' },
+                            { id: 'phonepe', name: 'PhonePe', icon: <PhonePeIcon className="w-7 h-7" />, handle: '@ybl' },
+                            { id: 'paytm', name: 'Paytm UPI', icon: <PaytmIcon className="w-8 h-4" />, handle: '@paytm' },
+                            { id: 'bhim', name: 'BHIM UPI', icon: <BhimIcon className="w-7 h-7" />, handle: '@upi' }
                           ].map(app => (
                             <button
                               key={app.id}
@@ -4145,14 +4166,14 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
                                 upiId: `alex.customer${app.handle}`,
                                 isUpiVerified: true
                               }))}
-                              className={`p-2.5 rounded-xl border flex flex-col items-center justify-center gap-1 transition-all cursor-pointer ${
+                              className={`p-2.5 rounded-xl border flex flex-col items-center justify-center gap-1.5 transition-all cursor-pointer ${
                                 paymentForm.upiApp === app.id
-                                  ? 'border-orange-500 bg-orange-500/15 text-orange-600 dark:text-orange-400 font-black ring-1 ring-orange-500'
+                                  ? 'border-orange-500 bg-orange-500/15 text-orange-600 dark:text-orange-400 font-black ring-1 ring-orange-500 shadow-sm'
                                   : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 hover:border-slate-400'
                               }`}
                             >
-                              <span className="text-xl">{app.icon}</span>
-                              <span className="text-xs font-extrabold text-center">{app.name}</span>
+                              <div className="h-7 flex items-center justify-center">{app.icon}</div>
+                              <span className="text-[11px] font-extrabold text-center leading-tight">{app.name}</span>
                             </button>
                           ))}
                         </div>
@@ -4181,7 +4202,7 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
                         {paymentForm.isUpiVerified && (
                           <div className="flex items-center gap-1.5 text-[11px] text-emerald-500 font-bold">
                             <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
-                            <span>Verified NPCI UPI ID ({user?.name || 'Verified Customer'})</span>
+                            <span>Verified NPCI UPI ID • Instant Auto-Pay Ready</span>
                           </div>
                         )}
 
@@ -4228,11 +4249,11 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
                             onClick={() => setPaymentForm(prev => ({ ...prev, bankName: bank }))}
                             className={`p-2.5 rounded-xl border text-xs font-bold transition-all text-left flex items-center gap-2 cursor-pointer ${
                               paymentForm.bankName === bank
-                                ? 'border-orange-500 bg-orange-500/15 text-orange-600 dark:text-orange-400 font-black ring-1 ring-orange-500'
+                                ? 'border-orange-500 bg-orange-500/15 text-orange-600 dark:text-orange-400 font-black ring-1 ring-orange-500 shadow-sm'
                                 : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 hover:border-slate-400'
                             }`}
                           >
-                            <span>🏦</span>
+                            {getBankIcon(bank)}
                             <span className="truncate">{bank}</span>
                           </button>
                         ))}
@@ -4275,8 +4296,8 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
                       {/* Wallet Balance Display */}
                       <div className="p-3.5 rounded-2xl bg-gradient-to-r from-orange-500/15 via-amber-500/15 to-orange-500/15 border border-orange-500/25 flex items-center justify-between">
                         <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 rounded-2xl bg-orange-500 text-white flex items-center justify-center font-black text-xl shadow-md">
-                            👛
+                          <div className="w-10 h-10 rounded-2xl bg-orange-500 text-white flex items-center justify-center shadow-md">
+                            <Wallet className="w-5 h-5 text-white" />
                           </div>
                           <div>
                             <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Available Balance</span>
@@ -4373,40 +4394,30 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
                   </div>
                 </div>
 
-                {/* 5. Dual Action Simulation Buttons */}
-                <div className="grid grid-cols-2 gap-3 pt-2">
+                {/* 5. Production Escrow Checkout Action Button */}
+                <div className="pt-2">
                   <button
                     type="button"
                     onClick={(e) => handleExecutePaymentAndOrder(e, false)}
                     disabled={isProcessingPayment || !isCurrentAreaServiced}
-                    className="py-3.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white font-extrabold text-xs shadow-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
+                    className="w-full py-4 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white font-extrabold text-sm shadow-lg shadow-emerald-500/25 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
                   >
                     {!isCurrentAreaServiced ? (
                       <>
-                        <MapPinOff className="w-3.5 h-3.5" />
+                        <MapPinOff className="w-4 h-4" />
                         <span>Area Outside 20km Radius</span>
                       </>
-                    ) : isProcessingPayment && !simulateFail ? (
+                    ) : isProcessingPayment ? (
                       <>
-                        <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                        <span>Authorizing...</span>
+                        <RefreshCw className="w-4 h-4 animate-spin" />
+                        <span>Authorizing Escrow Payment & Placing Order...</span>
                       </>
                     ) : (
                       <>
-                        <CheckCircle2 className="w-3.5 h-3.5" />
-                        <span>Pay ₹{grandTotal.toFixed(2)}</span>
+                        <ShieldCheck className="w-4 h-4" />
+                        <span>Pay ₹{grandTotal.toFixed(2)} & Place Order</span>
                       </>
                     )}
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={(e) => handleExecutePaymentAndOrder(e, true)}
-                    disabled={isProcessingPayment || !isCurrentAreaServiced}
-                    className="py-3.5 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-500 font-extrabold text-xs border border-rose-500/25 transition-all flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
-                  >
-                    <AlertTriangle className="w-3.5 h-3.5" />
-                    <span>Simulate Decline</span>
                   </button>
                 </div>
 

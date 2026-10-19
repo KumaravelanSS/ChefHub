@@ -9,6 +9,7 @@ export default function AdminSite({ user, onLogin }) {
   const [loginPassword, setLoginPassword] = useState('admin');
   const [showLoginPassword, setShowLoginPassword] = useState(false);
   const [loginError, setLoginError] = useState('');
+  const [loginLoading, setLoginLoading] = useState(false);
 
   const [activeTab, setActiveTab] = useState('users');
   const [metrics, setMetrics] = useState(null);
@@ -61,29 +62,27 @@ export default function AdminSite({ user, onLogin }) {
   const [newAdminPassword, setNewAdminPassword] = useState('');
   const [adminUpdateMsg, setAdminUpdateMsg] = useState('');
 
+  const isFetchingRef = useRef(false);
+
   useEffect(() => {
     if (user && user.role === 'ADMIN') {
-      fetchData();
+      fetchData(activeTab);
 
-      // Real-Time Auto-Polling (8 Seconds for Zero-Reload Updates)
+      // Throttled Auto-Polling (30 Seconds) to keep platform in sync without flooding network
       const adminPoll = setInterval(() => {
-        fetchData();
-      }, 8000);
+        fetchData(activeTab);
+      }, 30000);
 
       return () => clearInterval(adminPoll);
     }
-  }, [user]);
+  }, [user, activeTab]);
 
-  useEffect(() => {
-    if (user && user.role === 'ADMIN') {
-      fetchData();
-    }
-  }, [activeTab]);
-
-  const fetchData = async () => {
+  const fetchData = async (targetTab = activeTab) => {
+    if (isFetchingRef.current) return;
     const token = localStorage.getItem('chefhub_token');
     if (!token) return;
     const headers = { Authorization: `Bearer ${token}` };
+    isFetchingRef.current = true;
 
     try {
       // Parallel fetch global dishes and metrics for dynamic real-time stock updates
@@ -98,38 +97,41 @@ export default function AdminSite({ user, onLogin }) {
       const dataMetrics = await resMetrics.json();
       if (dataMetrics.success) setMetrics(dataMetrics.metrics);
 
-      if (activeTab === 'users') {
+      if (targetTab === 'users') {
         const res = await fetch('/api/admin/users', { headers });
         const data = await res.json();
         if (data.success) setUsers(data.users);
-      } else if (activeTab === 'coupons') {
+      } else if (targetTab === 'coupons') {
         const res = await fetch('/api/admin/coupons', { headers });
         const data = await res.json();
         if (data.success) setAdminCoupons(data.coupons);
-      } else if (activeTab === 'payouts') {
+      } else if (targetTab === 'payouts') {
         const res = await fetch('/api/admin/payouts', { headers });
         const data = await res.json();
         if (data.success) {
           setAdminPayouts(data.payouts);
           localStorage.setItem('chefhub_admin_payouts', JSON.stringify(data.payouts));
         }
-      } else if (activeTab === 'reviews') {
+      } else if (targetTab === 'reviews') {
         const res = await fetch('/api/admin/reviews', { headers });
         const data = await res.json();
         if (data.success) setAdminReviews(data.reviews);
-      } else if (activeTab === 'audits') {
+      } else if (targetTab === 'audits') {
         const res = await fetch('/api/admin/audit-logs', { headers });
         const data = await res.json();
         if (data.success) setAuditLogs(data.logs);
       }
     } catch (err) {
       console.error('Admin fetchData error:', err);
+    } finally {
+      isFetchingRef.current = false;
     }
   };
 
   const handleLoginSubmit = async (e) => {
     e.preventDefault();
     setLoginError('');
+    setLoginLoading(true);
     try {
       const res = await fetch('/api/auth/login', {
         method: 'POST',
@@ -137,12 +139,14 @@ export default function AdminSite({ user, onLogin }) {
         body: JSON.stringify({ username: loginUsername, password: loginPassword })
       });
       const data = await res.json();
+      setLoginLoading(false);
       if (data.success) {
         onLogin(data.user, data.token);
       } else {
-        setLoginError(data.message);
+        setLoginError(data.message || 'Invalid administrator credentials.');
       }
     } catch (err) {
+      setLoginLoading(false);
       setLoginError('Connection error. Is backend server running?');
     }
   };
@@ -426,9 +430,17 @@ export default function AdminSite({ user, onLogin }) {
 
               <button
                 type="submit"
-                className="w-full py-3 rounded-xl bg-gradient-to-r from-rose-500 to-red-600 hover:from-rose-600 hover:to-red-700 text-white font-bold text-sm shadow-lg shadow-rose-500/20 transition-all"
+                disabled={loginLoading}
+                className="w-full py-3.5 rounded-xl bg-gradient-to-r from-rose-500 to-red-600 hover:from-rose-600 hover:to-red-700 text-white font-extrabold text-sm shadow-lg shadow-rose-500/20 transition-all disabled:opacity-60 cursor-pointer flex items-center justify-center gap-2"
               >
-                Sign In to Master Admin Site
+                {loginLoading ? (
+                  <>
+                    <RefreshCw className="w-4 h-4 animate-spin" />
+                    <span>Verifying Admin Access…</span>
+                  </>
+                ) : (
+                  <span>Sign In to Master Admin Console</span>
+                )}
               </button>
             </form>
           </div>

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Eye, EyeOff, Check, X, AlertCircle, Bike, ArrowLeft, User, Lock, Mail, Phone, Truck, ShoppingBag } from 'lucide-react';
+import { Eye, EyeOff, Check, X, AlertCircle, Bike, ArrowLeft, User, Lock, Mail, Phone, Truck, ShoppingBag, RefreshCw } from 'lucide-react';
+import { GoogleAuthIcon, AppleAuthIcon } from '../components/PaymentIcons';
 
 function evalPwd(pwd) {
   const checks = { length: pwd.length >= 8, upper: /[A-Z]/.test(pwd), lower: /[a-z]/.test(pwd), number: /[0-9]/.test(pwd), special: /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>/?]/.test(pwd) };
@@ -32,8 +33,9 @@ function PasswordInput({ value, onChange, placeholder, id, show, onToggle }) {
 function SocialButton({ icon, label, onClick }) {
   return (
     <button type="button" onClick={onClick}
-      className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-sm font-bold transition-all shadow-sm">
-      <span>{icon}</span><span>{label}</span>
+      className="flex-1 flex items-center justify-center gap-2.5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-100 text-sm font-bold transition-all shadow-sm hover:shadow-md cursor-pointer">
+      <div className="w-5 h-5 flex items-center justify-center shrink-0">{icon}</div>
+      <span>{label}</span>
     </button>
   );
 }
@@ -98,9 +100,37 @@ export default function RiderAuthPage({ onLogin }) {
     } catch { setLoading(false); setError('Backend error during registration.'); }
   };
 
-  const handleSocial = (provider) => {
-    setSuccess(`${provider} OAuth would redirect in production. Loading demo credentials…`);
-    setTimeout(() => { setLoginId('david.rider@chefhub.com'); setLoginPwd('rider123'); setMode('login'); setSuccess(''); }, 1800);
+  const handleSocial = async (provider) => {
+    clearFeedback();
+    setLoading(true);
+    try {
+      const res = await fetch('/api/auth/social-login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          provider,
+          email: 'david.rider@chefhub.com',
+          name: 'David Rider',
+          role: 'RIDER'
+        })
+      });
+      const data = await res.json();
+      setLoading(false);
+      if (data.success) {
+        setSuccess(`Signed in as ${data.user.name}! Entering Fleet Console…`);
+        localStorage.setItem('chefhub_token', data.token);
+        localStorage.setItem('chefhub_user', JSON.stringify(data.user));
+        setTimeout(() => {
+          onLogin(data.user, data.token);
+          navigate('/rider/dashboard');
+        }, 500);
+      } else {
+        setError(data.message || 'Social login failed.');
+      }
+    } catch {
+      setLoading(false);
+      setError('Connection error contacting authentication provider.');
+    }
   };
 
   return (
@@ -184,12 +214,19 @@ export default function RiderAuthPage({ onLogin }) {
                   <label className="block text-xs font-extrabold text-slate-700 dark:text-slate-300 mb-1.5">Password</label>
                   <PasswordInput id="rider-login-pwd" value={loginPwd} onChange={setLoginPwd} placeholder="Your password" show={showLoginPwd} onToggle={() => setShowLoginPwd(v=>!v)} />
                 </div>
-                <button type="submit" disabled={loading} className="w-full py-3 rounded-xl bg-gradient-to-r from-sky-600 to-blue-600 hover:from-sky-700 hover:to-blue-700 text-white font-extrabold text-sm shadow-lg shadow-sky-500/20 transition-all disabled:opacity-60">
-                  {loading ? 'Signing in…' : 'Enter Rider Console'}
+                <button type="submit" disabled={loading} className="w-full py-3.5 rounded-xl bg-gradient-to-r from-sky-600 to-blue-600 hover:from-sky-700 hover:to-blue-700 text-white font-extrabold text-sm shadow-lg shadow-sky-500/20 transition-all disabled:opacity-60 cursor-pointer flex items-center justify-center gap-2">
+                  {loading ? (
+                    <>
+                      <RefreshCw className="w-4 h-4 animate-spin" />
+                      <span>Verifying Fleet Credentials…</span>
+                    </>
+                  ) : (
+                    <span>Enter Rider Console</span>
+                  )}
                 </button>
                 <button type="button" onClick={() => { setLoginId('david.rider@chefhub.com'); setLoginPwd('rider123'); }}
-                  className="w-full py-2 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 text-xs font-bold hover:bg-slate-50 dark:hover:bg-slate-800 transition">
-                  ⚡ Autofill Demo Rider Credentials
+                  className="w-full py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 text-xs font-bold hover:bg-sky-500/10 dark:hover:bg-slate-800 transition cursor-pointer flex items-center justify-center gap-1.5">
+                  <span>🛵 Quick Fill Demo: David Rider</span>
                 </button>
               </form>
             )}
@@ -246,8 +283,8 @@ export default function RiderAuthPage({ onLogin }) {
 
             <div className="flex items-center gap-3"><div className="flex-1 h-px bg-slate-200 dark:bg-slate-700" /><span className="text-xs text-slate-400 font-bold">or continue with</span><div className="flex-1 h-px bg-slate-200 dark:bg-slate-700" /></div>
             <div className="flex gap-3">
-              <SocialButton icon="🌐" label="Google" onClick={() => handleSocial('Google')} />
-              <SocialButton icon="🍎" label="Apple" onClick={() => handleSocial('Apple')} />
+              <SocialButton icon={<GoogleAuthIcon className="w-5 h-5" />} label="Google" onClick={() => handleSocial('Google')} />
+              <SocialButton icon={<AppleAuthIcon className="w-5 h-5" />} label="Apple" onClick={() => handleSocial('Apple')} />
             </div>
           </div>
         </div>

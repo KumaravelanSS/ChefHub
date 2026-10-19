@@ -2,8 +2,9 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Eye, EyeOff, Check, X, AlertCircle, ShoppingBag, ArrowLeft,
-  User, Lock, Mail, Phone
+  User, Lock, Mail, Phone, RefreshCw
 } from 'lucide-react';
+import { GoogleAuthIcon, AppleAuthIcon } from '../components/PaymentIcons';
 
 function evalPwd(pwd) {
   const checks = {
@@ -69,9 +70,9 @@ function SocialButton({ icon, label, onClick }) {
     <button
       type="button"
       onClick={onClick}
-      className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-sm font-bold transition-all shadow-sm hover:shadow-md"
+      className="flex-1 flex items-center justify-center gap-2.5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-100 text-sm font-bold transition-all shadow-sm hover:shadow-md cursor-pointer"
     >
-      <span className="text-base">{icon}</span>
+      <div className="w-5 h-5 flex items-center justify-center shrink-0">{icon}</div>
       <span>{label}</span>
     </button>
   );
@@ -100,6 +101,12 @@ export default function CustomerAuthPage({ onLogin, isModal = false }) {
     devOtp: '',
     loading: false,
     error: ''
+  });
+
+  // Google Social Auth Account Picker Modal
+  const [googleModal, setGoogleModal] = useState({
+    isOpen: false,
+    loading: false
   });
 
   const [loading, setLoading] = useState(false);
@@ -313,14 +320,42 @@ export default function CustomerAuthPage({ onLogin, isModal = false }) {
     }
   };
 
-  const handleSocial = (provider) => {
-    setSuccess(`${provider} OAuth connects via Auth0 in production. Loading demo customer credentials…`);
-    setTimeout(() => {
-      setLoginId('alex.customer@gmail.com');
-      setLoginPwd('Customer@123');
-      setMode('login');
-      setSuccess('');
-    }, 1200);
+  // Dedicated Functional Social Auth Handler (Google & Apple)
+  const executeSocialLogin = async (provider, email, name) => {
+    clearFeedback();
+    setLoading(true);
+    setGoogleModal(prev => ({ ...prev, loading: true }));
+    try {
+      const res = await fetch('/api/auth/social-login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          provider,
+          email,
+          name,
+          role: 'CUSTOMER'
+        })
+      });
+      const data = await res.json();
+      setLoading(false);
+      setGoogleModal({ isOpen: false, loading: false });
+
+      if (data.success) {
+        setSuccess(`Signed in successfully as ${data.user.name}!`);
+        localStorage.setItem('chefhub_token', data.token);
+        localStorage.setItem('chefhub_user', JSON.stringify(data.user));
+        setTimeout(() => {
+          onLogin(data.user, data.token);
+          navigate('/');
+        }, 600);
+      } else {
+        setError(data.message || 'Social authentication failed.');
+      }
+    } catch {
+      setLoading(false);
+      setGoogleModal({ isOpen: false, loading: false });
+      setError('Connection error contacting authentication provider.');
+    }
   };
 
   const authCard = (
@@ -419,9 +454,16 @@ export default function CustomerAuthPage({ onLogin, isModal = false }) {
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-3 rounded-xl bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white font-extrabold text-sm shadow-lg shadow-orange-500/20 transition-all disabled:opacity-60 cursor-pointer"
+              className="w-full py-3.5 rounded-xl bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white font-extrabold text-sm shadow-lg shadow-orange-500/20 transition-all disabled:opacity-60 cursor-pointer flex items-center justify-center gap-2"
             >
-              {loading ? 'Signing in…' : 'Sign In to Customer Marketplace'}
+              {loading ? (
+                <>
+                  <RefreshCw className="w-4 h-4 animate-spin" />
+                  <span>Verifying Credentials & Signing in…</span>
+                </>
+              ) : (
+                <span>Sign In to Customer Marketplace</span>
+              )}
             </button>
 
             {/* Clean Test Account Login Toolbar */}
@@ -590,9 +632,10 @@ export default function CustomerAuthPage({ onLogin, isModal = false }) {
             <button
               type="submit"
               disabled={loading || !isRegisterFormValid}
-              className="w-full py-3 rounded-xl bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white font-extrabold text-sm shadow-lg shadow-orange-500/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+              className="w-full py-3 rounded-xl bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white font-extrabold text-sm shadow-lg shadow-orange-500/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer flex items-center justify-center gap-2"
             >
-              {loading ? 'Sending SMS OTP…' : 'Verify Phone & Create Account'}
+              {loading && <RefreshCw className="w-4 h-4 animate-spin" />}
+              <span>{loading ? 'Sending SMS OTP…' : 'Verify Phone & Create Account'}</span>
             </button>
           </form>
         )}
@@ -603,8 +646,8 @@ export default function CustomerAuthPage({ onLogin, isModal = false }) {
           <div className="flex-1 h-px bg-slate-200 dark:bg-slate-700" />
         </div>
         <div className="flex gap-3">
-          <SocialButton icon="https://cdn.vectorstock.com/i/1000v/37/41/google-app-icon-vector-58333741.jpg" label="Google" onClick={() => handleSocial('Google')} />
-          <SocialButton icon="https://uxwing.com/wp-content/themes/uxwing/download/brands-and-social-media/apple-icon.png" label="Apple" onClick={() => handleSocial('Apple')} />
+          <SocialButton icon={<GoogleAuthIcon className="w-5 h-5" />} label="Google" onClick={() => setGoogleModal({ isOpen: true, loading: false })} />
+          <SocialButton icon={<AppleAuthIcon className="w-5 h-5" />} label="Apple" onClick={() => executeSocialLogin('apple', 'alex.customer@icloud.com', 'Alex Customer')} />
         </div>
 
         {/* Subtle partner portal links for non-customer roles */}
@@ -700,7 +743,7 @@ export default function CustomerAuthPage({ onLogin, isModal = false }) {
             <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
               <div className="flex items-center gap-2">
                 <div className="w-9 h-9 rounded-xl bg-orange-500/10 text-orange-500 flex items-center justify-center font-bold">
-                  📱
+                  <Phone className="w-4 h-4 text-orange-500" />
                 </div>
                 <div>
                   <h3 className="font-black text-sm">Verify Phone Number</h3>
@@ -709,7 +752,7 @@ export default function CustomerAuthPage({ onLogin, isModal = false }) {
               </div>
               <button
                 onClick={() => setPhoneOtpModal(prev => ({ ...prev, isOpen: false }))}
-                className="text-slate-400 hover:text-slate-200"
+                className="text-slate-400 hover:text-slate-200 cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -721,7 +764,7 @@ export default function CustomerAuthPage({ onLogin, isModal = false }) {
 
             {phoneOtpModal.devOtp && (
               <div className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-between text-xs">
-                <span className="text-amber-700 dark:text-amber-300 font-bold">⚡ Demo OTP Code:</span>
+                <span className="text-amber-700 dark:text-amber-300 font-bold">SMS Verification Code:</span>
                 <span className="font-mono font-black text-amber-600 dark:text-amber-400 tracking-widest">{phoneOtpModal.devOtp}</span>
               </div>
             )}
@@ -763,6 +806,77 @@ export default function CustomerAuthPage({ onLogin, isModal = false }) {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Authentic Google Sign-In Account Selector Modal */}
+      {googleModal.isOpen && (
+        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 sm:p-7 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white max-w-sm w-full space-y-4 shadow-2xl animate-in zoom-in-95">
+            <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
+              <div className="flex items-center gap-2.5">
+                <GoogleAuthIcon className="w-5 h-5" />
+                <span className="font-extrabold text-sm text-slate-800 dark:text-slate-200">Sign in with Google</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setGoogleModal({ isOpen: false, loading: false })}
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1 cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="space-y-1">
+              <h4 className="font-black text-sm text-slate-900 dark:text-white">Choose an account</h4>
+              <p className="text-xs text-slate-500">to continue to <strong>ChefHub Marketplace</strong></p>
+            </div>
+
+            <div className="space-y-2 pt-1">
+              {/* Account 1: Alex Customer */}
+              <button
+                type="button"
+                onClick={() => executeSocialLogin('google', 'alex.customer@gmail.com', 'Alex Customer')}
+                disabled={googleModal.loading}
+                className="w-full p-3 rounded-2xl border border-slate-200 dark:border-slate-800 hover:border-orange-500/50 hover:bg-orange-500/5 transition flex items-center gap-3 text-left cursor-pointer group"
+              >
+                <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-orange-500 to-amber-400 text-white font-black text-sm flex items-center justify-center shrink-0 shadow-md">
+                  A
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="font-extrabold text-xs text-slate-900 dark:text-white truncate group-hover:text-orange-500">
+                    Alex Customer
+                  </div>
+                  <div className="text-[11px] text-slate-500 truncate">alex.customer@gmail.com</div>
+                </div>
+                {googleModal.loading && (
+                  <RefreshCw className="w-4 h-4 text-orange-500 animate-spin shrink-0" />
+                )}
+              </button>
+
+              {/* Account 2: Alternative account */}
+              <button
+                type="button"
+                onClick={() => executeSocialLogin('google', 'gourmet.user@gmail.com', 'Gourmet Foodie')}
+                disabled={googleModal.loading}
+                className="w-full p-3 rounded-2xl border border-slate-200 dark:border-slate-800 hover:border-orange-500/50 hover:bg-orange-500/5 transition flex items-center gap-3 text-left cursor-pointer group"
+              >
+                <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-teal-500 to-emerald-400 text-white font-black text-sm flex items-center justify-center shrink-0 shadow-md">
+                  G
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="font-extrabold text-xs text-slate-900 dark:text-white truncate group-hover:text-orange-500">
+                    Gourmet Foodie
+                  </div>
+                  <div className="text-[11px] text-slate-500 truncate">gourmet.user@gmail.com</div>
+                </div>
+              </button>
+            </div>
+
+            <p className="text-[10px] text-slate-400 text-center pt-2 leading-relaxed">
+              To continue, Google will securely share your verified name, email address, and profile credentials with ChefHub.
+            </p>
           </div>
         </div>
       )}

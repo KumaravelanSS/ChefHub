@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Eye, EyeOff, Check, X, AlertCircle, ChefHat, ArrowLeft, User, Lock, Mail, Phone, UtensilsCrossed, ShoppingBag } from 'lucide-react';
+import { Eye, EyeOff, Check, X, AlertCircle, ChefHat, ArrowLeft, User, Lock, Mail, Phone, UtensilsCrossed, ShoppingBag, RefreshCw } from 'lucide-react';
+import { GoogleAuthIcon, AppleAuthIcon } from '../components/PaymentIcons';
 
 function evalPwd(pwd) {
   const checks = { length: pwd.length >= 8, upper: /[A-Z]/.test(pwd), lower: /[a-z]/.test(pwd), number: /[0-9]/.test(pwd), special: /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>/?]/.test(pwd) };
@@ -32,8 +33,9 @@ function PasswordInput({ value, onChange, placeholder, id, show, onToggle }) {
 function SocialButton({ icon, label, onClick }) {
   return (
     <button type="button" onClick={onClick}
-      className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-sm font-bold transition-all shadow-sm">
-      <span>{icon}</span><span>{label}</span>
+      className="flex-1 flex items-center justify-center gap-2.5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-100 text-sm font-bold transition-all shadow-sm hover:shadow-md cursor-pointer">
+      <div className="w-5 h-5 flex items-center justify-center shrink-0">{icon}</div>
+      <span>{label}</span>
     </button>
   );
 }
@@ -98,9 +100,37 @@ export default function ChefAuthPage({ onLogin }) {
     } catch { setLoading(false); setError('Backend error during registration.'); }
   };
 
-  const handleSocial = (provider) => {
-    setSuccess(`${provider} OAuth would redirect in production. Loading demo credentials…`);
-    setTimeout(() => { setLoginId('chef.mario@chefhub.com'); setLoginPwd('vendor123'); setMode('login'); setSuccess(''); }, 1800);
+  const handleSocial = async (provider) => {
+    clearFeedback();
+    setLoading(true);
+    try {
+      const res = await fetch('/api/auth/social-login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          provider,
+          email: 'chef.mario@chefhub.com',
+          name: 'Chef Mario Rossi',
+          role: 'VENDOR'
+        })
+      });
+      const data = await res.json();
+      setLoading(false);
+      if (data.success) {
+        setSuccess(`Signed in as ${data.user.name}! Entering Kitchen Console…`);
+        localStorage.setItem('chefhub_token', data.token);
+        localStorage.setItem('chefhub_user', JSON.stringify(data.user));
+        setTimeout(() => {
+          onLogin(data.user, data.token);
+          navigate('/chef/dashboard');
+        }, 500);
+      } else {
+        setError(data.message || 'Social login failed.');
+      }
+    } catch {
+      setLoading(false);
+      setError('Connection error contacting authentication provider.');
+    }
   };
 
   return (
@@ -184,12 +214,19 @@ export default function ChefAuthPage({ onLogin }) {
                   <label className="block text-xs font-extrabold text-slate-700 dark:text-slate-300 mb-1.5">Password</label>
                   <PasswordInput id="chef-login-pwd" value={loginPwd} onChange={setLoginPwd} placeholder="Your password" show={showLoginPwd} onToggle={() => setShowLoginPwd(v => !v)} />
                 </div>
-                <button type="submit" disabled={loading} className="w-full py-3 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-extrabold text-sm shadow-lg shadow-emerald-500/20 transition-all disabled:opacity-60">
-                  {loading ? 'Signing in…' : 'Enter Kitchen Console'}
+                <button type="submit" disabled={loading} className="w-full py-3.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-extrabold text-sm shadow-lg shadow-emerald-500/20 transition-all disabled:opacity-60 cursor-pointer flex items-center justify-center gap-2">
+                  {loading ? (
+                    <>
+                      <RefreshCw className="w-4 h-4 animate-spin" />
+                      <span>Verifying Kitchen Credentials…</span>
+                    </>
+                  ) : (
+                    <span>Enter Kitchen Console</span>
+                  )}
                 </button>
-                <button type="button" onClick={() => { setLoginId('chef.mario@chefhub.com'); setLoginPwd('Vendor@123'); }}
-                  className="w-full py-2 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 text-xs font-bold hover:bg-slate-50 dark:hover:bg-slate-800 transition">
-
+                <button type="button" onClick={() => { setLoginId('chef.mario@chefhub.com'); setLoginPwd('vendor123'); }}
+                  className="w-full py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 text-xs font-bold hover:bg-emerald-500/10 dark:hover:bg-slate-800 transition cursor-pointer flex items-center justify-center gap-1.5">
+                  <span>👨‍🍳 Quick Fill Demo: Chef Mario</span>
                 </button>
               </form>
             )}
@@ -243,8 +280,8 @@ export default function ChefAuthPage({ onLogin }) {
 
             <div className="flex items-center gap-3"><div className="flex-1 h-px bg-slate-200 dark:bg-slate-700" /><span className="text-xs text-slate-400 font-bold">or continue with</span><div className="flex-1 h-px bg-slate-200 dark:bg-slate-700" /></div>
             <div className="flex gap-3">
-              <SocialButton icon="https://upload.wikimedia.org/wikipedia/commons/0/09/IOS_Google_icon.png?utm_source=commons.wikimedia.org&utm_campaign=index&utm_content=original" label="Google" onClick={() => handleSocial('Google')} />
-              <SocialButton icon="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcT3Dr-PrP2MaGAyJvafRH4LYk0kFkWHA6qHkz77dJQuXA&s=10" label="Apple" onClick={() => handleSocial('Apple')} />
+              <SocialButton icon={<GoogleAuthIcon className="w-5 h-5" />} label="Google" onClick={() => handleSocial('Google')} />
+              <SocialButton icon={<AppleAuthIcon className="w-5 h-5" />} label="Apple" onClick={() => handleSocial('Apple')} />
             </div>
           </div>
         </div>
