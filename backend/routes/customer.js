@@ -887,4 +887,100 @@ router.post('/reviews', authenticateToken, requireRole(['CUSTOMER', 'VENDOR', 'R
   }
 });
 
+// ==========================================
+// CLIENT-SIDE PREDICTIVE GEOFENCING & CART SYNC
+// ==========================================
+
+const cacheLayer = require('../services/cache_layer');
+const cartStore = new Map(); // in-memory session cart store: customer_id -> { items, updated_at }
+
+// Serviceability Geofence Check (Evaluates 20km polygon containment with caching)
+router.post('/serviceability', async (req, res) => {
+  try {
+    const { customer_lat, customer_lng, vendor_id, kitchen_lat, kitchen_lng } = req.body;
+    let kLat = kitchen_lat !== undefined && kitchen_lat !== null ? parseFloat(kitchen_lat) : null;
+    let kLng = kitchen_lng !== undefined && kitchen_lng !== null ? parseFloat(kitchen_lng) : null;
+
+    if ((kLat === null || kLng === null) && vendor_id) {
+      const v = await query('SELECT latitude, longitude, primary_address FROM users WHERE user_id = ?', [vendor_id]);
+      if (v.length > 0 && v[0].latitude && v[0].longitude) {
+        kLat = parseFloat(v[0].latitude);
+        kLng = parseFloat(v[0].longitude);
+      } else {
+        kLat = 12.9784; // default Indiranagar
+        kLng = 77.6408;
+      }
+    }
+
+    if (kLat === null || kLng === null) {
+      kLat = 12.9784;
+      kLng = 77.6408;
+    }
+
+    const cLat = parseFloat(customer_lat) || 12.9716;
+    const cLng = parseFloat(customer_lng) || 77.5946;
+
+    const check = cacheLayer.checkServiceability(cLat, cLng, kLat, kLng, 20.0);
+    const bbox = cacheLayer.getKitchenBoundingBox(kLat, kLng, 20.0);
+
+    return res.json({
+      success: true,
+      serviceable: check.is_serviceable,
+      distance_km: check.distance_km,
+      max_radius_km: 20.0,
+      bounding_box: bbox,
+      customer_geohash: check.customer_geohash,
+      kitchen_geohash: check.kitchen_geohash,
+      estimated_delivery_mins: check.estimated_delivery_mins,
+      cached: check.cached
+    });
+  } catch (err) {
+    console.error('Serviceability check error:', err);
+    return res.status(500).json({ success: false, message: 'Serviceability evaluation failed.' });
+  }
+});
+
+// Ephemeral / Server-backed Cart Sync Endpoint
+// Supports optimistic local storage sync with rollback validation
+router.get('/cart', authenticateToken, async (req, res) => {
+  const customerId = req.user.user_id;
+  const cart = cartStore.get(customerId) || { items: [], updated_at: new Date() };
+  return res.json({ success: true, cart: cart.items, updated_at: cart.updated_at });
+});
+
+router.post('/cart', authenticateToken, async (req, res) => {
+  try {
+    const customerId = req.user.user_id;
+    const { items, client_timestamp } = req.body;
+
+    if (!Array.isArray(items)) {
+      return res.status(400).json({ success: false, message: 'Cart items must be an array.' });
+    }
+
+    // Verify stock availability for each item to guard against race conditions
+    for (const item of items) {
+      if (item.dish_id) {
+        const dish = await query('SELECT dish_id, name, daily_stock, is_available FROM dishes WHERE dish_id = ?', [item.dish_id]);
+        if (dish.length > 0) {
+          if (!dish[0].is_available || (dish[0].daily_stock !== null && dish[0].daily_stock < item.quantity)) {
+            return res.status(409).json({
+              success: false,
+              conflict: true,
+              message: `Insufficient stock for '${dish[0].name}'. Available: ${dish[0].daily_stock || 0}`,
+              item_id: item.dish_id,
+              available_stock: dish[0].daily_stock || 0
+            });
+          }
+        }
+      }
+    }
+
+    cartStore.set(customerId, { items, updated_at: client_timestamp || new Date() });
+    return res.json({ success: true, message: 'Cart synchronized successfully', count: items.length });
+  } catch (err) {
+    console.error('Cart sync error:', err);
+    return res.status(500).json({ success: false, message: 'Cart synchronization failed.' });
+  }
+});
+
 module.exports = router;

@@ -142,6 +142,8 @@ router.patch('/orders/:id/complete', authenticateToken, requireRole('RIDER'), as
   }
 });
 
+const telemetryBuffer = require('../services/telemetry_buffer');
+
 // Update Rider Live Coordinates
 router.post('/location', authenticateToken, requireRole('RIDER'), async (req, res) => {
   try {
@@ -153,10 +155,45 @@ router.post('/location', authenticateToken, requireRole('RIDER'), async (req, re
       live_coordinates: { lat: Number(lat) || 12.9716, lng: Number(lng) || 77.5946 }
     });
 
+    telemetryBuffer.enqueueBatch(rider_id, [{
+      lat: Number(lat) || 12.9716,
+      lng: Number(lng) || 77.5946,
+      timestamp: new Date()
+    }]);
+
     return res.json({ success: true, message: 'Location updated', rider: updated });
   } catch (err) {
     console.error('Update rider location error:', err);
     return res.status(500).json({ success: false, message: 'Failed to update location.' });
+  }
+});
+
+// Batched Geolocation Telemetry Stream (5-second locked throttle buffer)
+router.post('/gps', authenticateToken, requireRole('RIDER'), async (req, res) => {
+  try {
+    const rider_id = req.user.user_id;
+    const { batch, coordinates, order_id } = req.body;
+    const points = Array.isArray(batch) ? batch : (Array.isArray(coordinates) ? coordinates : (req.body.lat ? [req.body] : []));
+
+    if (points.length === 0) {
+      return res.status(400).json({ success: false, message: 'No coordinate points in telemetry batch.' });
+    }
+
+    const result = telemetryBuffer.enqueueBatch(rider_id, points.map(p => ({
+      ...p,
+      order_id: p.order_id || order_id
+    })));
+
+    return res.json({
+      success: true,
+      message: 'Telemetry batch queued',
+      points_buffered: result.accepted,
+      latest: result.latest,
+      sync_timestamp: new Date().toISOString()
+    });
+  } catch (err) {
+    console.error('Batched GPS telemetry error:', err);
+    return res.status(500).json({ success: false, message: 'Failed to buffer rider GPS telemetry.' });
   }
 });
 

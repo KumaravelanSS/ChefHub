@@ -15,6 +15,51 @@ import {
   VisaIcon, MastercardIcon, RupayIcon, CreditCardTabIcon, NetBankingTabIcon,
   getBankIcon, getCardBrandIcon
 } from '../components/PaymentIcons';
+import booleanPointInPolygon from '@turf/boolean-point-in-polygon';
+import { point as turfPoint, polygon as turfPolygon } from '@turf/helpers';
+
+// Tokenized Payment Pre-flight Validation: Brand detection & Luhn algorithm check
+export function detectCardBrand(numStr) {
+  const clean = String(numStr || '').replace(/\D/g, '');
+  if (/^4/.test(clean)) return 'Visa';
+  if (/^(?:5[1-5]|2[2-7])/.test(clean)) return 'Mastercard';
+  if (/^(?:508[5-9]|6521[5-9]|6522|60|65|81|82)/.test(clean)) return 'RuPay';
+  if (/^3[47]/.test(clean)) return 'Amex';
+  return 'Unknown';
+}
+
+export function validateLuhn(numStr) {
+  const clean = String(numStr || '').replace(/\D/g, '');
+  if (clean.length < 13 || clean.length > 19) return false;
+  let sum = 0;
+  let shouldDouble = false;
+  for (let i = clean.length - 1; i >= 0; i--) {
+    let digit = parseInt(clean.charAt(i), 10);
+    if (shouldDouble) {
+      digit *= 2;
+      if (digit > 9) digit -= 9;
+    }
+    sum += digit;
+    shouldDouble = !shouldDouble;
+  }
+  return sum % 10 === 0;
+}
+
+// Client-Side Predictive Geofencing: 20km Circular Polygon Generator
+export function generateCircularPolygon(lat, lng, radiusKm = 20) {
+  const points = [];
+  const earthRadius = 6371;
+  const numSides = 16;
+  for (let i = 0; i <= numSides; i++) {
+    const angle = (i * 360 / numSides) * (Math.PI / 180);
+    const dLat = (radiusKm / earthRadius) * (180 / Math.PI);
+    const dLng = (radiusKm / (earthRadius * Math.cos(lat * Math.PI / 180))) * (180 / Math.PI);
+    const pLat = lat + dLat * Math.sin(angle);
+    const pLng = lng + dLng * Math.cos(angle);
+    points.push([pLng, pLat]); // GeoJSON ring expects [lng, lat]
+  }
+  return turfPolygon([points]);
+}
 
 const DELIVERY_FEE = 40.00;
 
@@ -123,7 +168,22 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
   const [vendors, setVendors] = useState([]);
   const [selectedVendor, setSelectedVendor] = useState(null);
   const [selectedChefFilter, setSelectedChefFilter] = useState('ALL'); // 'ALL' or vendor_id
-  const [cart, setCart] = useState([]);
+  
+  // Optimistic Local Storage Cart State & Rollback Snapshot Store
+  const [cart, setCart] = useState(() => {
+    try {
+      const cached = localStorage.getItem('chefhub_customer_cart');
+      return cached ? JSON.parse(cached) : [];
+    } catch {
+      return [];
+    }
+  });
+  const cartSnapshotRef = useRef(cart);
+
+  // Client-Side Predictive Geofencing Reactive Cache
+  const [geofencingCache, setGeofencingCache] = useState([]);
+  const [serverServiceabilityVerified, setServerServiceabilityVerified] = useState(null);
+
   const [myOrders, setMyOrders] = useState([]);
   const [activeTrackingOrder, setActiveTrackingOrder] = useState(null);
   const [reviewOrder, setReviewOrder] = useState(null);
@@ -1322,6 +1382,31 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
     });
   };
 
+  // Optimistic Local Storage Sync for Cart State with Ephemeral Rollback Store
+  const syncCartWithServer = async (cartToSync, fallbackSnapshot) => {
+    try {
+      const token = localStorage.getItem('chefhub_token');
+      if (!token) return;
+      const res = await fetch('/api/v1/customer/cart', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({ cart: cartToSync, action: 'SYNC' })
+      });
+      const data = await res.json();
+      if (!data.success) {
+        console.warn('Cart sync rollback triggered:', data.error);
+        setCart(fallbackSnapshot);
+        localStorage.setItem('chefhub_customer_cart', JSON.stringify(fallbackSnapshot));
+        alert(`Cart Update Conflict: ${data.error || 'Server rejected item quantity. Rolling back to previous local snapshot.'}`);
+      }
+    } catch (err) {
+      console.warn('Cart sync network blip:', err);
+    }
+  };
+
   const addToCart = (dish, vendorForDish = selectedVendor) => {
     const v = vendorForDish || selectedVendor;
     const isVendorOpen = v &&
@@ -1347,22 +1432,27 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
       return;
     }
 
-    setCart((prev) => {
-      const existing = prev.find((item) => item.dish_id === dish.dish_id);
-      const currentQty = existing ? existing.quantity : 0;
+    const prevSnapshot = [...cart];
+    cartSnapshotRef.current = prevSnapshot;
+    const existing = prevSnapshot.find((item) => item.dish_id === dish.dish_id);
+    const currentQty = existing ? existing.quantity : 0;
 
-      if (currentQty + 1 > availableStock) {
-        alert(`Cannot add more '${dish.name}': Only ${availableStock} portion${availableStock > 1 ? 's' : ''} available today.`);
-        return prev;
-      }
-      if (currentQty >= 5) {
-        alert('Maximum order limit per dish is 5 items.');
-        return prev;
-      }
-      return existing
-        ? prev.map((item) => (item.dish_id === dish.dish_id ? { ...item, quantity: item.quantity + 1 } : item))
-        : [...prev, { ...dish, vendor_id: v.vendor_id, vendor_name: v.business_name, quantity: 1 }];
-    });
+    if (currentQty + 1 > availableStock) {
+      alert(`Cannot add more '${dish.name}': Only ${availableStock} portion${availableStock > 1 ? 's' : ''} available today.`);
+      return;
+    }
+    if (currentQty >= 5) {
+      alert('Maximum order limit per dish is 5 items.');
+      return;
+    }
+
+    const nextCart = existing
+      ? prevSnapshot.map((item) => (item.dish_id === dish.dish_id ? { ...item, quantity: item.quantity + 1 } : item))
+      : [...prevSnapshot, { ...dish, vendor_id: v.vendor_id, vendor_name: v.business_name, quantity: 1 }];
+
+    setCart(nextCart);
+    localStorage.setItem('chefhub_customer_cart', JSON.stringify(nextCart));
+    syncCartWithServer(nextCart, prevSnapshot);
   };
 
   const updateCartQuantity = (dish_id, newQty) => {
@@ -1374,9 +1464,12 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
       alert('Maximum limit reached: You can order up to 5 portions of this dish per order.');
       return;
     }
-    setCart((prev) =>
-      prev.map((item) => (item.dish_id === dish_id ? { ...item, quantity: newQty } : item))
-    );
+    const prevSnapshot = [...cart];
+    cartSnapshotRef.current = prevSnapshot;
+    const nextCart = prevSnapshot.map((item) => (item.dish_id === dish_id ? { ...item, quantity: newQty } : item));
+    setCart(nextCart);
+    localStorage.setItem('chefhub_customer_cart', JSON.stringify(nextCart));
+    syncCartWithServer(nextCart, prevSnapshot);
   };
 
   const handleAddToCartWithFeedback = (dish, vendorForDish = selectedVendor) => {
@@ -1388,7 +1481,12 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
   };
 
   const removeFromCart = (dish_id) => {
-    setCart((prev) => prev.filter((item) => item.dish_id !== dish_id));
+    const prevSnapshot = [...cart];
+    cartSnapshotRef.current = prevSnapshot;
+    const nextCart = prevSnapshot.filter((item) => item.dish_id !== dish_id);
+    setCart(nextCart);
+    localStorage.setItem('chefhub_customer_cart', JSON.stringify(nextCart));
+    syncCartWithServer(nextCart, prevSnapshot);
   };
 
   const cartTotal = cart.reduce((acc, curr) => acc + curr.price * curr.quantity, 0);
@@ -1440,6 +1538,16 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
       setPaymentStage('IDLE');
       setShowAddressModal(true);
       return;
+    }
+
+    if (paymentForm.paymentMethod === 'CARD') {
+      const cleanCard = paymentForm.cardNumber.replace(/\D/g, '');
+      if (cleanCard.length < 13 || !validateLuhn(cleanCard)) {
+        alert('🔒 Pre-Flight Validation Failed: Card number does not pass Luhn algorithm compliance. Please verify your 16-digit card number before tokenization.');
+        setIsProcessingPayment(false);
+        setPaymentStage('IDLE');
+        return;
+      }
     }
 
     setIsProcessingPayment(true);
@@ -1859,14 +1967,72 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
     });
   }, [allDishesMarketplace, selectedChefFilter, enforceRadius, searchQuery, selectedCuisine, vegOnly, selectedDiet, favorites, sortBy]);
 
-  // Calculate 20km delivery service availability for selected customer location
+  // Client-Side Predictive Geofencing Cache: 20km Bounding Box & Polygon Array
+  useEffect(() => {
+    if (!Array.isArray(vendors) || vendors.length === 0) return;
+    const cache = vendors.map((v) => {
+      const vLat = Number(v.latitude || 12.9716);
+      const vLng = Number(v.longitude || 77.5946);
+      const latDelta = 20 / 111.32;
+      const lngDelta = 20 / (111.32 * Math.cos((vLat * Math.PI) / 180));
+      return {
+        vendor_id: v.vendor_id,
+        business_name: v.business_name || v.name,
+        lat: vLat,
+        lng: vLng,
+        bbox: [vLat - latDelta, vLng - lngDelta, vLat + latDelta, vLng + lngDelta],
+        polygon: generateCircularPolygon(vLat, vLng, 20)
+      };
+    });
+    setGeofencingCache(cache);
+  }, [vendors]);
+
+  // Sync background confirmation with /api/v1/customer/serviceability
+  useEffect(() => {
+    if (!currentCoords.lat || !currentCoords.lng) return;
+    fetch('/api/v1/customer/serviceability', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ lat: currentCoords.lat, lng: currentCoords.lng })
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.success && data.serviceable !== undefined) {
+          setServerServiceabilityVerified(data.serviceable);
+        }
+      })
+      .catch((err) => console.warn('Background serviceability validation failed:', err));
+  }, [currentCoords.lat, currentCoords.lng]);
+
+  // Client-Side Predictive Geofencing Check using cached 20km Turf polygons
   const isCurrentAreaServiced = React.useMemo(() => {
     if (loadingVendors) return true;
     if (currentCoords.locality?.toLowerCase().includes('airport') || currentCoords.lat > 13.1) {
       return false;
     }
+    if (geofencingCache.length > 0) {
+      try {
+        const pt = turfPoint([Number(currentCoords.lng), Number(currentCoords.lat)]);
+        const isContained = geofencingCache.some((k) => {
+          // Fast BBOX rejection
+          const inBbox =
+            currentCoords.lat >= k.bbox[0] &&
+            currentCoords.lng >= k.bbox[1] &&
+            currentCoords.lat <= k.bbox[2] &&
+            currentCoords.lng <= k.bbox[3];
+          if (!inBbox) return false;
+          return booleanPointInPolygon(pt, k.polygon);
+        });
+        if (serverServiceabilityVerified !== null) {
+          return serverServiceabilityVerified && isContained;
+        }
+        return isContained;
+      } catch (e) {
+        console.warn('Predictive geofence computation error:', e);
+      }
+    }
     return vendors.length > 0;
-  }, [loadingVendors, currentCoords.locality, currentCoords.lat, vendors.length]);
+  }, [loadingVendors, currentCoords.locality, currentCoords.lat, currentCoords.lng, geofencingCache, serverServiceabilityVerified, vendors.length]);
 
   if (loadingVendors && vendors.length === 0) {
     return (
@@ -4073,7 +4239,17 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
 
                       <div className="space-y-2.5">
                         <div>
-                          <label className="text-[11px] font-bold text-slate-500 block mb-1">Card Number (16 Digits)</label>
+                          <div className="flex items-center justify-between mb-1">
+                            <label className="text-[11px] font-bold text-slate-500">Card Number (16 Digits)</label>
+                            {paymentForm.cardNumber.replace(/\D/g, '').length >= 1 && (
+                              <div className="flex items-center gap-1.5 text-[10px] font-bold">
+                                <span className="text-slate-400">Brand:</span>
+                                <span className="px-2 py-0.5 rounded-md font-mono font-black uppercase bg-orange-500/15 text-orange-600 dark:text-orange-400 border border-orange-500/30">
+                                  {detectCardBrand(paymentForm.cardNumber)}
+                                </span>
+                              </div>
+                            )}
+                          </div>
                           <div className="relative">
                             <input
                               type="text"
@@ -4089,6 +4265,19 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
                             />
                             <CreditCard className="w-4 h-4 text-slate-400 absolute right-3 top-3" />
                           </div>
+                          {paymentForm.cardNumber.replace(/\D/g, '').length >= 13 && (
+                            <div className="mt-1.5 flex items-center justify-between text-[10px]">
+                              {validateLuhn(paymentForm.cardNumber) ? (
+                                <span className="text-emerald-600 dark:text-emerald-400 font-extrabold flex items-center gap-1">
+                                  <CheckCircle2 className="w-3.5 h-3.5" /> Luhn Checksum Passed • Pre-flight Tokenization Ready
+                                </span>
+                              ) : (
+                                <span className="text-rose-500 font-bold flex items-center gap-1">
+                                  <AlertCircle className="w-3.5 h-3.5" /> Invalid Card Checksum (Luhn Algorithm Failed)
+                                </span>
+                              )}
+                            </div>
+                          )}
                         </div>
 
                         <div>
@@ -4488,6 +4677,7 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
               {/* Left 7 cols: Interactive Leaflet Live Map */}
               <div className="lg:col-span-7 space-y-3">
                 <LiveDeliveryMap
+                  orderId={activeTrackingOrder.order_id}
                   orderStatus={activeTrackingOrder.status}
                   chefLocation={activeTrackingOrder.chef_location || CHEF_AVATARS[activeTrackingOrder.vendor_email]?.coords || { lat: 12.9784, lng: 77.6408, locality: activeTrackingOrder.vendor_name }}
                   customerLocation={{ lat: currentCoords.lat, lng: currentCoords.lng, locality: primaryAddress }}

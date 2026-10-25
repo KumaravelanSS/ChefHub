@@ -441,4 +441,56 @@ router.delete('/coupons/:id', authenticateToken, requireRole('ADMIN'), async (re
   }
 });
 
+// ==========================================
+// MULTI-ADMIN CONFLICT MITIGATION INTERLOCK
+// ==========================================
+const disputeObservers = new Map(); // order_id -> { admin_id, admin_name, token, last_heartbeat }
+
+router.post('/disputes/:orderId/observe', authenticateToken, requireRole('ADMIN'), (req, res) => {
+  const orderId = Number(req.params.orderId);
+  const adminId = req.user.user_id;
+  const adminName = req.user.name || 'Master Admin';
+  const token = req.body.token || req.headers['x-admin-session-id'] || `admin_${adminId}_${Date.now()}`;
+  const now = Date.now();
+
+  const existing = disputeObservers.get(orderId);
+  if (existing && existing.token !== token && (now - existing.last_heartbeat < 45000)) {
+    return res.json({
+      success: true,
+      write_locked: true,
+      conflict: true,
+      active_observer: existing.admin_name,
+      observed_since: new Date(existing.last_heartbeat).toISOString(),
+      message: `State Interlock Active: Another Admin (${existing.admin_name}) is currently reviewing Dispute #${orderId}. Write controls locked to avoid racing overrides.`
+    });
+  }
+
+  disputeObservers.set(orderId, {
+    admin_id: adminId,
+    admin_name: adminName,
+    token,
+    last_heartbeat: now
+  });
+
+  return res.json({
+    success: true,
+    write_locked: false,
+    conflict: false,
+    token,
+    message: `Observer lock acquired for Ticket #${orderId}`
+  });
+});
+
+router.delete('/disputes/:orderId/observe', authenticateToken, requireRole('ADMIN'), (req, res) => {
+  const orderId = Number(req.params.orderId);
+  const token = req.body.token || req.headers['x-admin-session-id'];
+  const existing = disputeObservers.get(orderId);
+
+  if (existing && (!token || existing.token === token)) {
+    disputeObservers.delete(orderId);
+  }
+
+  return res.json({ success: true, message: `Observer lock released for Ticket #${orderId}` });
+});
+
 module.exports = router;

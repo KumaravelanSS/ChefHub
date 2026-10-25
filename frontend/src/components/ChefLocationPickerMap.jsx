@@ -6,6 +6,49 @@ import { MapPin, Navigation, Crosshair, ZoomIn, ZoomOut, Compass } from 'lucide-
 const TILE_VOYAGER = 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png';
 const TILE_DARK = 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
 
+// Fast 7-Character Geohash Generator (~150m precision for spatial indexing)
+export function computeGeohash(latitude, longitude, precision = 7) {
+  const BITS = [16, 8, 4, 2, 1];
+  const BASE32 = '0123456789bcdefghjkmnpqrstuvwxyz';
+  let isEven = true;
+  let lat = [-90.0, 90.0];
+  let lon = [-180.0, 180.0];
+  let geohash = '';
+  let bit = 0;
+  let ch = 0;
+
+  while (geohash.length < precision) {
+    let mid;
+    if (isEven) {
+      mid = (lon[0] + lon[1]) / 2;
+      if (longitude > mid) {
+        ch |= BITS[bit];
+        lon[0] = mid;
+      } else {
+        lon[1] = mid;
+      }
+    } else {
+      mid = (lat[0] + lat[1]) / 2;
+      if (latitude > mid) {
+        ch |= BITS[bit];
+        lat[0] = mid;
+      } else {
+        lat[1] = mid;
+      }
+    }
+
+    isEven = !isEven;
+    if (bit < 4) {
+      bit++;
+    } else {
+      geohash += BASE32[ch];
+      bit = 0;
+      ch = 0;
+    }
+  }
+  return geohash;
+}
+
 export default function ChefLocationPickerMap({
   latitude = 12.9784,
   longitude = 77.6408,
@@ -21,6 +64,7 @@ export default function ChefLocationPickerMap({
   // Safe parsed coordinates
   const currentLat = Number(latitude) || 12.9784;
   const currentLng = Number(longitude) || 77.6408;
+  const [activeGeohash, setActiveGeohash] = useState(() => computeGeohash(currentLat, currentLng, 7));
 
   // Custom Chef Kitchen Pin Icon
   const createChefIcon = () => {
@@ -79,15 +123,19 @@ export default function ChefLocationPickerMap({
         const pos = e.target.getLatLng();
         const lat = Number(pos.lat.toFixed(6));
         const lng = Number(pos.lng.toFixed(6));
-        if (onChange) onChange(lat, lng);
+        const gh = computeGeohash(lat, lng, 7);
+        setActiveGeohash(gh);
+        if (onChange) onChange(lat, lng, gh);
       });
 
       // Map click event
       map.on('click', (e) => {
         const lat = Number(e.latlng.lat.toFixed(6));
         const lng = Number(e.latlng.lng.toFixed(6));
+        const gh = computeGeohash(lat, lng, 7);
         marker.setLatLng([lat, lng]);
-        if (onChange) onChange(lat, lng);
+        setActiveGeohash(gh);
+        if (onChange) onChange(lat, lng, gh);
       });
 
       mapInstanceRef.current = map;
@@ -214,9 +262,12 @@ export default function ChefLocationPickerMap({
               <span className="font-mono font-bold text-emerald-400">
                 {currentLat.toFixed(4)}° N, {currentLng.toFixed(4)}° E
               </span>
+              <span className="px-2 py-0.5 rounded-md bg-sky-500/20 text-sky-300 font-mono text-[10px] font-extrabold border border-sky-500/30" title="Client-Side Computed 7-Character Geohash for Fast Spatial Clustering">
+                Geohash: {activeGeohash}
+              </span>
               <span className="text-slate-400 hidden sm:inline">•</span>
               <span className="text-slate-300 text-[11px] hidden sm:inline">
-                Drag marker or click anywhere on map to reposition
+                Drag marker to reposition
               </span>
             </div>
             <span className="px-2 py-0.5 rounded-md bg-emerald-500/20 text-emerald-300 text-[10px] font-black uppercase tracking-wider border border-emerald-500/30">

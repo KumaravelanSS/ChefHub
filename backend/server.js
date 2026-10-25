@@ -29,9 +29,9 @@ app.use(cors());
 app.use(express.json());
 
 // Route-Tiered Rate Limiting Gateway
-app.use('/api/auth', authLimiter);
-app.use('/api/rider/location', telemetryLimiter);
-app.use('/api', globalApiLimiter);
+app.use(['/api/auth', '/api/v1/auth'], authLimiter);
+app.use(['/api/rider/location', '/api/v1/rider/location', '/api/rider/gps', '/api/v1/rider/gps'], telemetryLimiter);
+app.use(['/api', '/api/v1'], globalApiLimiter);
 
 const path = require('path');
 const fs = require('fs');
@@ -93,13 +93,13 @@ if (staticPath) {
   });
 }
 
-// API Routes
-app.use('/api/auth', authRoutes);
-app.use('/api/customer', customerRoutes);
-app.use('/api/vendor', vendorRoutes);
-app.use('/api/rider', riderRoutes);
-app.use('/api/admin', adminRoutes);
-app.use('/api/realtime', realtimeRoutes);
+// API Routes (Dual Mounting: /api and /api/v1)
+['/api/auth', '/api/v1/auth'].forEach(p => app.use(p, authRoutes));
+['/api/customer', '/api/v1/customer'].forEach(p => app.use(p, customerRoutes));
+['/api/vendor', '/api/v1/vendor'].forEach(p => app.use(p, vendorRoutes));
+['/api/rider', '/api/v1/rider'].forEach(p => app.use(p, riderRoutes));
+['/api/admin', '/api/v1/admin'].forEach(p => app.use(p, adminRoutes));
+['/api/realtime', '/api/v1/realtime'].forEach(p => app.use(p, realtimeRoutes));
 
 // SPA Fallback for React Router (Customer, Chef, Rider, Admin Portals)
 if (staticPath) {

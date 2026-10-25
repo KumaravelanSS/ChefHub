@@ -8,6 +8,7 @@ const TILE_LIGHT = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
 const TILE_DARK = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
 
 export default function LiveDeliveryMap({
+  orderId = 4021,
   chefLocation = { lat: 12.9784, lng: 77.6408, locality: 'Indiranagar Kitchen' },
   customerLocation = { lat: 12.9352, lng: 77.6245, locality: 'Koramangala 5th Block' },
   riderName = 'David Rider',
@@ -42,6 +43,84 @@ export default function LiveDeliveryMap({
   const [simProgress, setSimProgress] = useState(defaultProgress);
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
   const [showApiGuide, setShowApiGuide] = useState(false);
+
+  // SSE Stream & Graceful HTTP Long-Polling Fallback State
+  const [telemetryMode, setTelemetryMode] = useState('SSE_LIVE'); // 'SSE_LIVE' | 'HTTP_POLLING'
+  const [pollIntervalMs, setPollIntervalMs] = useState(3000);
+  const [lastTelemetryUpdate, setLastTelemetryUpdate] = useState(null);
+  const sseRef = useRef(null);
+  const pollTimerRef = useRef(null);
+  const backoffRef = useRef(3000);
+
+  // Wire SSE monitoring with Exponential Backoff Long-Polling Fallback
+  useEffect(() => {
+    let isMounted = true;
+
+    const startPollingFallback = () => {
+      if (!isMounted) return;
+      setTelemetryMode('HTTP_POLLING');
+
+      const executePoll = async () => {
+        try {
+          const res = await fetch(`/api/v1/realtime/telemetry/${orderId}`);
+          if (res.ok) {
+            const data = await res.json();
+            if (data.success && isMounted) {
+              setLastTelemetryUpdate(new Date().toLocaleTimeString());
+              // Reset backoff on successful response
+              backoffRef.current = 3000;
+              setPollIntervalMs(3000);
+            }
+          } else {
+            // Exponential backoff up to 15s
+            backoffRef.current = Math.min(15000, Math.round(backoffRef.current * 1.5));
+            if (isMounted) setPollIntervalMs(backoffRef.current);
+          }
+        } catch {
+          backoffRef.current = Math.min(15000, Math.round(backoffRef.current * 1.5));
+          if (isMounted) setPollIntervalMs(backoffRef.current);
+        }
+
+        if (isMounted) {
+          pollTimerRef.current = setTimeout(executePoll, backoffRef.current);
+        }
+      };
+
+      if (pollTimerRef.current) clearTimeout(pollTimerRef.current);
+      pollTimerRef.current = setTimeout(executePoll, 1000);
+    };
+
+    try {
+      const sseUrl = `/api/v1/realtime/events?channel=order_${orderId},rider`;
+      const eventSource = new EventSource(sseUrl);
+      sseRef.current = eventSource;
+
+      eventSource.onopen = () => {
+        if (!isMounted) return;
+        setTelemetryMode('SSE_LIVE');
+        if (pollTimerRef.current) clearTimeout(pollTimerRef.current);
+      };
+
+      eventSource.addEventListener('RIDER_LOCATION_UPDATE', (e) => {
+        if (!isMounted) return;
+        setLastTelemetryUpdate(new Date().toLocaleTimeString());
+      });
+
+      eventSource.onerror = () => {
+        if (!isMounted) return;
+        eventSource.close();
+        startPollingFallback();
+      };
+    } catch {
+      startPollingFallback();
+    }
+
+    return () => {
+      isMounted = false;
+      if (sseRef.current) sseRef.current.close();
+      if (pollTimerRef.current) clearTimeout(pollTimerRef.current);
+    };
+  }, [orderId]);
 
   useEffect(() => {
     if (isDelivered) {
@@ -525,6 +604,17 @@ export default function LiveDeliveryMap({
                       <span className="px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-400 text-[10px] font-bold">
                         {vehicleType}
                       </span>
+                      {telemetryMode === 'SSE_LIVE' ? (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 text-[10px] font-extrabold border border-emerald-500/30">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                          <span>SSE Stream Active</span>
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-400 text-[10px] font-extrabold border border-amber-500/30" title="Auto HTTP long-polling fallback">
+                          <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-ping"></span>
+                          <span>HTTP Polling Fallback ({pollIntervalMs / 1000}s)</span>
+                        </span>
+                      )}
                       {riderPhone && (
                         <a
                           href={`tel:${riderPhone}`}

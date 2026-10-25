@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import {
   ChefHat, Package, Utensils, DollarSign, AlertTriangle, CheckCircle2, Clock, Plus, Trash2,
   AlertCircle, Edit3, Image as ImageIcon, X, Sparkles, Ban, Eye, EyeOff, Tag, RefreshCw, Star,
-  User, MapPin, Lock, Shield, KeyRound, Smartphone, Mail, Compass, Check, Copy, Send, Save, ArrowRight, Loader2, ShoppingBag
+  User, MapPin, Lock, Shield, KeyRound, Smartphone, Mail, Compass, Check, Copy, Send, Save, ArrowRight, Loader2, ShoppingBag, Volume2, VolumeX
 } from 'lucide-react';
 import { KitchenLoadingScreen, KitchenDataLoader, KitchenSkeletonRows } from '../components/KitchenLoading';
 import ChefAuthPage from './ChefAuthPage';
@@ -348,6 +348,85 @@ export default function ChefSite({ user, onLogin, onLogout }) {
       console.error('Chef fetchData error:', err);
     }
   };
+
+  // Web Audio API Context Pre-authorization & Kitchen Order Chime
+  const [audioAuthorized, setAudioAuthorized] = useState(() => {
+    return sessionStorage.getItem('chefhub_kds_audio_auth') === 'true';
+  });
+  const audioCtxRef = useRef(null);
+
+  const unlockAudioContext = () => {
+    try {
+      if (!audioCtxRef.current) {
+        audioCtxRef.current = new (window.AudioContext || window.webkitAudioContext)();
+      }
+      if (audioCtxRef.current.state === 'suspended') {
+        audioCtxRef.current.resume();
+      }
+      // Pleasant double-tone authorization chime (F5 -> A5)
+      const osc = audioCtxRef.current.createOscillator();
+      const gain = audioCtxRef.current.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(698.46, audioCtxRef.current.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(880.00, audioCtxRef.current.currentTime + 0.15);
+      gain.gain.setValueAtTime(0.2, audioCtxRef.current.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.01, audioCtxRef.current.currentTime + 0.4);
+      osc.connect(gain);
+      gain.connect(audioCtxRef.current.destination);
+      osc.start();
+      osc.stop(audioCtxRef.current.currentTime + 0.4);
+
+      setAudioAuthorized(true);
+      sessionStorage.setItem('chefhub_kds_audio_auth', 'true');
+    } catch (e) {
+      console.warn('AudioContext pre-auth error:', e);
+    }
+  };
+
+  const playIncomingOrderAlert = () => {
+    try {
+      if (!audioCtxRef.current) {
+        audioCtxRef.current = new (window.AudioContext || window.webkitAudioContext)();
+      }
+      if (audioCtxRef.current.state === 'suspended') {
+        audioCtxRef.current.resume();
+      }
+      const osc = audioCtxRef.current.createOscillator();
+      const gain = audioCtxRef.current.createGain();
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(523.25, audioCtxRef.current.currentTime); // C5
+      osc.frequency.setValueAtTime(659.25, audioCtxRef.current.currentTime + 0.15); // E5
+      osc.frequency.setValueAtTime(783.99, audioCtxRef.current.currentTime + 0.30); // G5
+      gain.gain.setValueAtTime(0.3, audioCtxRef.current.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.01, audioCtxRef.current.currentTime + 0.6);
+      osc.connect(gain);
+      gain.connect(audioCtxRef.current.destination);
+      osc.start();
+      osc.stop(audioCtxRef.current.currentTime + 0.6);
+    } catch {}
+  };
+
+  // Wire Real-Time SSE Stream for Incoming KDS Orders
+  useEffect(() => {
+    if (!user) return;
+    let eventSource = null;
+    try {
+      const url = `/api/v1/realtime/events?channel=vendor_${user.user_id},global`;
+      eventSource = new EventSource(url);
+      eventSource.addEventListener('ORDER_CREATED', () => {
+        playIncomingOrderAlert();
+        fetchData();
+      });
+      eventSource.addEventListener('ORDER_STATUS_CHANGED', () => {
+        fetchData();
+      });
+    } catch (e) {
+      console.warn('Chef SSE listener error:', e);
+    }
+    return () => {
+      if (eventSource) eventSource.close();
+    };
+  }, [user?.user_id]);
 
   const handleInitiateKitchenToggle = () => {
     if (storeProfile.is_open) {
@@ -2649,9 +2728,24 @@ export default function ChefSite({ user, onLogin, onLogout }) {
                 <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">Real-time incoming orders, preparation status, and driver dispatch</p>
               </div>
             </div>
-            <span className="px-3.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-700 dark:text-emerald-400 text-xs font-black shadow-sm">
-              {orders.length} Active Ticket{orders.length !== 1 ? 's' : ''}
-            </span>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={unlockAudioContext}
+                className={`px-3.5 py-1.5 rounded-full text-xs font-bold flex items-center gap-1.5 transition-all shadow-sm cursor-pointer ${
+                  audioAuthorized
+                    ? 'bg-emerald-500/15 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20'
+                    : 'bg-amber-500/15 border border-amber-500/30 text-amber-600 dark:text-amber-400 animate-pulse hover:bg-amber-500/25'
+                }`}
+                title={audioAuthorized ? 'Web Audio Context Unlocked - Realtime Audio Alerts Active' : 'Click to authorize audio order chimes for incoming KDS tickets'}
+              >
+                {audioAuthorized ? <Volume2 className="w-3.5 h-3.5 text-emerald-500" /> : <VolumeX className="w-3.5 h-3.5 text-amber-500" />}
+                <span>{audioAuthorized ? 'KDS Audio Active' : 'Enable Live Audio Alerts'}</span>
+              </button>
+              <span className="px-3.5 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-700 dark:text-emerald-400 text-xs font-black shadow-sm">
+                {orders.length} Active Ticket{orders.length !== 1 ? 's' : ''}
+              </span>
+            </div>
           </div>
 
           {orders.length === 0 ? (
@@ -2813,13 +2907,47 @@ export default function ChefSite({ user, onLogin, onLogout }) {
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
                   {inventory.map((inv) => {
-                    const isLow = Number(inv.stock_quantity) <= Number(inv.reorder_level);
+                    const currentStock = Number(inv.stock_quantity) || 0;
+                    const reorderLevel = Number(inv.reorder_level) || 10;
+                    const baseline = Math.max(reorderLevel * 2.5, 20);
+                    const stockRatio = currentStock / baseline;
+                    const isCritical = stockRatio <= 0.10;
+                    const isWarning = !isCritical && stockRatio <= 0.15;
+                    const isLow = isCritical || isWarning || currentStock <= reorderLevel;
+
                     return (
-                      <tr key={inv.ingredient_id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/30 transition-colors">
-                        <td className="p-3.5 font-extrabold text-slate-900 dark:text-white">{inv.ingredient_name}</td>
+                      <tr 
+                        key={inv.ingredient_id} 
+                        className={`transition-all ${
+                          isCritical
+                            ? 'bg-rose-500/15 border-y-2 border-rose-500 dark:bg-rose-950/40 dark:border-rose-500 shadow-[inset_0_0_12px_rgba(244,63,94,0.2)]'
+                            : isWarning
+                            ? 'bg-amber-500/15 border-y-2 border-amber-500 dark:bg-amber-950/40 dark:border-amber-500 shadow-[inset_0_0_12px_rgba(245,158,11,0.2)]'
+                            : 'hover:bg-slate-50/80 dark:hover:bg-slate-800/30'
+                        }`}
+                      >
+                        <td className="p-3.5 font-extrabold text-slate-900 dark:text-white">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span>{inv.ingredient_name}</span>
+                            {isCritical && (
+                              <span className="px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-wider bg-rose-500 text-white animate-pulse shadow-sm">
+                                BOM &lt;10% Critical
+                              </span>
+                            )}
+                            {isWarning && (
+                              <span className="px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-wider bg-amber-500 text-slate-950 shadow-sm">
+                                BOM &lt;15% Warning
+                              </span>
+                            )}
+                          </div>
+                        </td>
                         <td className="p-3.5">
                           <span className={`font-mono font-black px-2.5 py-1 rounded-lg border text-xs shadow-sm ${
-                            isLow 
+                            isCritical
+                              ? 'bg-rose-500 text-white border-rose-600 animate-pulse'
+                              : isWarning
+                              ? 'bg-amber-500 text-slate-950 border-amber-600'
+                              : isLow 
                               ? 'bg-rose-50 text-rose-800 border-rose-300 dark:bg-rose-500/20 dark:text-rose-300 dark:border-rose-500/30' 
                               : 'bg-emerald-50 text-emerald-800 border-emerald-300 dark:bg-emerald-500/20 dark:text-emerald-300 dark:border-emerald-500/30'
                           }`}>

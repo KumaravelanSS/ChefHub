@@ -1,6 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Bike, MapPin, CheckCircle2, DollarSign, Navigation, Power, AlertCircle, Eye, EyeOff, Phone, Loader2, ShoppingBag } from 'lucide-react';
+import {
+  Bike, MapPin, CheckCircle2, DollarSign, Navigation, Power, AlertCircle,
+  Eye, EyeOff, Phone, Loader2, ShoppingBag, Wifi, WifiOff, CloudUpload, Clock
+} from 'lucide-react';
 import RiderAuthPage from './RiderAuthPage';
 import LiveDeliveryMap from '../components/LiveDeliveryMap';
 
@@ -19,6 +22,23 @@ export default function RiderSite({ user, onLogin }) {
   const [activeMapJobId, setActiveMapJobId] = useState(null);
   const [updatingJobIds, setUpdatingJobIds] = useState({});
 
+  // Offline Storage Queue for Trip Status Events
+  const [isOnline, setIsOnline] = useState(() => navigator.onLine !== false);
+  const [offlineQueue, setOfflineQueue] = useState(() => {
+    try {
+      const saved = localStorage.getItem('chefhub_rider_offline_queue');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  // Throttled Geolocation Batched Telemetry Stream
+  const telemetryBufferRef = useRef([]);
+  const watchIdRef = useRef(null);
+  const flushTimerRef = useRef(null);
+  const isFlushingQueueRef = useRef(false);
+
   useEffect(() => {
     if (user && user.role === 'RIDER') {
       fetchJobs();
@@ -26,6 +46,194 @@ export default function RiderSite({ user, onLogin }) {
       fetchReviews();
     }
   }, [user]);
+
+  // Locked 5-Second Telemetry Flusher to /api/v1/rider/gps
+  const flushTelemetryBatch = async () => {
+    if (telemetryBufferRef.current.length === 0) return;
+    const batch = [...telemetryBufferRef.current];
+    telemetryBufferRef.current = [];
+
+    const activeJob = jobs.find((j) => j.status === 'OUT_FOR_DELIVERY');
+    const order_id = activeJob ? activeJob.order_id : null;
+
+    try {
+      const token = localStorage.getItem('chefhub_token');
+      if (!token) return;
+      await fetch('/api/v1/rider/gps', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          batch,
+          order_id,
+          shift_status: shiftStatus
+        })
+      });
+    } catch (err) {
+      console.warn('GPS telemetry batch flush error:', err);
+      if (telemetryBufferRef.current.length < 50) {
+        telemetryBufferRef.current.unshift(...batch);
+      }
+    }
+  };
+
+  // Browser navigator.geolocation.watchPosition Wrapper with 5s throttle interval
+  useEffect(() => {
+    if (!user || user.role !== 'RIDER' || shiftStatus !== 'ONLINE') {
+      if (watchIdRef.current !== null && navigator.geolocation) {
+        navigator.geolocation.clearWatch(watchIdRef.current);
+        watchIdRef.current = null;
+      }
+      if (flushTimerRef.current) {
+        clearInterval(flushTimerRef.current);
+        flushTimerRef.current = null;
+      }
+      return;
+    }
+
+    if (navigator.geolocation) {
+      try {
+        watchIdRef.current = navigator.geolocation.watchPosition(
+          (pos) => {
+            const lat = Number(pos.coords.latitude.toFixed(6));
+            const lng = Number(pos.coords.longitude.toFixed(6));
+            const speed = Number((pos.coords.speed || 0).toFixed(1));
+            const heading = Number((pos.coords.heading || 0).toFixed(1));
+            setCoords({ lat, lng });
+
+            telemetryBufferRef.current.push({
+              lat,
+              lng,
+              speed,
+              heading,
+              timestamp: Date.now()
+            });
+          },
+          (err) => {
+            console.warn('Geolocation watch error (using drift fallback):', err.message);
+          },
+          { enableHighAccuracy: true, maximumAge: 2500, timeout: 10000 }
+        );
+      } catch (e) {
+        console.warn('Geolocation initialization error:', e);
+      }
+    }
+
+    // Locked 5-second interval timer
+    flushTimerRef.current = setInterval(() => {
+      if (telemetryBufferRef.current.length === 0) {
+        setCoords((prev) => {
+          const nextLat = Number((prev.lat + (Math.random() * 0.0004 - 0.0002)).toFixed(6));
+          const nextLng = Number((prev.lng + (Math.random() * 0.0004 - 0.0002)).toFixed(6));
+          telemetryBufferRef.current.push({
+            lat: nextLat,
+            lng: nextLng,
+            speed: 28.5,
+            heading: 45.0,
+            timestamp: Date.now()
+          });
+          return { lat: nextLat, lng: nextLng };
+        });
+      }
+      flushTelemetryBatch();
+    }, 5000);
+
+    return () => {
+      if (watchIdRef.current !== null && navigator.geolocation) {
+        navigator.geolocation.clearWatch(watchIdRef.current);
+        watchIdRef.current = null;
+      }
+      if (flushTimerRef.current) {
+        clearInterval(flushTimerRef.current);
+        flushTimerRef.current = null;
+      }
+    };
+  }, [user, shiftStatus, jobs]);
+
+  // Offline Storage Queue Worker
+  const queueOfflineTripAction = (order_id, target_status, endpoint, method = 'PATCH') => {
+    const actionItem = {
+      queue_id: 'queued_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
+      order_id,
+      target_status,
+      endpoint,
+      method,
+      local_timestamp: new Date().toISOString()
+    };
+    setOfflineQueue((prev) => {
+      const updated = [...prev, actionItem];
+      localStorage.setItem('chefhub_rider_offline_queue', JSON.stringify(updated));
+      return updated;
+    });
+  };
+
+  const flushOfflineQueue = async () => {
+    if (isFlushingQueueRef.current) return;
+    let currentQueue = [];
+    try {
+      const saved = localStorage.getItem('chefhub_rider_offline_queue');
+      currentQueue = saved ? JSON.parse(saved) : [];
+    } catch {
+      currentQueue = [];
+    }
+    if (currentQueue.length === 0) return;
+
+    isFlushingQueueRef.current = true;
+    const token = localStorage.getItem('chefhub_token');
+    const remaining = [];
+
+    for (const item of currentQueue) {
+      try {
+        const res = await fetch(item.endpoint, {
+          method: item.method,
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`
+          },
+          body: JSON.stringify({ local_timestamp: item.local_timestamp, order_id: item.order_id })
+        });
+        const data = await res.json();
+        if (!data.success) {
+          console.warn('Offline queued status update rejected by backend:', data.message);
+        }
+      } catch (err) {
+        remaining.push(item);
+      }
+    }
+
+    setOfflineQueue(remaining);
+    localStorage.setItem('chefhub_rider_offline_queue', JSON.stringify(remaining));
+    isFlushingQueueRef.current = false;
+    if (remaining.length < currentQueue.length) {
+      fetchJobs();
+      fetchEarnings();
+    }
+  };
+
+  // Online / Offline Network Listeners
+  useEffect(() => {
+    const handleOnline = () => {
+      setIsOnline(true);
+      flushOfflineQueue();
+    };
+    const handleOffline = () => {
+      setIsOnline(false);
+    };
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    if (navigator.onLine) {
+      flushOfflineQueue();
+    }
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
 
   const fetchJobs = async () => {
     try {
@@ -87,16 +295,31 @@ export default function RiderSite({ user, onLogin }) {
   };
 
   const acceptJob = async (order_id) => {
-    // 1. Optimistic Update: Instantly flip state in Rider view
     const originalJobs = [...jobs];
-    setUpdatingJobIds(prev => ({ ...prev, [order_id]: 'ACCEPTING' }));
+    setUpdatingJobIds((prev) => ({ ...prev, [order_id]: 'ACCEPTING' }));
 
-    setJobs(prev => prev.map(j => j.order_id === order_id ? {
-      ...j,
-      status: 'OUT_FOR_DELIVERY',
-      rider_id: user?.user_id,
-      rider_name: user?.name || 'Courier'
-    } : j));
+    setJobs((prev) =>
+      prev.map((j) =>
+        j.order_id === order_id
+          ? {
+              ...j,
+              status: 'OUT_FOR_DELIVERY',
+              rider_id: user?.user_id,
+              rider_name: user?.name || 'Courier'
+            }
+          : j
+      )
+    );
+
+    if (!navigator.onLine) {
+      queueOfflineTripAction(order_id, 'OUT_FOR_DELIVERY', `/api/rider/orders/${order_id}/accept`, 'PATCH');
+      setUpdatingJobIds((prev) => {
+        const next = { ...prev };
+        delete next[order_id];
+        return next;
+      });
+      return;
+    }
 
     try {
       const token = localStorage.getItem('chefhub_token');
@@ -105,7 +328,7 @@ export default function RiderSite({ user, onLogin }) {
         headers: { Authorization: `Bearer ${token}` }
       });
       const data = await res.json();
-      setUpdatingJobIds(prev => {
+      setUpdatingJobIds((prev) => {
         const next = { ...prev };
         delete next[order_id];
         return next;
@@ -115,25 +338,32 @@ export default function RiderSite({ user, onLogin }) {
         alert(data.message || 'Failed to accept job. Reverting.');
       }
     } catch (err) {
-      setJobs(originalJobs);
-      setUpdatingJobIds(prev => {
+      queueOfflineTripAction(order_id, 'OUT_FOR_DELIVERY', `/api/rider/orders/${order_id}/accept`, 'PATCH');
+      setUpdatingJobIds((prev) => {
         const next = { ...prev };
         delete next[order_id];
         return next;
       });
-      alert('Network error. Reverting job acceptance.');
     }
   };
 
   const completeDelivery = async (order_id) => {
-    // 1. Optimistic Update
     const originalJobs = [...jobs];
-    setUpdatingJobIds(prev => ({ ...prev, [order_id]: 'COMPLETING' }));
+    setUpdatingJobIds((prev) => ({ ...prev, [order_id]: 'COMPLETING' }));
 
-    setJobs(prev => prev.map(j => j.order_id === order_id ? {
-      ...j,
-      status: 'DELIVERED'
-    } : j));
+    setJobs((prev) =>
+      prev.map((j) => (j.order_id === order_id ? { ...j, status: 'DELIVERED' } : j))
+    );
+
+    if (!navigator.onLine) {
+      queueOfflineTripAction(order_id, 'DELIVERED', `/api/rider/orders/${order_id}/complete`, 'PATCH');
+      setUpdatingJobIds((prev) => {
+        const next = { ...prev };
+        delete next[order_id];
+        return next;
+      });
+      return;
+    }
 
     try {
       const token = localStorage.getItem('chefhub_token');
@@ -142,7 +372,7 @@ export default function RiderSite({ user, onLogin }) {
         headers: { Authorization: `Bearer ${token}` }
       });
       const data = await res.json();
-      setUpdatingJobIds(prev => {
+      setUpdatingJobIds((prev) => {
         const next = { ...prev };
         delete next[order_id];
         return next;
@@ -154,13 +384,12 @@ export default function RiderSite({ user, onLogin }) {
         alert(data.message || 'Failed to complete delivery. Reverting.');
       }
     } catch (err) {
-      setJobs(originalJobs);
-      setUpdatingJobIds(prev => {
+      queueOfflineTripAction(order_id, 'DELIVERED', `/api/rider/orders/${order_id}/complete`, 'PATCH');
+      setUpdatingJobIds((prev) => {
         const next = { ...prev };
         delete next[order_id];
         return next;
       });
-      alert('Network error while completing delivery. Reverting.');
     }
   };
 
@@ -205,7 +434,22 @@ export default function RiderSite({ user, onLogin }) {
         </div>
 
         {/* Shift Toggle & GPS Simulator */}
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
+          {/* Connection & 5s Telemetry Status Pill */}
+          <div className="flex items-center gap-2">
+            {!isOnline || offlineQueue.length > 0 ? (
+              <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-500/15 border border-amber-500/30 text-amber-600 dark:text-amber-400 text-xs font-bold shadow-sm animate-pulse">
+                <WifiOff className="w-3.5 h-3.5" />
+                <span>{offlineQueue.length} Offline Queued</span>
+              </span>
+            ) : (
+              <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-sky-500/15 border border-sky-500/30 text-sky-600 dark:text-sky-400 text-xs font-bold shadow-sm">
+                <Wifi className="w-3.5 h-3.5 text-sky-500" />
+                <span>5s Telemetry Active</span>
+              </span>
+            )}
+          </div>
+
           <button
             onClick={() => navigate('/')}
             className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-orange-500/10 hover:bg-orange-500/20 text-orange-600 dark:text-orange-400 border border-orange-500/30 text-xs font-bold transition-all shadow-sm active:scale-95 cursor-pointer"
@@ -279,6 +523,7 @@ export default function RiderSite({ user, onLogin }) {
                     {activeMapJobId === job.order_id && (
                       <div className="pt-2 animate-fade-in">
                         <LiveDeliveryMap
+                          orderId={job.order_id}
                           orderStatus={job.status}
                           chefLocation={{ lat: 12.9784, lng: 77.6408, locality: job.vendor_name || 'Kitchen' }}
                           customerLocation={{ lat: 12.9352, lng: 77.6245, locality: job.delivery_address || 'Customer Location' }}
