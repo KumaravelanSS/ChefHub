@@ -53,14 +53,17 @@ export default function ChefAuthPage({ onLogin }) {
       const savedUser = localStorage.getItem('chefhub_user');
       if (savedUser) {
         const u = JSON.parse(savedUser);
-        if (u && u.role !== 'VENDOR') {
+        if (u && u.role === 'VENDOR') {
+          navigate('/chef/dashboard', { replace: true });
+          return;
+        } else if (u) {
           localStorage.removeItem('chefhub_user');
           localStorage.removeItem('chefhub_token');
           window.location.reload();
         }
       }
     } catch {}
-  }, []);
+  }, [navigate]);
 
   const [regName, setRegName] = useState('');
   const [regKitchen, setRegKitchen] = useState('');

@@ -10,6 +10,7 @@ import ChefAuthPage from './pages/ChefAuthPage';
 import RiderSite from './pages/RiderSite';
 import RiderAuthPage from './pages/RiderAuthPage';
 import AdminSite from './pages/AdminSite';
+import SecurityCredentialsModal from './components/SecurityCredentialsModal';
 import ErrorBoundary from './components/ErrorBoundary';
 
 function MainApp() {
@@ -31,6 +32,14 @@ function MainApp() {
   const [theme, setTheme] = useState(() => {
     return localStorage.getItem('chefhub_theme') || 'dark';
   });
+
+  const [showSecurityModal, setShowSecurityModal] = useState(false);
+
+  useEffect(() => {
+    const handleOpenSec = () => setShowSecurityModal(true);
+    window.addEventListener('chefhub:open-security', handleOpenSec);
+    return () => window.removeEventListener('chefhub:open-security', handleOpenSec);
+  }, []);
 
   const navigate = useNavigate();
 
@@ -190,6 +199,18 @@ function MainApp() {
           </div>
         </div>
       </footer>
+
+      {/* Global Security & Credentials Modal (Accessible from any page / portal) */}
+      {showSecurityModal && currentUser && (
+        <SecurityCredentialsModal
+          user={currentUser}
+          onClose={() => setShowSecurityModal(false)}
+          onUserUpdated={(updatedUser) => {
+            setCurrentUser(updatedUser);
+            localStorage.setItem('chefhub_user', JSON.stringify(updatedUser));
+          }}
+        />
+      )}
     </div>
   );
 }

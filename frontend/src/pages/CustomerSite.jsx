@@ -224,13 +224,7 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
     success: ''
   });
 
-  useEffect(() => {
-    const handleOpenSec = () => {
-      setShowSecurityModal(true);
-    };
-    window.addEventListener('chefhub:open-security', handleOpenSec);
-    return () => window.removeEventListener('chefhub:open-security', handleOpenSec);
-  }, []);
+  // Security modal is managed globally by App.jsx
 
   const evalChangePwd = (pwd) => {
     const checks = {
@@ -2083,8 +2077,7 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
           <div className="flex items-center gap-2.5 shrink-0">
             <button
               onClick={() => {
-                setShowSecurityModal(true);
-                setSecurityActiveTab('PASSWORD');
+                window.dispatchEvent(new CustomEvent('chefhub:open-security'));
               }}
               className="px-4 py-2.5 rounded-xl bg-orange-500 hover:bg-orange-600 text-white font-extrabold text-xs shadow-md transition-all cursor-pointer flex items-center gap-1.5"
             >
