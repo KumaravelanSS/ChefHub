@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Eye, EyeOff, Check, X, AlertCircle, ChefHat, ArrowLeft, User, Lock, Mail, Phone, UtensilsCrossed, ShoppingBag, RefreshCw } from 'lucide-react';
 import { GoogleAuthIcon, AppleAuthIcon } from '../components/PaymentIcons';
@@ -47,6 +47,20 @@ export default function ChefAuthPage({ onLogin }) {
   const [loginId, setLoginId] = useState('');
   const [loginPwd, setLoginPwd] = useState('');
   const [showLoginPwd, setShowLoginPwd] = useState(false);
+
+  useEffect(() => {
+    try {
+      const savedUser = localStorage.getItem('chefhub_user');
+      if (savedUser) {
+        const u = JSON.parse(savedUser);
+        if (u && u.role !== 'VENDOR') {
+          localStorage.removeItem('chefhub_user');
+          localStorage.removeItem('chefhub_token');
+          window.location.reload();
+        }
+      }
+    } catch {}
+  }, []);
 
   const [regName, setRegName] = useState('');
   const [regKitchen, setRegKitchen] = useState('');
@@ -223,10 +237,6 @@ export default function ChefAuthPage({ onLogin }) {
                   ) : (
                     <span>Enter Kitchen Console</span>
                   )}
-                </button>
-                <button type="button" onClick={() => { setLoginId('chef.mario@chefhub.com'); setLoginPwd('vendor123'); }}
-                  className="w-full py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 text-xs font-bold hover:bg-emerald-500/10 dark:hover:bg-slate-800 transition cursor-pointer flex items-center justify-center gap-1.5">
-                  <span>👨‍🍳 Quick Fill Demo: Chef Mario</span>
                 </button>
               </form>
             )}

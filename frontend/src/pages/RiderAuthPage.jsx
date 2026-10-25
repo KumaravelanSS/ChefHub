@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Eye, EyeOff, Check, X, AlertCircle, Bike, ArrowLeft, User, Lock, Mail, Phone, Truck, ShoppingBag, RefreshCw } from 'lucide-react';
 import { GoogleAuthIcon, AppleAuthIcon } from '../components/PaymentIcons';
@@ -47,6 +47,20 @@ export default function RiderAuthPage({ onLogin }) {
   const [loginId, setLoginId] = useState('');
   const [loginPwd, setLoginPwd] = useState('');
   const [showLoginPwd, setShowLoginPwd] = useState(false);
+
+  useEffect(() => {
+    try {
+      const savedUser = localStorage.getItem('chefhub_user');
+      if (savedUser) {
+        const u = JSON.parse(savedUser);
+        if (u && u.role !== 'RIDER') {
+          localStorage.removeItem('chefhub_user');
+          localStorage.removeItem('chefhub_token');
+          window.location.reload();
+        }
+      }
+    } catch {}
+  }, []);
 
   const [regName, setRegName] = useState('');
   const [regEmail, setRegEmail] = useState('');
@@ -223,10 +237,6 @@ export default function RiderAuthPage({ onLogin }) {
                   ) : (
                     <span>Enter Rider Console</span>
                   )}
-                </button>
-                <button type="button" onClick={() => { setLoginId('david.rider@chefhub.com'); setLoginPwd('rider123'); }}
-                  className="w-full py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 text-xs font-bold hover:bg-sky-500/10 dark:hover:bg-slate-800 transition cursor-pointer flex items-center justify-center gap-1.5">
-                  <span>🛵 Quick Fill Demo: David Rider</span>
                 </button>
               </form>
             )}

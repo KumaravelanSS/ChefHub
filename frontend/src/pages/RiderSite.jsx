@@ -9,8 +9,8 @@ import LiveDeliveryMap from '../components/LiveDeliveryMap';
 
 export default function RiderSite({ user, onLogin }) {
   const navigate = useNavigate();
-  const [loginEmail, setLoginEmail] = useState('david.rider@chefhub.com');
-  const [loginPassword, setLoginPassword] = useState('rider123');
+  const [loginEmail, setLoginEmail] = useState('');
+  const [loginPassword, setLoginPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loginError, setLoginError] = useState('');
 

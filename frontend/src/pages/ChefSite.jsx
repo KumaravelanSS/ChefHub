@@ -40,8 +40,8 @@ const KITCHEN_HUBS = [
 
 export default function ChefSite({ user, onLogin, onLogout }) {
   const navigate = useNavigate();
-  const [loginEmail, setLoginEmail] = useState('chef.mario@chefhub.com');
-  const [loginPassword, setLoginPassword] = useState('vendor123');
+  const [loginEmail, setLoginEmail] = useState('');
+  const [loginPassword, setLoginPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loginError, setLoginError] = useState('');
 

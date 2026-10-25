@@ -13,16 +13,8 @@ export default function AuthModal({
   const [role, setRole] = useState(initialRole); // 'CUSTOMER' | 'VENDOR' | 'RIDER'
 
   // Login Form States
-  const [loginIdentifier, setLoginIdentifier] = useState(
-    initialRole === 'VENDOR' ? 'chef.mario@chefhub.com' :
-    initialRole === 'RIDER' ? 'david.rider@chefhub.com' :
-    'alex.customer@gmail.com'
-  );
-  const [loginPassword, setLoginPassword] = useState(
-    initialRole === 'VENDOR' ? 'vendor123' :
-    initialRole === 'RIDER' ? 'rider123' :
-    'customer123'
-  );
+  const [loginIdentifier, setLoginIdentifier] = useState('');
+  const [loginPassword, setLoginPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
 
   // Registration Form States
@@ -165,22 +157,6 @@ export default function AuthModal({
     }
   };
 
-  // Quick Demo Autofill Helper
-  const setDemoCredentials = (targetRole) => {
-    setRole(targetRole);
-    setMode('LOGIN');
-    if (targetRole === 'CUSTOMER') {
-      setLoginIdentifier('alex.customer@gmail.com');
-      setLoginPassword('customer123');
-    } else if (targetRole === 'VENDOR') {
-      setLoginIdentifier('chef.mario@chefhub.com');
-      setLoginPassword('vendor123');
-    } else if (targetRole === 'RIDER') {
-      setLoginIdentifier('david.rider@chefhub.com');
-      setLoginPassword('rider123');
-    }
-  };
-
   // Real Social Authentication Handler
   const handleSocialLogin = async (provider) => {
     setLoading(true);
@@ -257,7 +233,7 @@ export default function AuthModal({
         <div className="mt-4 grid grid-cols-3 gap-1.5 p-1 rounded-xl bg-white/60 dark:bg-slate-950/60 border border-slate-200/80 dark:border-slate-800">
           <button
             type="button"
-            onClick={() => { setRole('CUSTOMER'); setDemoCredentials('CUSTOMER'); }}
+            onClick={() => setRole('CUSTOMER')}
             className={`py-1.5 rounded-lg text-xs font-black transition-all flex items-center justify-center gap-1.5 ${
               role === 'CUSTOMER'
                 ? 'bg-teal-500 text-white shadow-md shadow-teal-500/25'
@@ -270,7 +246,7 @@ export default function AuthModal({
 
           <button
             type="button"
-            onClick={() => { setRole('VENDOR'); setDemoCredentials('VENDOR'); }}
+            onClick={() => setRole('VENDOR')}
             className={`py-1.5 rounded-lg text-xs font-black transition-all flex items-center justify-center gap-1.5 ${
               role === 'VENDOR'
                 ? 'bg-amber-500 text-white shadow-md shadow-amber-500/25'
@@ -283,7 +259,7 @@ export default function AuthModal({
 
           <button
             type="button"
-            onClick={() => { setRole('RIDER'); setDemoCredentials('RIDER'); }}
+            onClick={() => setRole('RIDER')}
             className={`py-1.5 rounded-lg text-xs font-black transition-all flex items-center justify-center gap-1.5 ${
               role === 'RIDER'
                 ? 'bg-blue-600 text-white shadow-md shadow-blue-500/25'
@@ -338,7 +314,7 @@ export default function AuthModal({
                 </label>
                 <button
                   type="button"
-                  onClick={() => alert(`Demo Credentials for ${role}:\nCustomer: alex.customer@gmail.com / customer123\nChef: chef.mario@chefhub.com / vendor123\nRider: david.rider@chefhub.com / rider123`)}
+                  onClick={() => alert('Please contact support@chefhub.com or utilize the designated portal password recovery options.')}
                   className="text-[11px] font-bold text-teal-600 dark:text-teal-400 hover:underline"
                 >
                   Forgot Password?

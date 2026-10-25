@@ -65,7 +65,7 @@ function MainApp() {
     else if (user?.role === 'ADMIN') navigate('/admin/dashboard');
   };
 
-  const handleLogout = () => {
+  const handleLogout = (redirectPath = null) => {
     const currentPath = window.location.pathname;
     const savedTheme = localStorage.getItem('chefhub_theme');
 
@@ -83,6 +83,11 @@ function MainApp() {
     }
 
     setCurrentUser(null);
+
+    if (redirectPath) {
+      window.location.href = redirectPath;
+      return;
+    }
 
     // Perform a full page refresh/redirect to guarantee zero in-memory React state retention
     if (currentPath.startsWith('/chef')) {

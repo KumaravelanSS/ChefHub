@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Eye, EyeOff, Check, X, AlertCircle, ShoppingBag, ArrowLeft,
@@ -85,6 +85,20 @@ export default function CustomerAuthPage({ onLogin, isModal = false }) {
   const [loginId, setLoginId] = useState('');
   const [loginPwd, setLoginPwd] = useState('');
   const [showLoginPwd, setShowLoginPwd] = useState(false);
+
+  useEffect(() => {
+    try {
+      const savedUser = localStorage.getItem('chefhub_user');
+      if (savedUser) {
+        const u = JSON.parse(savedUser);
+        if (u && u.role !== 'CUSTOMER') {
+          localStorage.removeItem('chefhub_user');
+          localStorage.removeItem('chefhub_token');
+          window.location.reload();
+        }
+      }
+    } catch {}
+  }, []);
 
   const [regName, setRegName] = useState('');
   const [regEmail, setRegEmail] = useState('');
@@ -465,28 +479,6 @@ export default function CustomerAuthPage({ onLogin, isModal = false }) {
                 <span>Sign In to Customer Marketplace</span>
               )}
             </button>
-
-            {/* Clean Test Account Login Toolbar */}
-            <div className="pt-2 border-t border-slate-200 dark:border-slate-800">
-              <div className="grid grid-cols-2 gap-2">
-                <button
-                  type="button"
-                  onClick={() => { setLoginId('alex.customer@gmail.com'); setLoginPwd('customer123'); }}
-                  className="py-2 px-3 rounded-xl bg-slate-100 hover:bg-orange-500/10 dark:bg-slate-800 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 hover:border-orange-500/40 text-slate-700 dark:text-slate-200 text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer truncate"
-                  title="Autofill Alex via Email"
-                >
-                  <span>📧 Demo Email</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => { setLoginId('#4'); setLoginPwd('customer123'); }}
-                  className="py-2 px-3 rounded-xl bg-slate-100 hover:bg-orange-500/10 dark:bg-slate-800 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 hover:border-orange-500/40 text-slate-700 dark:text-slate-200 text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer truncate"
-                  title="Autofill Alex via Customer ID #4"
-                >
-                  <span>🆔 Customer ID (#4)</span>
-                </button>
-              </div>
-            </div>
           </form>
         )}
 

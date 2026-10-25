@@ -13,6 +13,24 @@ export default function Navbar({ currentUser, onLogout, theme, onToggleTheme }) 
     onLogout();
   };
 
+  // Auto-logout when switching to other portals
+  const handleSwitchPortal = (targetRole, targetLoginPath, targetDashboardPath) => {
+    setGuestPortalsOpen(false);
+    setMobileMenuOpen(false);
+
+    if (currentUser) {
+      if (currentUser.role === targetRole) {
+        navigate(targetDashboardPath);
+        return;
+      }
+      // Logged in as different role: auto log out and redirect to target portal
+      onLogout(targetLoginPath);
+      return;
+    }
+
+    navigate(targetLoginPath);
+  };
+
   // Helper to format role title
   const getRoleBadge = (role) => {
     switch (role) {
@@ -116,7 +134,7 @@ export default function Navbar({ currentUser, onLogout, theme, onToggleTheme }) 
           {/* Quick Return to Customer Marketplace when outside customer site (Chef, Rider, Admin site) */}
           {!isCustomerPage && (
             <button
-              onClick={() => navigate('/')}
+              onClick={() => handleSwitchPortal('CUSTOMER', '/', '/')}
               className="flex items-center gap-1.5 sm:gap-2 px-3 py-1.5 sm:px-4 sm:py-2 rounded-xl bg-gradient-to-r from-orange-500 via-amber-500 to-orange-500 hover:from-orange-600 hover:to-amber-600 text-slate-950 font-black text-xs sm:text-sm shadow-md shadow-orange-500/25 ring-1 ring-orange-300/40 transition-all duration-200 hover:scale-105 active:scale-95 cursor-pointer"
               title="Return to Customer Marketplace"
             >
@@ -229,10 +247,7 @@ export default function Navbar({ currentUser, onLogout, theme, onToggleTheme }) 
 
                 {/* Customer Marketplace Option */}
                 <button
-                  onClick={() => {
-                    setGuestPortalsOpen(false);
-                    navigate('/');
-                  }}
+                  onClick={() => handleSwitchPortal('CUSTOMER', '/', '/')}
                   className={`w-full flex items-center justify-between px-2.5 py-2 rounded-xl text-xs font-bold transition-colors cursor-pointer ${
                     isCustomerPage
                       ? 'bg-amber-500/15 text-amber-600 dark:text-amber-400 font-extrabold'
@@ -251,10 +266,7 @@ export default function Navbar({ currentUser, onLogout, theme, onToggleTheme }) 
                 </button>
 
                 <button
-                  onClick={() => {
-                    setGuestPortalsOpen(false);
-                    navigate(currentUser?.role === 'VENDOR' ? '/chef/dashboard' : '/chef/login');
-                  }}
+                  onClick={() => handleSwitchPortal('VENDOR', '/chef/login', '/chef/dashboard')}
                   className={`w-full flex items-center justify-between px-2.5 py-2 rounded-xl text-xs font-bold transition-colors cursor-pointer ${
                     location.pathname.startsWith('/chef')
                       ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 font-extrabold'
@@ -271,10 +283,7 @@ export default function Navbar({ currentUser, onLogout, theme, onToggleTheme }) 
                 </button>
 
                 <button
-                  onClick={() => {
-                    setGuestPortalsOpen(false);
-                    navigate(currentUser?.role === 'RIDER' ? '/rider/dashboard' : '/rider/login');
-                  }}
+                  onClick={() => handleSwitchPortal('RIDER', '/rider/login', '/rider/dashboard')}
                   className={`w-full flex items-center justify-between px-2.5 py-2 rounded-xl text-xs font-bold transition-colors cursor-pointer ${
                     location.pathname.startsWith('/rider')
                       ? 'bg-sky-500/15 text-sky-600 dark:text-sky-400 font-extrabold'
@@ -291,10 +300,7 @@ export default function Navbar({ currentUser, onLogout, theme, onToggleTheme }) 
                 </button>
 
                 <button
-                  onClick={() => {
-                    setGuestPortalsOpen(false);
-                    navigate(currentUser?.role === 'ADMIN' ? '/admin/dashboard' : '/admin/login');
-                  }}
+                  onClick={() => handleSwitchPortal('ADMIN', '/admin/login', '/admin/dashboard')}
                   className={`w-full flex items-center justify-between px-2.5 py-2 rounded-xl text-xs font-bold transition-colors cursor-pointer ${
                     location.pathname.startsWith('/admin')
                       ? 'bg-rose-500/15 text-rose-600 dark:text-rose-400 font-extrabold'
@@ -332,10 +338,7 @@ export default function Navbar({ currentUser, onLogout, theme, onToggleTheme }) 
           {/* Quick Return to Customer Marketplace for mobile when outside customer site */}
           {!isCustomerPage && (
             <button
-              onClick={() => {
-                setMobileMenuOpen(false);
-                navigate('/');
-              }}
+              onClick={() => handleSwitchPortal('CUSTOMER', '/', '/')}
               className="w-full py-3 px-3.5 rounded-2xl bg-gradient-to-r from-orange-500 via-amber-500 to-orange-500 text-slate-950 font-black text-xs shadow-md flex items-center justify-between cursor-pointer"
             >
               <span className="flex items-center gap-2">
@@ -382,38 +385,34 @@ export default function Navbar({ currentUser, onLogout, theme, onToggleTheme }) 
 
               <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-1">
                 <span className="text-[10px] font-black uppercase text-slate-400 block px-2">Access Role Portals</span>
-                <Link
-                  to="/"
-                  onClick={() => setMobileMenuOpen(false)}
-                  className="flex items-center gap-2 p-2 rounded-lg text-xs font-bold text-orange-600 dark:text-orange-400 hover:bg-orange-500/10"
+                <button
+                  onClick={() => handleSwitchPortal('CUSTOMER', '/', '/')}
+                  className="w-full flex items-center gap-2 p-2 rounded-lg text-xs font-bold text-orange-600 dark:text-orange-400 hover:bg-orange-500/10 text-left cursor-pointer"
                 >
                   <ShoppingBag className="w-4 h-4 text-orange-500" />
                   <span>Customer Marketplace</span>
-                </Link>
-                <Link
-                  to={currentUser.role === 'VENDOR' ? '/chef/dashboard' : '/chef/login'}
-                  onClick={() => setMobileMenuOpen(false)}
-                  className="flex items-center gap-2 p-2 rounded-lg text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-800"
+                </button>
+                <button
+                  onClick={() => handleSwitchPortal('VENDOR', '/chef/login', '/chef/dashboard')}
+                  className="w-full flex items-center gap-2 p-2 rounded-lg text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-800 text-left cursor-pointer"
                 >
                   <ChefHat className="w-4 h-4 text-emerald-500" />
                   <span>Chef Kitchen Console</span>
-                </Link>
-                <Link
-                  to={currentUser.role === 'RIDER' ? '/rider/dashboard' : '/rider/login'}
-                  onClick={() => setMobileMenuOpen(false)}
-                  className="flex items-center gap-2 p-2 rounded-lg text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-800"
+                </button>
+                <button
+                  onClick={() => handleSwitchPortal('RIDER', '/rider/login', '/rider/dashboard')}
+                  className="w-full flex items-center gap-2 p-2 rounded-lg text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-800 text-left cursor-pointer"
                 >
                   <Bike className="w-4 h-4 text-sky-500" />
                   <span>Rider Delivery Hub</span>
-                </Link>
-                <Link
-                  to={currentUser.role === 'ADMIN' ? '/admin/dashboard' : '/admin/login'}
-                  onClick={() => setMobileMenuOpen(false)}
-                  className="flex items-center gap-2 p-2 rounded-lg text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-800"
+                </button>
+                <button
+                  onClick={() => handleSwitchPortal('ADMIN', '/admin/login', '/admin/dashboard')}
+                  className="w-full flex items-center gap-2 p-2 rounded-lg text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-800 text-left cursor-pointer"
                 >
                   <ShieldAlert className="w-4 h-4 text-rose-500" />
                   <span>Admin Site Console</span>
-                </Link>
+                </button>
               </div>
             </div>
           ) : (
@@ -428,38 +427,34 @@ export default function Navbar({ currentUser, onLogout, theme, onToggleTheme }) 
               </Link>
               <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-1">
                 <span className="text-[10px] font-black uppercase text-slate-400 block px-2">Access Role Portals</span>
-                <Link
-                  to="/"
-                  onClick={() => setMobileMenuOpen(false)}
-                  className="flex items-center gap-2 p-2 rounded-lg text-xs font-bold text-orange-600 dark:text-orange-400 hover:bg-orange-500/10"
+                <button
+                  onClick={() => handleSwitchPortal('CUSTOMER', '/', '/')}
+                  className="w-full flex items-center gap-2 p-2 rounded-lg text-xs font-bold text-orange-600 dark:text-orange-400 hover:bg-orange-500/10 text-left cursor-pointer"
                 >
                   <ShoppingBag className="w-4 h-4 text-orange-500" />
                   <span>Customer Marketplace</span>
-                </Link>
-                <Link
-                  to="/chef/login"
-                  onClick={() => setMobileMenuOpen(false)}
-                  className="flex items-center gap-2 p-2 rounded-lg text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-800"
+                </button>
+                <button
+                  onClick={() => handleSwitchPortal('VENDOR', '/chef/login', '/chef/dashboard')}
+                  className="w-full flex items-center gap-2 p-2 rounded-lg text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-800 text-left cursor-pointer"
                 >
                   <ChefHat className="w-4 h-4 text-emerald-500" />
                   <span>Chef Kitchen Site</span>
-                </Link>
-                <Link
-                  to="/rider/login"
-                  onClick={() => setMobileMenuOpen(false)}
-                  className="flex items-center gap-2 p-2 rounded-lg text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-800"
+                </button>
+                <button
+                  onClick={() => handleSwitchPortal('RIDER', '/rider/login', '/rider/dashboard')}
+                  className="w-full flex items-center gap-2 p-2 rounded-lg text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-800 text-left cursor-pointer"
                 >
                   <Bike className="w-4 h-4 text-sky-500" />
                   <span>Rider Hub Site</span>
-                </Link>
-                <Link
-                  to="/admin/login"
-                  onClick={() => setMobileMenuOpen(false)}
-                  className="flex items-center gap-2 p-2 rounded-lg text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-800"
+                </button>
+                <button
+                  onClick={() => handleSwitchPortal('ADMIN', '/admin/login', '/admin/dashboard')}
+                  className="w-full flex items-center gap-2 p-2 rounded-lg text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-800 text-left cursor-pointer"
                 >
                   <ShieldAlert className="w-4 h-4 text-rose-500" />
                   <span>Admin Control Site</span>
-                </Link>
+                </button>
               </div>
             </div>
           )}

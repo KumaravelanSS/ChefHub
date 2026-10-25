@@ -145,11 +145,25 @@ function AuditSunburstVisualizer({ logs }) {
 
 export default function AdminSite({ user, onLogin }) {
   const navigate = useNavigate();
-  const [loginUsername, setLoginUsername] = useState('admin');
-  const [loginPassword, setLoginPassword] = useState('admin');
+  const [loginUsername, setLoginUsername] = useState('');
+  const [loginPassword, setLoginPassword] = useState('');
   const [showLoginPassword, setShowLoginPassword] = useState(false);
   const [loginError, setLoginError] = useState('');
   const [loginLoading, setLoginLoading] = useState(false);
+
+  useEffect(() => {
+    try {
+      const savedUser = localStorage.getItem('chefhub_user');
+      if (savedUser) {
+        const u = JSON.parse(savedUser);
+        if (u && u.role !== 'ADMIN') {
+          localStorage.removeItem('chefhub_user');
+          localStorage.removeItem('chefhub_token');
+          window.location.reload();
+        }
+      }
+    } catch {}
+  }, []);
 
   const [activeTab, setActiveTab] = useState('users');
   const [metrics, setMetrics] = useState(null);
