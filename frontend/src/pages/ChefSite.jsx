@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import {
   ChefHat, Package, Utensils, DollarSign, AlertTriangle, CheckCircle2, Clock, Plus, Trash2,
   AlertCircle, Edit3, Image as ImageIcon, X, Sparkles, Ban, Eye, EyeOff, Tag, RefreshCw, Star,
-  User, MapPin, Lock, Shield, KeyRound, Smartphone, Mail, Compass, Check, Copy, Send, Save, ArrowRight, Loader2, ShoppingBag, Volume2, VolumeX
+  User, MapPin, Lock, Shield, KeyRound, Smartphone, Mail, Compass, Check, Copy, Send, Save, ArrowRight, Loader2, ShoppingBag, Volume2, VolumeX, BellRing
 } from 'lucide-react';
 import { KitchenLoadingScreen, KitchenDataLoader, KitchenSkeletonRows } from '../components/KitchenLoading';
 import ChefAuthPage from './ChefAuthPage';
@@ -63,11 +63,69 @@ export default function ChefSite({ user, onLogin, onLogout }) {
   const [chefReviews, setChefReviews] = useState([]);
 
   // Add Dish Form
-  const [newDish, setNewDish] = useState({ name: '', category: 'Pasta', base_price: '', daily_stock: '20', description: '', image_url: '', is_available: true });
+  const [newDish, setNewDish] = useState({ name: '', category: 'Pasta', base_price: '', daily_stock: '20', description: '', image_url: '', is_available: true, is_veg: true });
   
   // Edit Dish Modal State
   const [editingDish, setEditingDish] = useState(null);
-  const [editForm, setEditForm] = useState({ dish_id: '', name: '', category: '', base_price: '', daily_stock: '20', description: '', image_url: '', is_available: true });
+  const [editForm, setEditForm] = useState({ dish_id: '', name: '', category: '', base_price: '', daily_stock: '20', description: '', image_url: '', is_available: true, is_veg: true });
+
+  // Single-Click Daily Stock Restoration (+20) State
+  const [isRestoringStock, setIsRestoringStock] = useState(false);
+  const [stockRestoreToast, setStockRestoreToast] = useState('');
+
+  // Kitchen Real-Time Incoming Order Audio & Notification Toast State
+  const [kitchenOrderToast, setKitchenOrderToast] = useState(null);
+  const knownOrderIdsRef = useRef(new Set());
+  const isInitialOrderLoadRef = useRef(true);
+
+  // Auto-dismiss kitchen order notification toast after 12 seconds
+  useEffect(() => {
+    if (kitchenOrderToast) {
+      const timer = setTimeout(() => {
+        setKitchenOrderToast(null);
+      }, 12000);
+      return () => clearTimeout(timer);
+    }
+  }, [kitchenOrderToast]);
+
+  // Synthesizes a crisp, audible kitchen notification chime using Web Audio API
+  const playKitchenChime = () => {
+    try {
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      if (!AudioCtx) return;
+      const ctx = new AudioCtx();
+      if (ctx.state === 'suspended') {
+        ctx.resume();
+      }
+      const now = ctx.currentTime;
+
+      // Bell 1 (784Hz - G5)
+      const osc1 = ctx.createOscillator();
+      const gain1 = ctx.createGain();
+      osc1.type = 'sine';
+      osc1.frequency.setValueAtTime(783.99, now);
+      gain1.gain.setValueAtTime(0.3, now);
+      gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
+      osc1.connect(gain1);
+      gain1.connect(ctx.destination);
+      osc1.start(now);
+      osc1.stop(now + 0.35);
+
+      // Bell 2 (1046.5Hz - C6 harmonic chime)
+      const osc2 = ctx.createOscillator();
+      const gain2 = ctx.createGain();
+      osc2.type = 'triangle';
+      osc2.frequency.setValueAtTime(1046.5, now + 0.12);
+      gain2.gain.setValueAtTime(0.35, now + 0.12);
+      gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.6);
+      osc2.connect(gain2);
+      gain2.connect(ctx.destination);
+      osc2.start(now + 0.12);
+      osc2.stop(now + 0.6);
+    } catch (e) {
+      console.warn('AudioContext chime error:', e);
+    }
+  };
 
   // Add Ingredient Form & Edit State
   const [newIngredient, setNewIngredient] = useState({ ingredient_name: '', stock_quantity: '', unit: 'kg', reorder_level: '10' });
@@ -316,7 +374,7 @@ export default function ChefSite({ user, onLogin, onLogout }) {
           close_time: dataProf.profile.close_time || '22:00',
           chef_bio: dataProf.profile.chef_bio || ''
         });
-        if (!isProfileModalOpenRef.current && !hasUnsavedProfileEditsRef.current) {
+        if (!isProfileModalOpenRef.current && !hasUnsavedProfileEditsRef.current && activeTab !== 'profile') {
           setProfileForm(prev => ({
             ...prev,
             name: dataProf.profile.name || user?.name || prev.name,
@@ -344,7 +402,22 @@ export default function ChefSite({ user, onLogin, onLogout }) {
       }
 
       const dataOrders = await resOrders.json();
-      if (dataOrders.success) setOrders(dataOrders.orders);
+      if (dataOrders.success && Array.isArray(dataOrders.orders)) {
+        setOrders(dataOrders.orders);
+
+        if (isInitialOrderLoadRef.current) {
+          dataOrders.orders.forEach(o => knownOrderIdsRef.current.add(o.order_id || o.id));
+          isInitialOrderLoadRef.current = false;
+        } else {
+          const newOrders = dataOrders.orders.filter(o => !knownOrderIdsRef.current.has(o.order_id || o.id));
+          if (newOrders.length > 0) {
+            newOrders.forEach(o => knownOrderIdsRef.current.add(o.order_id || o.id));
+            const latest = newOrders[0];
+            setKitchenOrderToast(latest);
+            playIncomingOrderAlert();
+          }
+        }
+      }
 
       const dataInv = await resInv.json();
       if (dataInv.success) {
@@ -675,7 +748,7 @@ export default function ChefSite({ user, onLogin, onLogout }) {
       });
       const data = await res.json();
       if (data.success) {
-        setNewDish({ name: '', category: 'Pasta', base_price: '', daily_stock: '20', description: '', image_url: '', is_available: true });
+        setNewDish({ name: '', category: 'Pasta', base_price: '', daily_stock: '20', description: '', image_url: '', is_available: true, is_veg: true });
         fetchData();
       }
     } catch (err) {
@@ -785,6 +858,35 @@ export default function ChefSite({ user, onLogin, onLogout }) {
     }
   };
 
+  // Single-Click Daily Stock Restoration (+20 to all dishes & ingredients)
+  const handleRestoreDailyStock = async () => {
+    setIsRestoringStock(true);
+    setStockRestoreToast('');
+    try {
+      const token = localStorage.getItem('chefhub_token');
+      const res = await fetch('/api/vendor/dishes/restore-stock', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (data.success) {
+        if (Array.isArray(data.dishes)) {
+          setDishes(data.dishes);
+        }
+        setStockRestoreToast(data.message || 'Daily stock successfully replenished (+20 portions to all items)!');
+        fetchData();
+        setTimeout(() => setStockRestoreToast(''), 6000);
+      } else {
+        alert(data.message || 'Failed to restore daily stock.');
+      }
+    } catch (err) {
+      console.error('Error restoring daily stock:', err);
+      alert('Network or server error while restoring daily stock.');
+    } finally {
+      setIsRestoringStock(false);
+    }
+  };
+
   const openEditModal = (dish) => {
     setEditingDish(dish);
     setEditForm({
@@ -796,6 +898,7 @@ export default function ChefSite({ user, onLogin, onLogout }) {
       description: dish.description || '',
       image_url: dish.image_url || '',
       is_available: dish.is_available !== 0 && dish.is_available !== false,
+      is_veg: dish.is_veg !== undefined ? (dish.is_veg === 1 || dish.is_veg === true) : true,
       out_of_stock_reason: dish.out_of_stock_reason || 'Daily portions fully exhausted (0 remaining)'
     });
   };
@@ -1216,7 +1319,7 @@ export default function ChefSite({ user, onLogin, onLogout }) {
                   <input
                     type="url"
                     value={profileForm.avatar_url}
-                    onChange={(e) => setProfileForm({ ...profileForm, avatar_url: e.target.value })}
+                    onChange={(e) => updateProfileField('avatar_url', e.target.value)}
                     placeholder="Enter custom image URL (https://images.unsplash.com/...)"
                     className="w-full px-3 py-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white font-medium outline-none focus:border-emerald-500"
                   />
@@ -1232,7 +1335,7 @@ export default function ChefSite({ user, onLogin, onLogout }) {
                     <button
                       type="button"
                       key={preset.label}
-                      onClick={() => setProfileForm({ ...profileForm, avatar_url: preset.url })}
+                      onClick={() => updateProfileField('avatar_url', preset.url)}
                       className={`p-1.5 rounded-xl border flex flex-col items-center gap-1 transition-all cursor-pointer ${
                         profileForm.avatar_url === preset.url
                           ? 'border-emerald-500 bg-emerald-500/10 ring-2 ring-emerald-500/30'
@@ -1254,7 +1357,7 @@ export default function ChefSite({ user, onLogin, onLogout }) {
                 <input
                   type="text"
                   value={profileForm.name}
-                  onChange={(e) => setProfileForm({ ...profileForm, name: e.target.value })}
+                  onChange={(e) => updateProfileField('name', e.target.value)}
                   placeholder="e.g. Chef Priya Sharma"
                   className="w-full px-3.5 py-2.5 rounded-xl bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white font-semibold outline-none focus:border-emerald-500"
                   required
@@ -1266,7 +1369,7 @@ export default function ChefSite({ user, onLogin, onLogout }) {
                 <input
                   type="text"
                   value={profileForm.business_name}
-                  onChange={(e) => setProfileForm({ ...profileForm, business_name: e.target.value })}
+                  onChange={(e) => updateProfileField('business_name', e.target.value)}
                   placeholder="e.g. Spice & Curry Artisanal Kitchen"
                   className="w-full px-3.5 py-2.5 rounded-xl bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white font-semibold outline-none focus:border-emerald-500"
                 />
@@ -1280,7 +1383,7 @@ export default function ChefSite({ user, onLogin, onLogout }) {
                   pattern="[0-9]*"
                   maxLength={10}
                   value={profileForm.phone}
-                  onChange={(e) => setProfileForm({ ...profileForm, phone: e.target.value.replace(/\D/g, '').slice(0, 10) })}
+                  onChange={(e) => updateProfileField('phone', e.target.value.replace(/\D/g, '').slice(0, 10))}
                   onKeyDown={(e) => {
                     if (!/^[0-9]$/.test(e.key) && !['Backspace', 'Delete', 'ArrowLeft', 'ArrowRight', 'Tab', 'Enter', 'Home', 'End'].includes(e.key) && !e.ctrlKey && !e.metaKey) {
                       e.preventDefault();
@@ -1321,12 +1424,13 @@ export default function ChefSite({ user, onLogin, onLogout }) {
                       type="button"
                       key={hub.id}
                       onClick={() => {
-                        setProfileForm({
-                          ...profileForm,
+                        hasUnsavedProfileEditsRef.current = true;
+                        setProfileForm(prev => ({
+                          ...prev,
                           primary_address: hub.locality,
                           latitude: hub.lat,
                           longitude: hub.lng
-                        });
+                        }));
                       }}
                       className="px-2.5 py-1 rounded-lg text-[11px] font-bold bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 hover:border-emerald-500 text-slate-700 dark:text-slate-300 transition-all flex items-center gap-1 cursor-pointer hover:bg-emerald-500/10"
                     >
@@ -1341,7 +1445,7 @@ export default function ChefSite({ user, onLogin, onLogout }) {
                 <label className="font-extrabold text-slate-700 dark:text-slate-300 block mb-1">Full Kitchen Address / Locality</label>
                 <textarea
                   value={profileForm.primary_address}
-                  onChange={(e) => setProfileForm({ ...profileForm, primary_address: e.target.value })}
+                  onChange={(e) => updateProfileField('primary_address', e.target.value)}
                   rows={2}
                   placeholder="e.g. 100ft Road, 12th Main, Indiranagar, Bengaluru, Karnataka - 560038"
                   className="w-full px-3.5 py-2 rounded-xl bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white font-medium outline-none focus:border-emerald-500 resize-none"
@@ -1364,6 +1468,7 @@ export default function ChefSite({ user, onLogin, onLogout }) {
                   latitude={profileForm.latitude}
                   longitude={profileForm.longitude}
                   onChange={(newLat, newLng) => {
+                    hasUnsavedProfileEditsRef.current = true;
                     setProfileForm((prev) => ({
                       ...prev,
                       latitude: newLat,
@@ -1380,7 +1485,7 @@ export default function ChefSite({ user, onLogin, onLogout }) {
               <label className="font-extrabold text-slate-700 dark:text-slate-300 block mb-1">Chef Culinary Bio & Specialties</label>
               <textarea
                 value={profileForm.chef_bio}
-                onChange={(e) => setProfileForm({ ...profileForm, chef_bio: e.target.value })}
+                onChange={(e) => updateProfileField('chef_bio', e.target.value)}
                 rows={2}
                 placeholder="Share your culinary background, awards, Michelin inspirations, and cooking philosophy..."
                 className="w-full px-3.5 py-2 rounded-xl bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white font-medium outline-none focus:border-emerald-500 resize-none"
@@ -1394,7 +1499,7 @@ export default function ChefSite({ user, onLogin, onLogout }) {
                 <input
                   type="text"
                   value={profileForm.operating_hours}
-                  onChange={(e) => setProfileForm({ ...profileForm, operating_hours: e.target.value })}
+                  onChange={(e) => updateProfileField('operating_hours', e.target.value)}
                   placeholder="11:00 AM - 10:00 PM"
                   className="w-full px-3 py-2 rounded-xl bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white font-medium outline-none focus:border-emerald-500"
                 />
@@ -1404,7 +1509,7 @@ export default function ChefSite({ user, onLogin, onLogout }) {
                 <input
                   type="time"
                   value={profileForm.open_time}
-                  onChange={(e) => setProfileForm({ ...profileForm, open_time: e.target.value })}
+                  onChange={(e) => updateProfileField('open_time', e.target.value)}
                   className="w-full px-3 py-2 rounded-xl bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white font-medium outline-none focus:border-emerald-500"
                 />
               </div>
@@ -1413,7 +1518,7 @@ export default function ChefSite({ user, onLogin, onLogout }) {
                 <input
                   type="time"
                   value={profileForm.close_time}
-                  onChange={(e) => setProfileForm({ ...profileForm, close_time: e.target.value })}
+                  onChange={(e) => updateProfileField('close_time', e.target.value)}
                   className="w-full px-3 py-2 rounded-xl bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white font-medium outline-none focus:border-emerald-500"
                 />
               </div>
@@ -2094,11 +2199,45 @@ export default function ChefSite({ user, onLogin, onLogout }) {
                   <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">Manage pricing, portion counters, and real-time customer availability</p>
                 </div>
               </div>
-              <span className="px-3.5 py-1.5 rounded-full bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/25 text-emerald-700 dark:text-emerald-400 text-xs font-black flex items-center gap-2 shadow-sm">
-                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                {dishes.length} Dishes Registered
-              </span>
+
+              <div className="flex items-center gap-2.5 flex-wrap">
+                <button
+                  type="button"
+                  onClick={handleRestoreDailyStock}
+                  disabled={isRestoringStock}
+                  className="px-4 py-2 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-black text-xs shadow-lg shadow-emerald-600/25 active:scale-95 transition-all flex items-center gap-2 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
+                  title="Daily stock restoration in a single click: adds +20 to all dish portion stocks and replenishes inventory"
+                >
+                  {isRestoringStock ? (
+                    <RefreshCw className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <RefreshCw className="w-4 h-4" />
+                  )}
+                  <span>+ Restore Daily Stock (+20 to All)</span>
+                </button>
+
+                <span className="px-3.5 py-1.5 rounded-full bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/25 text-emerald-700 dark:text-emerald-400 text-xs font-black flex items-center gap-2 shadow-sm">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                  {dishes.length} Dishes Registered
+                </span>
+              </div>
             </div>
+
+            {stockRestoreToast && (
+              <div className="p-3.5 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-800 dark:text-emerald-300 text-xs font-black flex items-center justify-between gap-2 shadow-sm animate-in fade-in">
+                <div className="flex items-center gap-2.5">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                  <span>{stockRestoreToast}</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setStockRestoreToast('')}
+                  className="text-emerald-600 dark:text-emerald-400 hover:text-emerald-900 dark:hover:text-white p-1 rounded-lg cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            )}
             
             <div className="overflow-x-auto w-full">
               <table className="w-full text-left text-xs">
@@ -2259,15 +2398,26 @@ export default function ChefSite({ user, onLogin, onLogout }) {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="font-extrabold text-slate-700 dark:text-slate-300 block mb-1">Category</label>
+                  <label className="font-extrabold text-slate-700 dark:text-slate-300 block mb-1">Cuisine / Category</label>
                   <input
                     type="text"
+                    list="new-dish-category-suggestions"
                     value={newDish.category}
                     onChange={(e) => setNewDish({ ...newDish, category: e.target.value })}
-                    placeholder="Pasta / Curry"
+                    placeholder="e.g. Noodles, Pasta, Biryani..."
                     className="w-full px-3.5 py-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700/80 text-slate-900 dark:text-white placeholder-slate-400 font-medium outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 shadow-sm transition-all"
                     required
                   />
+                  <datalist id="new-dish-category-suggestions">
+                    <option value="Noodles" />
+                    <option value="Pasta" />
+                    <option value="Biryani" />
+                    <option value="Curry" />
+                    <option value="Pizza" />
+                    <option value="Desserts" />
+                    <option value="Starters" />
+                    <option value="Beverages" />
+                  </datalist>
                 </div>
                 <div>
                   <label className="font-extrabold text-slate-700 dark:text-slate-300 block mb-1">Price (₹)</label>
@@ -2280,6 +2430,63 @@ export default function ChefSite({ user, onLogin, onLogout }) {
                     className="w-full px-3.5 py-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700/80 text-slate-900 dark:text-white placeholder-slate-400 font-black font-display outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 shadow-sm transition-all"
                     required
                   />
+                </div>
+              </div>
+
+              {/* Dynamic Quick Category Pills */}
+              <div className="space-y-1">
+                <span className="text-[10px] text-slate-500 dark:text-slate-400 font-bold">Popular Categories:</span>
+                <div className="flex flex-wrap gap-1.5">
+                  {['Noodles', 'Pasta', 'Biryani', 'Curry', 'Pizza', 'Desserts', 'Starters'].map((cat) => (
+                    <button
+                      key={cat}
+                      type="button"
+                      onClick={() => setNewDish({ ...newDish, category: cat })}
+                      className={`px-2.5 py-1 rounded-lg text-[10px] font-bold border transition-all cursor-pointer ${
+                        newDish.category?.toLowerCase() === cat.toLowerCase()
+                          ? 'bg-emerald-500 text-white border-emerald-500 shadow-sm'
+                          : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-emerald-500'
+                      }`}
+                    >
+                      {cat}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Dedicated Veg / Non-Veg Dietary Selector Button */}
+              <div>
+                <label className="font-extrabold text-slate-700 dark:text-slate-300 block mb-1.5">Dietary Classification</label>
+                <div className="grid grid-cols-2 gap-2.5">
+                  <button
+                    type="button"
+                    onClick={() => setNewDish({ ...newDish, is_veg: true })}
+                    className={`flex items-center justify-center gap-2 p-2.5 rounded-xl border text-xs font-black transition-all cursor-pointer ${
+                      newDish.is_veg === true
+                        ? 'bg-emerald-50 text-emerald-800 border-emerald-500 ring-2 ring-emerald-500/30 dark:bg-emerald-500/20 dark:text-emerald-300 dark:border-emerald-500'
+                        : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700 hover:border-slate-300'
+                    }`}
+                  >
+                    <span className="w-4 h-4 rounded-sm border-2 border-emerald-600 flex items-center justify-center bg-white dark:bg-slate-950 p-[2px] shrink-0">
+                      <span className="w-2 h-2 rounded-full bg-emerald-600" />
+                    </span>
+                    <span>Pure Veg</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setNewDish({ ...newDish, is_veg: false })}
+                    className={`flex items-center justify-center gap-2 p-2.5 rounded-xl border text-xs font-black transition-all cursor-pointer ${
+                      newDish.is_veg === false
+                        ? 'bg-rose-50 text-rose-800 border-rose-500 ring-2 ring-rose-500/30 dark:bg-rose-500/20 dark:text-rose-300 dark:border-rose-500'
+                        : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700 hover:border-slate-300'
+                    }`}
+                  >
+                    <span className="w-4 h-4 rounded-sm border-2 border-rose-600 flex items-center justify-center bg-white dark:bg-slate-950 p-[2px] shrink-0">
+                      <span className="w-2 h-2 rounded-full bg-rose-600" />
+                    </span>
+                    <span>Non-Veg</span>
+                  </button>
                 </div>
               </div>
 
@@ -2377,23 +2584,6 @@ export default function ChefSite({ user, onLogin, onLogout }) {
                   placeholder="https://images.unsplash.com/..."
                   className="w-full px-3.5 py-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700/80 text-slate-900 dark:text-white placeholder-slate-400 font-medium outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 shadow-sm transition-all"
                 />
-                
-                {/* Image Quick Presets */}
-                <div className="space-y-1.5 mt-2.5">
-                  <span className="text-[10px] text-slate-500 dark:text-slate-400 font-bold">Quick Food Photo Presets:</span>
-                  <div className="flex flex-wrap gap-1.5">
-                    {presetImages.map((p, idx) => (
-                      <button
-                        key={idx}
-                        type="button"
-                        onClick={() => setNewDish({ ...newDish, image_url: p.url, category: newDish.category || p.label.replace(/[^a-zA-Z]/g, '') })}
-                        className="px-2.5 py-1 rounded-lg bg-white dark:bg-slate-800 hover:bg-amber-500 hover:text-white text-slate-700 dark:text-slate-300 text-[10px] font-extrabold border border-slate-200 dark:border-slate-700 transition-all active:scale-95 shadow-sm cursor-pointer"
-                      >
-                        {p.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
               </div>
 
               <div>
@@ -2506,14 +2696,26 @@ export default function ChefSite({ user, onLogin, onLogout }) {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="font-extrabold text-slate-700 dark:text-slate-300">Category</label>
+                  <label className="font-extrabold text-slate-700 dark:text-slate-300">Cuisine / Category</label>
                   <input
                     type="text"
+                    list="edit-dish-category-suggestions"
                     value={editForm.category}
                     onChange={(e) => setEditForm({ ...editForm, category: e.target.value })}
+                    placeholder="e.g. Noodles, Pasta, Biryani..."
                     className="w-full mt-1.5 px-3.5 py-2.5 rounded-xl bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700/80 text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 font-medium shadow-sm transition-all"
                     required
                   />
+                  <datalist id="edit-dish-category-suggestions">
+                    <option value="Noodles" />
+                    <option value="Pasta" />
+                    <option value="Biryani" />
+                    <option value="Curry" />
+                    <option value="Pizza" />
+                    <option value="Desserts" />
+                    <option value="Starters" />
+                    <option value="Beverages" />
+                  </datalist>
                 </div>
                 <div>
                   <label className="font-extrabold text-slate-700 dark:text-slate-300">Price (₹)</label>
@@ -2525,6 +2727,63 @@ export default function ChefSite({ user, onLogin, onLogout }) {
                     className="w-full mt-1.5 px-3.5 py-2.5 rounded-xl bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700/80 text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 font-black shadow-sm transition-all"
                     required
                   />
+                </div>
+              </div>
+
+              {/* Dynamic Quick Category Pills */}
+              <div className="space-y-1">
+                <span className="text-[10px] text-slate-500 dark:text-slate-400 font-bold">Popular Categories:</span>
+                <div className="flex flex-wrap gap-1.5">
+                  {['Noodles', 'Pasta', 'Biryani', 'Curry', 'Pizza', 'Desserts', 'Starters'].map((cat) => (
+                    <button
+                      key={cat}
+                      type="button"
+                      onClick={() => setEditForm({ ...editForm, category: cat })}
+                      className={`px-2.5 py-1 rounded-lg text-[10px] font-bold border transition-all cursor-pointer ${
+                        editForm.category?.toLowerCase() === cat.toLowerCase()
+                          ? 'bg-amber-500 text-slate-950 font-black border-amber-500 shadow-sm'
+                          : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-amber-500'
+                      }`}
+                    >
+                      {cat}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Dedicated Veg / Non-Veg Dietary Selector Button */}
+              <div>
+                <label className="font-extrabold text-slate-700 dark:text-slate-300 block mb-1.5">Dietary Classification</label>
+                <div className="grid grid-cols-2 gap-2.5">
+                  <button
+                    type="button"
+                    onClick={() => setEditForm({ ...editForm, is_veg: true })}
+                    className={`flex items-center justify-center gap-2 p-2.5 rounded-xl border text-xs font-black transition-all cursor-pointer ${
+                      editForm.is_veg === true
+                        ? 'bg-emerald-50 text-emerald-800 border-emerald-500 ring-2 ring-emerald-500/30 dark:bg-emerald-500/20 dark:text-emerald-300 dark:border-emerald-500'
+                        : 'bg-white dark:bg-slate-950 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-800 hover:border-slate-300'
+                    }`}
+                  >
+                    <span className="w-4 h-4 rounded-sm border-2 border-emerald-600 flex items-center justify-center bg-white dark:bg-slate-950 p-[2px] shrink-0">
+                      <span className="w-2 h-2 rounded-full bg-emerald-600" />
+                    </span>
+                    <span>Pure Veg</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setEditForm({ ...editForm, is_veg: false })}
+                    className={`flex items-center justify-center gap-2 p-2.5 rounded-xl border text-xs font-black transition-all cursor-pointer ${
+                      editForm.is_veg === false
+                        ? 'bg-rose-50 text-rose-800 border-rose-500 ring-2 ring-rose-500/30 dark:bg-rose-500/20 dark:text-rose-300 dark:border-rose-500'
+                        : 'bg-white dark:bg-slate-950 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-800 hover:border-slate-300'
+                    }`}
+                  >
+                    <span className="w-4 h-4 rounded-sm border-2 border-rose-600 flex items-center justify-center bg-white dark:bg-slate-950 p-[2px] shrink-0">
+                      <span className="w-2 h-2 rounded-full bg-rose-600" />
+                    </span>
+                    <span>Non-Veg</span>
+                  </button>
                 </div>
               </div>
 
@@ -2641,21 +2900,6 @@ export default function ChefSite({ user, onLogin, onLogout }) {
                   placeholder="https://images.unsplash.com/..."
                   className="w-full mt-1.5 px-3.5 py-2.5 rounded-xl bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700/80 text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 text-xs shadow-sm transition-all"
                 />
-
-                {/* Quick Presets */}
-                <div className="flex flex-wrap items-center gap-1.5 mt-2">
-                  <span className="text-[10px] text-slate-500 font-bold mr-1">Image Presets:</span>
-                  {presetImages.map((p, idx) => (
-                    <button
-                      key={idx}
-                      type="button"
-                      onClick={() => setEditForm({ ...editForm, image_url: p.url })}
-                      className="px-2 py-0.5 rounded-lg bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-[10px] font-bold border border-slate-200 dark:border-slate-700 transition-all shadow-sm cursor-pointer"
-                    >
-                      {p.label}
-                    </button>
-                  ))}
-                </div>
               </div>
 
               <div>
@@ -3994,6 +4238,72 @@ export default function ChefSite({ user, onLogin, onLogout }) {
           cancellingProgress={cancellingProgress}
           onClose={() => setCancellingProgress(null)}
         />
+      )}
+
+      {/* Real-time Kitchen New Order Floating Pop-up Notification Toast */}
+      {kitchenOrderToast && (
+        <div
+          role="alert"
+          onClick={() => {
+            setActiveTab('orders');
+            setKitchenOrderToast(null);
+          }}
+          className="fixed top-5 right-5 z-[9999] max-w-sm sm:max-w-md w-full bg-slate-900/95 dark:bg-slate-950/95 text-white border-2 border-emerald-500 rounded-3xl p-4 sm:p-5 shadow-2xl shadow-emerald-500/25 backdrop-blur-xl animate-in slide-in-from-top-4 duration-300 cursor-pointer hover:border-emerald-400 hover:scale-[1.02] transition-all group"
+        >
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-2xl bg-emerald-500 text-slate-950 flex items-center justify-center font-black shadow-lg shadow-emerald-500/30 shrink-0 animate-bounce">
+                <BellRing className="w-5 h-5 stroke-[2.5]" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                    New Order Received!
+                  </span>
+                  <span className="text-xs font-mono font-bold text-slate-400">
+                    #{kitchenOrderToast.order_id || kitchenOrderToast.id}
+                  </span>
+                </div>
+                <h4 className="text-sm font-black text-white mt-1">
+                  Customer: {kitchenOrderToast.customer_name || 'ChefHub Diner'}
+                </h4>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setKitchenOrderToast(null);
+              }}
+              className="text-slate-400 hover:text-white p-1 rounded-xl hover:bg-slate-800 transition-colors cursor-pointer"
+              title="Dismiss Notification"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+
+          <div className="mt-3 pt-3 border-t border-slate-800 text-xs text-slate-300">
+            <div className="flex items-center justify-between font-bold mb-1">
+              <span>Items Summary:</span>
+              <span className="text-emerald-400 font-extrabold font-mono text-sm">
+                ₹{Number(kitchenOrderToast.total_amount || 0).toFixed(2)}
+              </span>
+            </div>
+            <p className="text-slate-400 text-xs line-clamp-2">
+              {Array.isArray(kitchenOrderToast.items)
+                ? kitchenOrderToast.items.map(it => `${it.quantity}x ${it.name || it.dish_name}`).join(', ')
+                : (kitchenOrderToast.items_summary || 'Tap to view details in Orders Queue')}
+            </p>
+          </div>
+
+          <div className="mt-3 flex items-center justify-between text-[11px] font-bold text-emerald-400 pt-1">
+            <span className="flex items-center gap-1 group-hover:underline">
+              <span>Click to open Kitchen Order Queue</span>
+              <ArrowRight className="w-3.5 h-3.5" />
+            </span>
+            <span className="text-slate-500 text-[10px]">Just now</span>
+          </div>
+        </div>
       )}
 
     </div>

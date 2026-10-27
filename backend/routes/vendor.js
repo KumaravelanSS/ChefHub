@@ -239,11 +239,71 @@ router.get('/dishes', authenticateToken, requireRole('VENDOR'), async (req, res)
   }
 });
 
+// SINGLE-CLICK DAILY STOCK RESTORATION (+20 TO ALL DISHES)
+router.post('/dishes/restore-stock', authenticateToken, requireRole('VENDOR'), async (req, res) => {
+  try {
+    const vendor_id = req.user.user_id;
+
+    // 1. Add +20 to all dishes for this vendor in MySQL
+    await query(`
+      UPDATE dishes 
+      SET daily_stock = COALESCE(daily_stock, 0) + 20,
+          is_available = 1,
+          out_of_stock_reason = NULL
+      WHERE vendor_id = ?
+    `, [vendor_id]);
+
+    // 2. Replenish raw inventory with +50.0 units
+    await query(`
+      UPDATE inventory 
+      SET stock_quantity = stock_quantity + 50.0,
+          updated_at = CURRENT_TIMESTAMP
+      WHERE vendor_id = ?
+    `, [vendor_id]);
+
+    // 3. Update MongoDB menu
+    try {
+      let mongoMenu = await MongoAdapter.findVendorMenu(vendor_id);
+      if (mongoMenu && mongoMenu.categories) {
+        for (const cat of mongoMenu.categories) {
+          for (const d of cat.dishes || []) {
+            d.is_available = true;
+            d.daily_stock = (Number(d.daily_stock) || 0) + 20;
+          }
+        }
+        await MongoAdapter.findOrSeedVendorMenus([mongoMenu]);
+      }
+    } catch (e) {
+      console.warn('Mongo menu sync on stock restore warning:', e);
+    }
+
+    // 4. Record Outbox Event
+    await outboxRelay.recordEvent(null, {
+      aggregate_type: 'VENDOR_STOCK',
+      aggregate_id: String(vendor_id),
+      event_type: 'STOCK_RESTORED_ALL',
+      payload: { vendor_id, addition: 20 }
+    });
+    outboxRelay.dispatchNow();
+
+    // 5. Fetch and return all updated dishes
+    const updatedDishes = await query('SELECT * FROM dishes WHERE vendor_id = ? ORDER BY dish_id DESC', [vendor_id]);
+    return res.json({
+      success: true,
+      message: '🎉 Daily stock restored! Added +20 portions to all your dishes and replenished raw inventory.',
+      dishes: updatedDishes
+    });
+  } catch (err) {
+    console.error('Daily stock restoration error:', err);
+    return res.status(500).json({ success: false, message: 'Failed to restore daily stock.' });
+  }
+});
+
 // ADD NEW DISH (MySQL + MongoDB Menu)
 router.post('/dishes', authenticateToken, requireRole('VENDOR'), async (req, res) => {
   try {
     const vendor_id = req.user.user_id;
-    const { name, category, base_price, daily_stock, description, image_url, is_available, dietary_tags } = req.body;
+    const { name, category, base_price, daily_stock, description, image_url, is_available, is_veg, dietary_tags } = req.body;
 
     if (!name || !category || base_price === undefined) {
       return res.status(400).json({ success: false, message: 'Name, Category, and Base Price are required.' });
@@ -251,11 +311,12 @@ router.post('/dishes', authenticateToken, requireRole('VENDOR'), async (req, res
 
     const availVal = (is_available === false || is_available === 0 || is_available === '0') ? 0 : 1;
     const stockVal = daily_stock !== undefined ? Number(daily_stock) : 20;
+    const vegVal = (is_veg === 0 || is_veg === false || is_veg === '0') ? 0 : 1;
 
     // 1. Insert into MySQL `dishes`
     const result = await query(`
-      INSERT INTO dishes (vendor_id, name, category, base_price, daily_stock, is_available, description, image_url)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO dishes (vendor_id, name, category, base_price, daily_stock, is_available, is_veg, description, image_url)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     `, [
       vendor_id,
       name,
@@ -263,6 +324,7 @@ router.post('/dishes', authenticateToken, requireRole('VENDOR'), async (req, res
       Number(base_price),
       stockVal,
       availVal,
+      vegVal,
       description || 'Handcrafted fresh dish',
       image_url || 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&w=600&q=80'
     ]);
@@ -322,7 +384,7 @@ router.put('/dishes/:id', authenticateToken, requireRole('VENDOR'), async (req, 
   try {
     const dish_id = req.params.id;
     const vendor_id = req.user.user_id;
-    const { name, category, base_price, daily_stock, description, image_url, is_available, out_of_stock_reason, dietary_tags } = req.body;
+    const { name, category, base_price, daily_stock, description, image_url, is_available, is_veg, out_of_stock_reason, dietary_tags } = req.body;
 
     let stockVal = null;
     if (daily_stock !== undefined && daily_stock !== null && daily_stock !== '') {
@@ -341,6 +403,8 @@ router.put('/dishes/:id', authenticateToken, requireRole('VENDOR'), async (req, 
       defaultReason = 'Daily portions fully exhausted (0 remaining)';
     }
 
+    const vegVal = is_veg !== undefined && is_veg !== null ? ((is_veg === 0 || is_veg === false || is_veg === '0') ? 0 : 1) : null;
+
     // 1. Update MySQL `dishes`
     await query(`
       UPDATE dishes 
@@ -349,6 +413,7 @@ router.put('/dishes/:id', authenticateToken, requireRole('VENDOR'), async (req, 
           base_price = COALESCE(?, base_price),
           daily_stock = COALESCE(?, daily_stock),
           is_available = ?,
+          is_veg = COALESCE(?, is_veg),
           out_of_stock_reason = ?,
           description = COALESCE(?, description),
           image_url = COALESCE(?, image_url)
@@ -359,6 +424,7 @@ router.put('/dishes/:id', authenticateToken, requireRole('VENDOR'), async (req, 
       base_price !== undefined && base_price !== '' ? Number(base_price) : null,
       stockVal,
       availVal,
+      vegVal,
       defaultReason,
       description !== undefined ? description : null,
       image_url !== undefined && image_url !== null ? image_url : null,
@@ -425,6 +491,18 @@ router.put('/dishes/:id', authenticateToken, requireRole('VENDOR'), async (req, 
     targetDish.is_available = availVal === 1;
     if (stockVal !== null) targetDish.daily_stock = stockVal;
     if (dietary_tags && Array.isArray(dietary_tags)) targetDish.dietary_tags = dietary_tags;
+    if (is_veg !== undefined) {
+      targetDish.is_veg = (is_veg === 1 || is_veg === true || is_veg === '1');
+      if (targetDish.is_veg) {
+        if (!targetDish.dietary_tags) targetDish.dietary_tags = [];
+        if (!targetDish.dietary_tags.includes('Vegetarian')) targetDish.dietary_tags.push('Vegetarian');
+        targetDish.dietary_tags = targetDish.dietary_tags.filter(t => t !== 'Non-Vegetarian');
+      } else {
+        if (!targetDish.dietary_tags) targetDish.dietary_tags = [];
+        if (!targetDish.dietary_tags.includes('Non-Vegetarian')) targetDish.dietary_tags.push('Non-Vegetarian');
+        targetDish.dietary_tags = targetDish.dietary_tags.filter(t => t !== 'Vegetarian');
+      }
+    }
 
     await MongoAdapter.findOrSeedVendorMenus([mongoMenu]);
 

@@ -88,6 +88,21 @@ const getDishImage = (dish) => {
   return 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&w=600&q=80';
 };
 
+export function isDishVeg(dish) {
+  if (!dish) return true;
+  if (dish.is_veg !== undefined && dish.is_veg !== null) {
+    return dish.is_veg === 1 || dish.is_veg === true || dish.is_veg === '1';
+  }
+  if (dish.dietary_tags && Array.isArray(dish.dietary_tags)) {
+    if (dish.dietary_tags.some(t => String(t).toLowerCase() === 'vegetarian' || String(t).toLowerCase() === 'veg')) return true;
+    if (dish.dietary_tags.some(t => String(t).toLowerCase().includes('non-veg') || String(t).toLowerCase().includes('meat'))) return false;
+  }
+  const name = String(dish.name || '').toLowerCase();
+  const nonVegKeywords = ['chicken', 'pork', 'salmon', 'meat', 'mutton', 'fish', 'prawn', 'beef', 'tonkotsu', 'gyoza', 'katsu'];
+  if (nonVegKeywords.some(kw => name.includes(kw))) return false;
+  return true;
+}
+
 const CHEF_AVATARS = {
   'chef.mario@chefhub.com': {
     name: 'Chef Mario Rossi',
@@ -1411,14 +1426,14 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`
         },
-        body: JSON.stringify({ cart: cartToSync, action: 'SYNC' })
+        body: JSON.stringify({ cart: cartToSync, items: cartToSync, action: 'SYNC' })
       });
       const data = await res.json();
-      if (!data.success) {
-        console.warn('Cart sync rollback triggered:', data.error);
+      if (!data.success && data.conflict) {
+        console.warn('Cart sync rollback triggered:', data.error || data.message);
         setCart(fallbackSnapshot);
         localStorage.setItem('chefhub_customer_cart', JSON.stringify(fallbackSnapshot));
-        alert(`Cart Update Conflict: ${data.error || 'Server rejected item quantity. Rolling back to previous local snapshot.'}`);
+        alert(`Cart Update Conflict: ${data.error || data.message || 'Server rejected item quantity. Rolling back to previous local snapshot.'}`);
       }
     } catch (err) {
       console.warn('Cart sync network blip:', err);
@@ -1537,7 +1552,7 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
 
   const handleExecutePaymentAndOrder = async (e, shouldFail = false) => {
     if (e && e.preventDefault) e.preventDefault();
-    const vendorToOrder = selectedVendor || vendors[0];
+    const vendorToOrder = (cart[0] && vendors.find(v => v.vendor_id === cart[0].vendor_id)) || selectedVendor || vendors[0];
     if (!vendorToOrder) return;
 
     const token = localStorage.getItem('chefhub_token');
@@ -1631,10 +1646,10 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
           Authorization: `Bearer ${token}`
         },
         body: JSON.stringify({
-          vendor_id: vendorToOrder.vendor_id,
+          vendor_id: (cart[0] && cart[0].vendor_id) || vendorToOrder.vendor_id,
           items: cart.map((c) => ({ dish_id: c.dish_id, quantity: c.quantity })),
           coupon_code: appliedCoupon ? appliedCoupon.code : null,
-          delivery_address: primaryAddress,
+          delivery_address: (primaryAddress && primaryAddress.trim().length >= 5) ? primaryAddress : (currentCoords.locality ? `${currentCoords.locality}, Bengaluru` : 'Indiranagar 100ft Road, Bengaluru, Karnataka'),
           payment_method: methodLabel
         })
       });
@@ -1921,6 +1936,77 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
     return list;
   }, [vendors]);
 
+  // Dynamic Cuisines / Categories derived from active kitchen dishes + base presets
+  const dynamicCuisineList = React.useMemo(() => {
+    const baseCuisines = [
+      { id: 'ALL', name: 'All Dishes', icon: '🍽️', img: 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&w=240&q=80' },
+      { id: 'Biryani', name: 'Biryani & Rice', icon: '🍛', img: 'https://images.unsplash.com/photo-1563379091339-03b21ab4a4f8?auto=format&fit=crop&w=240&q=80' },
+      { id: 'Pasta', name: 'Artisan Pasta', icon: '🍝', img: 'https://images.unsplash.com/photo-1551183053-bf91a1d81141?auto=format&fit=crop&w=240&q=80' },
+      { id: 'Ramen', name: 'Tokyo Ramen', icon: '🍜', img: 'https://images.unsplash.com/photo-1569718212165-3a8278d5f624?auto=format&fit=crop&w=240&q=80' },
+      { id: 'Chettinad', name: 'Chettinad & Dosa', icon: '🥘', img: 'https://images.unsplash.com/photo-1601050690597-df0568f70950?auto=format&fit=crop&w=240&q=80' },
+      { id: 'Flatbread', name: 'Burrata Flatbread', icon: '🍕', img: 'https://images.unsplash.com/photo-1513104890138-7c749659a591?auto=format&fit=crop&w=240&q=80' },
+      { id: 'Curry', name: 'Butter Chicken & Tikka', icon: '🍲', img: 'https://images.unsplash.com/photo-1603894584373-5ac82b2ae398?auto=format&fit=crop&w=240&q=80' },
+      { id: 'Desserts', name: 'Tiramisu & Sweets', icon: '🍰', img: 'https://images.unsplash.com/photo-1571877227200-a0d98ea607e9?auto=format&fit=crop&w=240&q=80' }
+    ];
+
+    const categoryIcons = {
+      noodle: '🥢',
+      pasta: '🍝',
+      biryani: '🍛',
+      pizza: '🍕',
+      curry: '🍲',
+      dessert: '🍰',
+      drink: '🥤',
+      ramen: '🍜',
+      rice: '🍚',
+      bread: '🫓',
+      starter: '🥟',
+      burger: '🍔'
+    };
+
+    const categoryImages = {
+      noodle: 'https://images.unsplash.com/photo-1569718212165-3a8278d5f624?auto=format&fit=crop&w=240&q=80',
+      pasta: 'https://images.unsplash.com/photo-1551183053-bf91a1d81141?auto=format&fit=crop&w=240&q=80',
+      biryani: 'https://images.unsplash.com/photo-1563379091339-03b21ab4a4f8?auto=format&fit=crop&w=240&q=80',
+      pizza: 'https://images.unsplash.com/photo-1513104890138-7c749659a591?auto=format&fit=crop&w=240&q=80',
+      curry: 'https://images.unsplash.com/photo-1603894584373-5ac82b2ae398?auto=format&fit=crop&w=240&q=80',
+      dessert: 'https://images.unsplash.com/photo-1571877227200-a0d98ea607e9?auto=format&fit=crop&w=240&q=80',
+      burger: 'https://images.unsplash.com/photo-1568901346375-23c9450c58cd?auto=format&fit=crop&w=240&q=80'
+    };
+
+    const seenCategories = new Set(baseCuisines.map((c) => c.name.toLowerCase()));
+    const dynamicList = [...baseCuisines];
+
+    allDishesMarketplace.forEach((dish) => {
+      const cat = (dish.category_name || dish.category || '').trim();
+      if (!cat) return;
+      const lower = cat.toLowerCase();
+
+      // Check if this category is already in the list
+      const alreadyIncluded = Array.from(seenCategories).some(c => lower.includes(c) || c.includes(lower));
+      if (!alreadyIncluded) {
+        seenCategories.add(lower);
+        let icon = '🍽️';
+        let img = dish.image_url || 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&w=240&q=80';
+        for (const [key, iconVal] of Object.entries(categoryIcons)) {
+          if (lower.includes(key)) { icon = iconVal; break; }
+        }
+        for (const [key, imgVal] of Object.entries(categoryImages)) {
+          if (lower.includes(key)) { img = imgVal; break; }
+        }
+
+        dynamicList.push({
+          id: cat,
+          name: cat,
+          icon,
+          img
+        });
+      }
+    });
+
+    return dynamicList;
+  }, [allDishesMarketplace]);
+
   // Filtered dishes for Unified Marketplace
   const filteredMarketplaceDishes = React.useMemo(() => {
     return allDishesMarketplace.filter((dish) => {
@@ -1948,22 +2034,14 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
         const c = selectedCuisine.toLowerCase();
         const matches = dish.name.toLowerCase().includes(c) ||
           dish.category_name.toLowerCase().includes(c) ||
+          (dish.category && dish.category.toLowerCase().includes(c)) ||
           (dish.description && dish.description.toLowerCase().includes(c));
         if (!matches) return false;
       }
 
       // Veg only toggle
-      if (vegOnly) {
-        const isVeg = dish.name.toLowerCase().includes('paneer') ||
-          dish.name.toLowerCase().includes('ravioli') ||
-          dish.name.toLowerCase().includes('gnocchi') ||
-          dish.name.toLowerCase().includes('focaccia') ||
-          dish.name.toLowerCase().includes('dosa') ||
-          dish.name.toLowerCase().includes('naan') ||
-          dish.name.toLowerCase().includes('lassi') ||
-          dish.name.toLowerCase().includes('tiramisu') ||
-          dish.dietary_tags?.some(t => t.toLowerCase().includes('veg'));
-        if (!isVeg) return false;
+      if (vegOnly && !isDishVeg(dish)) {
+        return false;
       }
 
       // Diet pill
@@ -2346,7 +2424,7 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
               ref={cuisineScrollRef}
               className="flex items-center gap-4 overflow-x-auto no-scrollbar py-2 px-1"
             >
-              {CUISINE_ITEMS.map((item) => {
+              {dynamicCuisineList.map((item) => {
                 const isActive = selectedCuisine === item.id;
                 return (
                   <button
@@ -2782,9 +2860,19 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
                             <Heart className={`w-4 h-4 ${isFav ? 'fill-rose-500 text-rose-500' : ''}`} />
                           </button>
 
+                          {/* Official Indian Veg / Non-Veg Symbol (Bottom-Left of Image - STRICTLY SYMBOL ONLY, NO TEXT) */}
+                          <div
+                            className="absolute bottom-2.5 left-2.5 z-30 pointer-events-none"
+                            title={isDishVeg(dish) ? 'Vegetarian' : 'Non-Vegetarian'}
+                          >
+                            <div className={`w-4 h-4 rounded-sm border-2 ${isDishVeg(dish) ? 'border-emerald-600' : 'border-red-700'} bg-white flex items-center justify-center p-0.5 shadow-md`}>
+                              <div className={`w-2 h-2 rounded-full ${isDishVeg(dish) ? 'bg-emerald-600' : 'bg-red-700'}`} />
+                            </div>
+                          </div>
+
                           {/* Chef Kitchen Tag */}
-                          <div className="absolute bottom-2.5 left-3 right-3 flex items-center justify-between text-[11px] text-white z-20 font-bold">
-                            <span className="truncate max-w-[150px] bg-slate-950/80 px-2 py-0.5 rounded-md border border-white/10">
+                          <div className="absolute bottom-2.5 left-8 right-3 flex items-center justify-between text-[11px] text-white z-20 font-bold">
+                            <span className="truncate max-w-[145px] bg-slate-950/80 px-2 py-0.5 rounded-md border border-white/10">
                               👨‍🍳 {dish.vendor_name}
                             </span>
                             <span className="bg-orange-500/90 text-white px-2 py-0.5 rounded-md font-mono text-[10px]">

@@ -270,6 +270,29 @@ async function initRelationalDb() {
     // Column already exists
   }
 
+  try {
+    await query(`ALTER TABLE dishes ADD COLUMN is_veg INTEGER DEFAULT 1`);
+  } catch (err) {
+    // Column already exists
+  }
+
+  try {
+    // Update existing dishes to accurate Indian Veg/Non-Veg classifications
+    await query(`
+      UPDATE dishes 
+      SET is_veg = 0 
+      WHERE LOWER(name) LIKE '%chicken%' 
+         OR LOWER(name) LIKE '%pork%' 
+         OR LOWER(name) LIKE '%salmon%' 
+         OR LOWER(name) LIKE '%meat%' 
+         OR LOWER(name) LIKE '%mutton%' 
+         OR LOWER(name) LIKE '%fish%' 
+         OR LOWER(name) LIKE '%prawn%'
+         OR LOWER(name) LIKE '%tonkotsu%'
+         OR LOWER(name) LIKE '%gyoza%'
+    `);
+  } catch (err) {}
+
   // 3. Inventory Table
   await query(`
     CREATE TABLE IF NOT EXISTS inventory (
