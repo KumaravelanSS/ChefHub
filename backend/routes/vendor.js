@@ -122,7 +122,7 @@ router.patch('/orders/:id/status', authenticateToken, requireRole('VENDOR'), asy
             if (curBalRows.length > 0) {
               await query(`UPDATE customer_wallets SET balance = balance + ?, updated_at = CURRENT_TIMESTAMP WHERE customer_id = ?`, [refundAmt, custId]);
             } else {
-              await query(`INSERT INTO customer_wallets (customer_id, balance) VALUES (?, ?)`, [custId, 1250.00 + refundAmt]);
+              await query(`INSERT INTO customer_wallets (customer_id, balance) VALUES (?, ?)`, [custId, 0.00 + refundAmt]);
             }
           } catch (e) {
             console.warn('[Wallet Refund Sync Warning]', e.message);
@@ -801,7 +801,8 @@ router.get('/profile', authenticateToken, requireRole('VENDOR'), async (req, res
 
     // Fetch user details from MySQL
     const userRows = await query(`
-      SELECT user_id, name, email, phone, primary_address, latitude, longitude, avatar_url, role 
+      SELECT user_id, name, email, phone, primary_address, latitude, longitude, avatar_url, role,
+             business_name, chef_bio, operating_hours, open_time, close_time, is_open, closed_reason
       FROM users WHERE user_id = ?
     `, [vendor_id]);
     const u = userRows[0] || {};
@@ -818,6 +819,9 @@ router.get('/profile', authenticateToken, requireRole('VENDOR'), async (req, res
       mongoMenu.last_closed_date = null;
       autoReopened = true;
       await MongoAdapter.findOrSeedVendorMenus([mongoMenu]);
+      try {
+        await query('UPDATE users SET is_open = 1, closed_reason = NULL WHERE user_id = ?', [vendor_id]);
+      } catch (e) {}
     }
 
     // Dynamic accurate ratings calculation from real customer reviews
@@ -837,13 +841,13 @@ router.get('/profile', authenticateToken, requireRole('VENDOR'), async (req, res
       latitude: u.latitude ? Number(u.latitude) : 12.9716,
       longitude: u.longitude ? Number(u.longitude) : 77.5946,
       avatar_url: u.avatar_url || mongoMenu?.hero_image_url || null,
-      business_name: mongoMenu?.business_name || u.name || req.user.name,
-      is_open: mongoMenu?.is_open !== undefined ? mongoMenu.is_open : true,
-      closed_reason: mongoMenu?.closed_reason || null,
-      operating_hours: mongoMenu?.operating_hours || '11:00 AM - 10:00 PM',
-      open_time: mongoMenu?.open_time || '11:00',
-      close_time: mongoMenu?.close_time || '22:00',
-      chef_bio: mongoMenu?.chef_bio || 'Michelin-trained artisanal independent chef.',
+      business_name: u.business_name || mongoMenu?.business_name || u.name || req.user.name,
+      is_open: u.is_open !== undefined && u.is_open !== null ? Boolean(u.is_open) : (mongoMenu?.is_open !== undefined ? mongoMenu.is_open : true),
+      closed_reason: u.closed_reason || mongoMenu?.closed_reason || null,
+      operating_hours: u.operating_hours || mongoMenu?.operating_hours || '11:00 AM - 10:00 PM',
+      open_time: u.open_time || mongoMenu?.open_time || '11:00',
+      close_time: u.close_time || mongoMenu?.close_time || '22:00',
+      chef_bio: u.chef_bio || mongoMenu?.chef_bio || 'Heritage recipes and artisanal independent cloud kitchen.',
       rating: avgRating,
       review_count,
       min_reviews_needed: MIN_REVIEWS_THRESHOLD,
@@ -878,7 +882,7 @@ router.put('/profile', authenticateToken, requireRole('VENDOR'), async (req, res
     const lat = latitude !== undefined && latitude !== null && latitude !== '' ? Number(latitude) : null;
     const lng = longitude !== undefined && longitude !== null && longitude !== '' ? Number(longitude) : null;
 
-    // Update MySQL users table
+    // Update MySQL users table with all details
     await query(`
       UPDATE users 
       SET name = COALESCE(?, name),
@@ -886,7 +890,12 @@ router.put('/profile', authenticateToken, requireRole('VENDOR'), async (req, res
           primary_address = COALESCE(?, primary_address),
           latitude = COALESCE(?, latitude),
           longitude = COALESCE(?, longitude),
-          avatar_url = COALESCE(?, avatar_url)
+          avatar_url = COALESCE(?, avatar_url),
+          business_name = COALESCE(?, business_name),
+          chef_bio = COALESCE(?, chef_bio),
+          operating_hours = COALESCE(?, operating_hours),
+          open_time = COALESCE(?, open_time),
+          close_time = COALESCE(?, close_time)
       WHERE user_id = ?
     `, [
       name ? name.trim() : null,
@@ -895,6 +904,11 @@ router.put('/profile', authenticateToken, requireRole('VENDOR'), async (req, res
       lat,
       lng,
       avatar_url ? avatar_url.trim() : null,
+      business_name ? business_name.trim() : null,
+      chef_bio !== undefined ? chef_bio : null,
+      operating_hours ? operating_hours.trim() : null,
+      open_time ? open_time.trim() : null,
+      close_time ? close_time.trim() : null,
       vendor_id
     ]);
 
@@ -908,12 +922,16 @@ router.put('/profile', authenticateToken, requireRole('VENDOR'), async (req, res
     if (operating_hours) mongoMenu.operating_hours = operating_hours;
     if (open_time) mongoMenu.open_time = open_time;
     if (close_time) mongoMenu.close_time = close_time;
+    if (primary_address) mongoMenu.primary_address = primary_address;
+    if (lat) mongoMenu.latitude = lat;
+    if (lng) mongoMenu.longitude = lng;
 
     await MongoAdapter.findOrSeedVendorMenus([mongoMenu]);
 
     // Query refreshed user record
     const userRows = await query(`
-      SELECT user_id, name, email, phone, role, primary_address, latitude, longitude, avatar_url, status 
+      SELECT user_id, name, email, phone, role, primary_address, latitude, longitude, avatar_url, status,
+             business_name, chef_bio, operating_hours, open_time, close_time, is_open, closed_reason
       FROM users WHERE user_id = ?
     `, [vendor_id]);
     const updatedUser = userRows[0];
@@ -927,6 +945,24 @@ router.put('/profile', authenticateToken, requireRole('VENDOR'), async (req, res
     };
     const token = jwt.sign(tokenPayload, JWT_SECRET, { expiresIn: '24h' });
 
+    const completeProfile = {
+      vendor_id,
+      name: updatedUser.name,
+      email: updatedUser.email,
+      phone: updatedUser.phone,
+      primary_address: updatedUser.primary_address,
+      latitude: updatedUser.latitude ? Number(updatedUser.latitude) : 12.9716,
+      longitude: updatedUser.longitude ? Number(updatedUser.longitude) : 77.5946,
+      avatar_url: updatedUser.avatar_url || mongoMenu?.hero_image_url,
+      business_name: updatedUser.business_name || mongoMenu?.business_name || updatedUser.name,
+      chef_bio: updatedUser.chef_bio || mongoMenu?.chef_bio,
+      operating_hours: updatedUser.operating_hours || mongoMenu?.operating_hours,
+      open_time: updatedUser.open_time || mongoMenu?.open_time,
+      close_time: updatedUser.close_time || mongoMenu?.close_time,
+      is_open: updatedUser.is_open !== undefined && updatedUser.is_open !== null ? Boolean(updatedUser.is_open) : (mongoMenu?.is_open !== undefined ? mongoMenu.is_open : true),
+      closed_reason: updatedUser.closed_reason || mongoMenu?.closed_reason || null
+    };
+
     return res.json({
       success: true,
       message: 'Chef profile, location and avatar updated successfully!',
@@ -936,7 +972,7 @@ router.put('/profile', authenticateToken, requireRole('VENDOR'), async (req, res
         longitude: updatedUser.longitude ? Number(updatedUser.longitude) : 77.5946
       },
       token,
-      profile: mongoMenu
+      profile: completeProfile
     });
   } catch (err) {
     console.error('Update vendor profile error:', err);

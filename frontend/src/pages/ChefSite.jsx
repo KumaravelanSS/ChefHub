@@ -91,6 +91,9 @@ export default function ChefSite({ user, onLogin, onLogout }) {
   const [showCloseReasonModal, setShowCloseReasonModal] = useState(false);
   const [selectedPresetReason, setSelectedPresetReason] = useState('Chef has manually closed the kitchen for today (Offline).');
   const [autoReopenedNotice, setAutoReopenedNotice] = useState(false);
+  const [isUpdatingKitchenStatus, setIsUpdatingKitchenStatus] = useState(false);
+  const isProfileModalOpenRef = useRef(false);
+  const hasUnsavedProfileEditsRef = useRef(false);
 
   // Chef Order Cancellation Modal State
   const [cancelModalOrder, setCancelModalOrder] = useState(null);
@@ -110,6 +113,15 @@ export default function ChefSite({ user, onLogin, onLogout }) {
   // Chef Profile & Security Modal State
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [profileModalTab, setProfileModalTab] = useState('INFO'); // 'INFO' | 'PASSWORD' | 'REPUTATION'
+
+  useEffect(() => {
+    isProfileModalOpenRef.current = showProfileModal;
+  }, [showProfileModal]);
+
+  const updateProfileField = (field, value) => {
+    hasUnsavedProfileEditsRef.current = true;
+    setProfileForm(prev => ({ ...prev, [field]: value }));
+  };
 
   const [profileForm, setProfileForm] = useState({
     name: user?.name || '',
@@ -304,21 +316,23 @@ export default function ChefSite({ user, onLogin, onLogout }) {
           close_time: dataProf.profile.close_time || '22:00',
           chef_bio: dataProf.profile.chef_bio || ''
         });
-        setProfileForm(prev => ({
-          ...prev,
-          name: dataProf.profile.name || user?.name || prev.name,
-          business_name: dataProf.profile.business_name || prev.business_name,
-          phone: dataProf.profile.phone || user?.phone || prev.phone,
-          email: dataProf.profile.email || user?.email || prev.email,
-          primary_address: dataProf.profile.primary_address || user?.primary_address || prev.primary_address,
-          latitude: dataProf.profile.latitude || user?.latitude || prev.latitude,
-          longitude: dataProf.profile.longitude || user?.longitude || prev.longitude,
-          avatar_url: dataProf.profile.avatar_url || user?.avatar_url || prev.avatar_url,
-          chef_bio: dataProf.profile.chef_bio || prev.chef_bio,
-          operating_hours: dataProf.profile.operating_hours || prev.operating_hours,
-          open_time: dataProf.profile.open_time || prev.open_time,
-          close_time: dataProf.profile.close_time || prev.close_time
-        }));
+        if (!isProfileModalOpenRef.current && !hasUnsavedProfileEditsRef.current) {
+          setProfileForm(prev => ({
+            ...prev,
+            name: dataProf.profile.name || user?.name || prev.name,
+            business_name: dataProf.profile.business_name || prev.business_name,
+            phone: dataProf.profile.phone || user?.phone || prev.phone,
+            email: dataProf.profile.email || user?.email || prev.email,
+            primary_address: dataProf.profile.primary_address || user?.primary_address || prev.primary_address,
+            latitude: dataProf.profile.latitude || user?.latitude || prev.latitude,
+            longitude: dataProf.profile.longitude || user?.longitude || prev.longitude,
+            avatar_url: dataProf.profile.avatar_url || user?.avatar_url || prev.avatar_url,
+            chef_bio: dataProf.profile.chef_bio || prev.chef_bio,
+            operating_hours: dataProf.profile.operating_hours || prev.operating_hours,
+            open_time: dataProf.profile.open_time || prev.open_time,
+            close_time: dataProf.profile.close_time || prev.close_time
+          }));
+        }
       }
 
       const dataDishes = await resDishes.json();
@@ -445,16 +459,9 @@ export default function ChefSite({ user, onLogin, onLogout }) {
     executeToggleStatus(false, finalReason);
   };
 
-  // Instant 0ms Optimistic Kitchen Status Toggle
+  // Kitchen Status Toggle with Visual Loading Bar & State Guard
   const executeToggleStatus = async (targetIsOpen, closedReason) => {
-    const prevProfile = { ...storeProfile };
-    // 1. Instant zero-latency optimistic UI update
-    setStoreProfile(prev => ({
-      ...prev,
-      is_open: targetIsOpen,
-      closed_reason: targetIsOpen ? null : (closedReason || 'Chef has manually closed the kitchen for today (Offline).')
-    }));
-
+    setIsUpdatingKitchenStatus(true);
     try {
       const token = localStorage.getItem('chefhub_token');
       const res = await fetch('/api/vendor/toggle-status', {
@@ -464,14 +471,17 @@ export default function ChefSite({ user, onLogin, onLogout }) {
       });
       const data = await res.json();
       if (data.success) {
-        setStoreProfile(data.profile || { is_open: data.is_open, closed_reason: data.closed_reason });
+        setStoreProfile(prev => ({
+          ...prev,
+          ...(data.profile || { is_open: data.is_open, closed_reason: data.closed_reason })
+        }));
       } else {
-        setStoreProfile(prevProfile);
         alert(data.message || 'Failed to update kitchen status.');
       }
     } catch (err) {
-      setStoreProfile(prevProfile);
-      alert('Failed to update kitchen status.');
+      alert('Failed to update kitchen status. Please check connection.');
+    } finally {
+      setIsUpdatingKitchenStatus(false);
     }
   };
 
@@ -513,17 +523,23 @@ export default function ChefSite({ user, onLogin, onLogout }) {
         throw new Error(data.message || 'Failed to update chef profile.');
       }
 
+      hasUnsavedProfileEditsRef.current = false;
       setProfileFeedback({ text: 'Chef profile, kitchen location & avatar updated successfully!', type: 'success' });
       if (data.profile) {
         setStoreProfile(prev => ({
           ...prev,
+          ...data.profile
+        }));
+        setProfileForm(prev => ({
+          ...prev,
           ...data.profile,
-          name: profileForm.name,
-          phone: profileForm.phone,
-          primary_address: profileForm.primary_address,
-          latitude: profileForm.latitude,
-          longitude: profileForm.longitude,
-          avatar_url: profileForm.avatar_url
+          phone: data.profile.phone || prev.phone,
+          primary_address: data.profile.primary_address || prev.primary_address,
+          latitude: data.profile.latitude || prev.latitude,
+          longitude: data.profile.longitude || prev.longitude,
+          avatar_url: data.profile.avatar_url || prev.avatar_url,
+          chef_bio: data.profile.chef_bio || prev.chef_bio,
+          operating_hours: data.profile.operating_hours || prev.operating_hours
         }));
       }
 
@@ -577,6 +593,19 @@ export default function ChefSite({ user, onLogin, onLogout }) {
     }
     if (newPassword.length < 8) {
       setPasswordFeedback({ text: 'New password must be at least 8 characters long.', type: 'error' });
+      return;
+    }
+
+    const hasUpper = /[A-Z]/.test(newPassword);
+    const hasLower = /[a-z]/.test(newPassword);
+    const hasNumber = /[0-9]/.test(newPassword);
+    const hasSpecial = /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(newPassword);
+    let score = (newPassword.length >= 8 ? 1 : 0) + (hasUpper ? 1 : 0) + (hasLower ? 1 : 0) + (hasNumber ? 1 : 0) + (hasSpecial ? 1 : 0);
+    if (score < 3) {
+      setPasswordFeedback({
+        text: 'Password is too weak. Must contain at least 8 characters with upper, lower, numbers or special characters.',
+        type: 'error'
+      });
       return;
     }
 
@@ -1726,9 +1755,41 @@ export default function ChefSite({ user, onLogin, onLogout }) {
                       </div>
                     </div>
 
+                    {/* Password Strength Checklist & Score Bar */}
+                    {newPassword && (
+                      <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-950/80 border border-slate-200 dark:border-slate-800 space-y-2.5 animate-in fade-in">
+                        <div className="flex items-center justify-between text-[11px] font-bold">
+                          <span className="text-slate-500">Security Strength:</span>
+                          <span className={pwdScore >= 4 ? 'text-emerald-500 font-black' : pwdScore >= 3 ? 'text-amber-500 font-black' : 'text-rose-500 font-black'}>
+                            {pwdScore >= 4 ? '🛡️ Strong' : pwdScore >= 3 ? '⚡ Good' : '⚠️ Weak Password'}
+                          </span>
+                        </div>
+                        {/* Visual Strength Progress Bar */}
+                        <div className="w-full h-1.5 rounded-full bg-slate-200 dark:bg-slate-800 overflow-hidden">
+                          <div
+                            className={`h-full transition-all duration-300 ${
+                              pwdScore >= 4 ? 'bg-emerald-500 w-full' : pwdScore >= 3 ? 'bg-amber-500 w-3/4' : pwdScore >= 2 ? 'bg-rose-400 w-1/2' : 'bg-rose-500 w-1/4'
+                            }`}
+                          />
+                        </div>
+                        <div className="grid grid-cols-2 gap-1.5 text-[10px]">
+                          <span className={pwdHasMinLength ? 'text-emerald-500 font-bold' : 'text-slate-400'}>✓ 8+ Characters</span>
+                          <span className={pwdHasUpper ? 'text-emerald-500 font-bold' : 'text-slate-400'}>✓ Uppercase Letter</span>
+                          <span className={pwdHasLower ? 'text-emerald-500 font-bold' : 'text-slate-400'}>✓ Lowercase Letter</span>
+                          <span className={pwdHasNumber ? 'text-emerald-500 font-bold' : 'text-slate-400'}>✓ Number</span>
+                          <span className={pwdHasSpecial ? 'text-emerald-500 font-bold' : 'text-slate-400'}>✓ Special Character</span>
+                          {confirmPassword && (
+                            <span className={newPassword === confirmPassword ? 'text-emerald-500 font-bold' : 'text-rose-500 font-bold'}>
+                              {newPassword === confirmPassword ? '✓ Passwords Match' : '✕ Passwords Do Not Match'}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
                     <button
                       type="submit"
-                      disabled={changingPassword || otpCodeInput.length < 6 || (newPassword && confirmPassword && newPassword !== confirmPassword)}
+                      disabled={changingPassword || otpCodeInput.length < 6 || !newPassword || newPassword.length < 8 || (newPassword && confirmPassword && newPassword !== confirmPassword) || pwdScore < 3}
                       className="w-full py-3 px-4 rounded-2xl bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-600 hover:from-emerald-600 hover:to-teal-600 text-white font-black shadow-lg shadow-emerald-500/25 transition-all active:scale-95 cursor-pointer disabled:opacity-50 flex items-center justify-center gap-2"
                     >
                       {changingPassword ? (
@@ -1881,19 +1942,29 @@ export default function ChefSite({ user, onLogin, onLogout }) {
               <span>Customer Marketplace</span>
             </button>
 
-            {/* Live Store Open / Closed Status Toggle Button */}
-            <button
-              onClick={handleInitiateKitchenToggle}
-              className={`px-3.5 py-1 rounded-full text-xs font-black flex items-center gap-2 transition-all shadow-md active:scale-95 cursor-pointer ${
-                storeProfile.is_open
-                  ? 'bg-gradient-to-r from-emerald-400 to-teal-400 text-emerald-950 dark:text-emerald-950 font-black shadow-emerald-500/25 ring-2 ring-emerald-400/30'
-                  : 'bg-gradient-to-r from-rose-500 to-red-600 hover:from-rose-600 hover:to-red-700 text-white shadow-rose-500/25 ring-2 ring-rose-400/30'
-              }`}
-              title="Click to toggle whether your kitchen is open to accept orders"
-            >
-              <span className={`w-2 h-2 rounded-full ${storeProfile.is_open ? 'bg-emerald-950 animate-pulse' : 'bg-rose-200'}`}></span>
-              {storeProfile.is_open ? 'STORE OPEN (Accepting Orders)' : 'STORE CLOSED (Offline)'}
-            </button>
+            {/* Live Store Open / Closed Status Toggle Button with Loading Bar */}
+            {isUpdatingKitchenStatus ? (
+              <div className="px-3.5 py-1 rounded-full text-xs font-bold bg-amber-500/15 border border-amber-500/30 text-amber-600 dark:text-amber-400 flex items-center gap-2 shadow-sm animate-pulse cursor-wait">
+                <RefreshCw className="w-3.5 h-3.5 animate-spin text-amber-500" />
+                <span>Syncing Kitchen...</span>
+                <div className="w-10 h-1.5 rounded-full bg-amber-500/25 overflow-hidden">
+                  <div className="h-full bg-amber-500 rounded-full w-2/3 animate-pulse" />
+                </div>
+              </div>
+            ) : (
+              <button
+                onClick={handleInitiateKitchenToggle}
+                className={`px-3.5 py-1 rounded-full text-xs font-black flex items-center gap-2 transition-all shadow-md active:scale-95 cursor-pointer ${
+                  storeProfile.is_open
+                    ? 'bg-gradient-to-r from-emerald-400 to-teal-400 text-emerald-950 dark:text-emerald-950 font-black shadow-emerald-500/25 ring-2 ring-emerald-400/30 hover:scale-105'
+                    : 'bg-gradient-to-r from-rose-500 to-red-600 hover:from-rose-600 hover:to-red-700 text-white shadow-rose-500/25 ring-2 ring-rose-400/30 hover:scale-105'
+                }`}
+                title="Click to toggle whether your kitchen is open to accept orders"
+              >
+                <span className={`w-2 h-2 rounded-full ${storeProfile.is_open ? 'bg-emerald-950 animate-pulse' : 'bg-rose-200'}`}></span>
+                {storeProfile.is_open ? 'STORE OPEN (Accepting Orders)' : 'STORE CLOSED (Offline)'}
+              </button>
+            )}
 
             {/* Operating Hours Settings Button */}
             <button

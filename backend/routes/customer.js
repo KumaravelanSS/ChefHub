@@ -274,9 +274,9 @@ router.get('/wallet', authenticateToken, requireRole(['CUSTOMER', 'VENDOR', 'RID
     const customer_id = req.user.user_id;
     let rows = await query('SELECT balance, updated_at FROM customer_wallets WHERE customer_id = ?', [customer_id]);
     if (rows.length === 0) {
-      // Initialize with ₹1,250.00 platform escrow starter balance
-      await query('INSERT INTO customer_wallets (customer_id, balance) VALUES (?, 1250.00)', [customer_id]);
-      rows = [{ balance: 1250.00, updated_at: new Date() }];
+      // All newly created accounts strictly start with ₹0.00 wallet balance
+      await query('INSERT INTO customer_wallets (customer_id, balance) VALUES (?, 0.00)', [customer_id]);
+      rows = [{ balance: 0.00, updated_at: new Date() }];
     }
     return res.json({
       success: true,
@@ -289,24 +289,34 @@ router.get('/wallet', authenticateToken, requireRole(['CUSTOMER', 'VENDOR', 'RID
   }
 });
 
-// Top-up Escrow Wallet via Simulated Gateway
+// Top-up Escrow Wallet via Simulated Gateway (Strict Max Limit: ₹4,999.00)
 router.post('/wallet/topup', authenticateToken, requireRole(['CUSTOMER', 'VENDOR', 'RIDER', 'ADMIN']), async (req, res) => {
   try {
     const customer_id = req.user.user_id;
     const { amount, payment_method } = req.body;
     const topupAmount = parseFloat(amount);
+    const MAX_WALLET_LIMIT = 4999.00;
 
     if (isNaN(topupAmount) || topupAmount <= 0) {
       return res.status(400).json({ success: false, message: 'Please provide a valid top-up amount greater than 0.' });
     }
 
     let rows = await query('SELECT balance FROM customer_wallets WHERE customer_id = ?', [customer_id]);
-    let newBalance = topupAmount;
+    const currentBalance = rows.length > 0 ? Number(rows[0].balance) : 0.00;
+
+    // Strict wallet ceiling check: Reject payment immediately if balance + topup exceeds ₹4,999.00
+    if (currentBalance + topupAmount > MAX_WALLET_LIMIT) {
+      const remainingAllowance = Math.max(0, MAX_WALLET_LIMIT - currentBalance);
+      return res.status(400).json({
+        success: false,
+        message: `Payment Rejected! Maximum wallet limit is strictly ₹4,999.00 only. Current balance: ₹${currentBalance.toFixed(2)}. The maximum top-up you can add right now is ₹${remainingAllowance.toFixed(2)}.`
+      });
+    }
+
+    let newBalance = currentBalance + topupAmount;
     if (rows.length === 0) {
-      newBalance += 1250.00;
       await query('INSERT INTO customer_wallets (customer_id, balance) VALUES (?, ?)', [customer_id, newBalance]);
     } else {
-      newBalance += Number(rows[0].balance);
       await query('UPDATE customer_wallets SET balance = ?, updated_at = CURRENT_TIMESTAMP WHERE customer_id = ?', [newBalance, customer_id]);
     }
 
@@ -484,7 +494,7 @@ router.post('/orders', checkoutLimiter, authenticateToken, requireRole(['CUSTOME
       const methodLabel = payment_method || 'Credit Card';
       if (payment_method && payment_method.toUpperCase().includes('WALLET')) {
         const walletRows = await txQuery('SELECT balance FROM customer_wallets WHERE customer_id = ? FOR UPDATE', [customer_id]);
-        const curBalance = walletRows.length > 0 ? Number(walletRows[0].balance) : 1250.00;
+        const curBalance = walletRows.length > 0 ? Number(walletRows[0].balance) : 0.00;
         if (curBalance < totalAmount) {
           const err = new Error(`Insufficient Escrow Wallet balance. Current balance: ₹${curBalance.toFixed(2)}, Order Total: ₹${totalAmount.toFixed(2)}. Please add money to your wallet.`);
           err.statusCode = 400;
@@ -493,7 +503,7 @@ router.post('/orders', checkoutLimiter, authenticateToken, requireRole(['CUSTOME
         if (walletRows.length > 0) {
           await txQuery('UPDATE customer_wallets SET balance = balance - ?, updated_at = CURRENT_TIMESTAMP WHERE customer_id = ?', [totalAmount, customer_id]);
         } else {
-          await txQuery('INSERT INTO customer_wallets (customer_id, balance) VALUES (?, ?)', [customer_id, 1250.00 - totalAmount]);
+          await txQuery('INSERT INTO customer_wallets (customer_id, balance) VALUES (?, ?)', [customer_id, 0.00]);
         }
       }
 
@@ -663,7 +673,7 @@ const handleCustomerCancelOrder = async (req, res) => {
         if (curBalRows.length > 0) {
           await query('UPDATE customer_wallets SET balance = balance + ?, updated_at = CURRENT_TIMESTAMP WHERE customer_id = ?', [refundAmt, customer_id]);
         } else {
-          await query('INSERT INTO customer_wallets (customer_id, balance) VALUES (?, ?)', [customer_id, 1250.00 + refundAmt]);
+          await query('INSERT INTO customer_wallets (customer_id, balance) VALUES (?, ?)', [customer_id, 0.00 + refundAmt]);
         }
       } catch (e) {
         console.warn('[Wallet Refund Sync Warning]', e.message);

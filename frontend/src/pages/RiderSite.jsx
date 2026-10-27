@@ -295,8 +295,35 @@ export default function RiderSite({ user, onLogin }) {
   };
 
   const acceptJob = async (order_id) => {
+    // 1. Shift Status Validation
+    if (shiftStatus === 'OFFLINE') {
+      alert('You are currently OFFLINE. Please toggle your Shift Status to ONLINE at the top right before accepting orders.');
+      return;
+    }
+
+    // 2. Capacity Constraint: Max 1 or 2 orders simultaneously from the SAME chef only
+    const myActiveOrders = jobs.filter(j => j.status === 'OUT_FOR_DELIVERY' && j.rider_id === user?.user_id);
+    if (myActiveOrders.length >= 2) {
+      alert('Maximum active deliveries reached (2 orders max). Please deliver your active orders before accepting more.');
+      return;
+    }
+
+    const targetJob = jobs.find(j => j.order_id === order_id);
+    if (myActiveOrders.length === 1 && targetJob && Number(myActiveOrders[0].vendor_id) !== Number(targetJob.vendor_id)) {
+      alert(`Batching Restriction: You already have an active order from ${myActiveOrders[0].vendor_name || 'Chef #' + myActiveOrders[0].vendor_id}. You can only batch up to 2 orders from the SAME chef, not from different chefs.`);
+      return;
+    }
+
     const originalJobs = [...jobs];
     setUpdatingJobIds((prev) => ({ ...prev, [order_id]: 'ACCEPTING' }));
+
+    // Set initial rider position at the chef's kitchen when order is accepted
+    if (targetJob) {
+      const vLat = Number(targetJob.vendor_lat) || 12.9784;
+      const vLng = Number(targetJob.vendor_lng) || 77.6408;
+      setCoords({ lat: vLat, lng: vLng });
+      setActiveMapJobId(order_id);
+    }
 
     setJobs((prev) =>
       prev.map((j) =>
@@ -396,9 +423,23 @@ export default function RiderSite({ user, onLogin }) {
   const updateGpsLocation = async () => {
     try {
       const token = localStorage.getItem('chefhub_token');
-      const nextLat = (coords.lat + (Math.random() * 0.002 - 0.001)).toFixed(4);
-      const nextLng = (coords.lng + (Math.random() * 0.002 - 0.001)).toFixed(4);
-      setCoords({ lat: Number(nextLat), lng: Number(nextLng) });
+      const activeOrder = jobs.find(j => j.status === 'OUT_FOR_DELIVERY' && j.rider_id === user?.user_id);
+
+      let nextLat, nextLng;
+      if (activeOrder) {
+        // Move along the route matching the accepted order toward customer destination
+        const destLat = Number(activeOrder.customer_lat) || 12.9352;
+        const destLng = Number(activeOrder.customer_lng) || 77.6245;
+        const curLat = coords.lat || 12.9784;
+        const curLng = coords.lng || 77.6408;
+        nextLat = Number((curLat + (destLat - curLat) * 0.25 + (Math.random() * 0.0004 - 0.0002)).toFixed(4));
+        nextLng = Number((curLng + (destLng - curLng) * 0.25 + (Math.random() * 0.0004 - 0.0002)).toFixed(4));
+      } else {
+        nextLat = Number((coords.lat + (Math.random() * 0.002 - 0.001)).toFixed(4));
+        nextLng = Number((coords.lng + (Math.random() * 0.002 - 0.001)).toFixed(4));
+      }
+
+      setCoords({ lat: nextLat, lng: nextLng });
 
       await fetch('/api/rider/location', {
         method: 'POST',
@@ -525,10 +566,18 @@ export default function RiderSite({ user, onLogin }) {
                         <LiveDeliveryMap
                           orderId={job.order_id}
                           orderStatus={job.status}
-                          chefLocation={{ lat: 12.9784, lng: 77.6408, locality: job.vendor_name || 'Kitchen' }}
-                          customerLocation={{ lat: 12.9352, lng: 77.6245, locality: job.delivery_address || 'Customer Location' }}
+                          chefLocation={{
+                            lat: Number(job.vendor_lat) || 12.9784,
+                            lng: Number(job.vendor_lng) || 77.6408,
+                            locality: job.vendor_address || job.vendor_name || 'Chef Kitchen'
+                          }}
+                          customerLocation={{
+                            lat: Number(job.customer_lat) || 12.9352,
+                            lng: Number(job.customer_lng) || 77.6245,
+                            locality: job.delivery_address || 'Customer Location'
+                          }}
                           riderName={user.name}
-                          customerName={job.customer_name || 'Alex Customer'}
+                          customerName={job.customer_name || 'Customer'}
                           customerPhone={job.customer_phone || '+91 98765 43210'}
                           vehicleType="Ather 450X EV Scooter"
                           viewerRole="RIDER"
@@ -544,14 +593,37 @@ export default function RiderSite({ user, onLogin }) {
                       </div>
                     ) : (
                       <>
-                        {job.status === 'READY' && (
-                          <button
-                            onClick={() => acceptJob(job.order_id)}
-                            className="w-full py-2.5 rounded-xl bg-sky-500 hover:bg-sky-600 text-white font-bold text-xs shadow-lg shadow-sky-500/20 transition-all cursor-pointer"
-                          >
-                            Accept Job & Pick Up Meal
-                          </button>
-                        )}
+                        {job.status === 'READY' && (() => {
+                          const isOffline = shiftStatus === 'OFFLINE';
+                          const myActive = jobs.filter(j => j.status === 'OUT_FOR_DELIVERY' && j.rider_id === user?.user_id);
+                          const isMaxCapacity = myActive.length >= 2;
+                          const isDiffChef = myActive.length === 1 && Number(myActive[0].vendor_id) !== Number(job.vendor_id);
+                          const isDisabled = isOffline || isMaxCapacity || isDiffChef;
+
+                          return (
+                            <button
+                              onClick={() => acceptJob(job.order_id)}
+                              disabled={isDisabled}
+                              className={`w-full py-2.5 rounded-xl font-bold text-xs shadow-lg transition-all flex items-center justify-center gap-1.5 ${
+                                isOffline
+                                  ? 'bg-slate-400 dark:bg-slate-700 text-slate-200 cursor-not-allowed opacity-60'
+                                  : isMaxCapacity
+                                  ? 'bg-amber-600/70 text-white cursor-not-allowed'
+                                  : isDiffChef
+                                  ? 'bg-rose-500/70 text-white cursor-not-allowed'
+                                  : 'bg-sky-500 hover:bg-sky-600 text-white shadow-sky-500/20 active:scale-95 cursor-pointer'
+                              }`}
+                            >
+                              {isOffline
+                                ? 'Shift Offline (Go ONLINE to Accept Orders)'
+                                : isMaxCapacity
+                                ? 'Max Capacity Reached (2 Orders Active)'
+                                : isDiffChef
+                                ? `Different Chef (Batch Same Chef Only: ${myActive[0].vendor_name || 'Chef #' + myActive[0].vendor_id})`
+                                : 'Accept Job & Pick Up Meal'}
+                            </button>
+                          );
+                        })()}
 
                         {job.status === 'OUT_FOR_DELIVERY' && (
                           <button
@@ -574,29 +646,63 @@ export default function RiderSite({ user, onLogin }) {
         {/* Right Col: Live GPS Coordinates Simulator & Earnings */}
         <div className="space-y-6">
           
-          {/* Live GPS Coordinates Widget */}
+          {/* Live GPS Route Navigation & Movement Widget */}
           <div className="glass-card rounded-2xl p-5 border border-slate-300 dark:border-slate-800 space-y-4">
-            <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2 border-b border-slate-300 dark:border-slate-800 pb-3">
-              <Navigation className="w-4 h-4 text-sky-500 dark:text-sky-400" />
-              <span>Live GPS Navigation Coordinates</span>
-            </h3>
+            <div className="flex justify-between items-center border-b border-slate-300 dark:border-slate-800 pb-3">
+              <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                <Navigation className="w-4 h-4 text-sky-500 dark:text-sky-400" />
+                <span>Live Route Navigation & GPS</span>
+              </h3>
+              {jobs.some(j => j.status === 'OUT_FOR_DELIVERY' && j.rider_id === user?.user_id) && (
+                <span className="px-2 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-500 text-[10px] font-black uppercase tracking-wider animate-pulse">
+                  Route Active
+                </span>
+              )}
+            </div>
+
+            {/* Active order route status details */}
+            {(() => {
+              const activeOrder = jobs.find(j => j.status === 'OUT_FOR_DELIVERY' && j.rider_id === user?.user_id);
+              if (activeOrder) {
+                return (
+                  <div className="p-3 rounded-xl bg-sky-500/10 border border-sky-500/25 text-xs space-y-1.5">
+                    <div className="flex items-center justify-between font-bold">
+                      <span className="text-sky-600 dark:text-sky-400 font-black">Order #{activeOrder.order_id} Locked</span>
+                      <span className="text-[10px] text-slate-500 font-mono">En Route</span>
+                    </div>
+                    <div className="text-[11px] text-slate-700 dark:text-slate-300">
+                      <strong>Chef:</strong> {activeOrder.vendor_name || 'Artisanal Kitchen'} ({activeOrder.vendor_address || 'Indiranagar'})
+                    </div>
+                    <div className="text-[11px] text-slate-700 dark:text-slate-300 truncate">
+                      <strong>Delivery To:</strong> {activeOrder.delivery_address || 'Customer Location'}
+                    </div>
+                  </div>
+                );
+              }
+              return (
+                <div className="p-3 rounded-xl bg-slate-100 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 text-[11px] text-slate-500 text-center">
+                  Accept an order on the left to lock navigation route from Chef Kitchen to Customer.
+                </div>
+              );
+            })()}
 
             <div className="bg-slate-100 dark:bg-slate-950 p-4 rounded-xl border border-slate-300 dark:border-slate-900 space-y-2 font-mono text-xs">
               <div className="flex justify-between text-slate-600 dark:text-slate-400">
-                <span>Latitude:</span>
+                <span>Rider Latitude:</span>
                 <span className="text-sky-600 dark:text-sky-400 font-bold">{coords.lat}</span>
               </div>
               <div className="flex justify-between text-slate-600 dark:text-slate-400">
-                <span>Longitude:</span>
+                <span>Rider Longitude:</span>
                 <span className="text-sky-600 dark:text-sky-400 font-bold">{coords.lng}</span>
               </div>
             </div>
 
             <button
               onClick={updateGpsLocation}
-              className="w-full py-2.5 rounded-xl bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-bold text-xs transition-all border border-slate-300 dark:border-slate-700"
+              className="w-full py-2.5 rounded-xl bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-600 hover:to-blue-700 text-white font-bold text-xs shadow-md transition-all active:scale-95 flex items-center justify-center gap-1.5 cursor-pointer"
             >
-              Simulate Rider GPS Movement
+              <Navigation className="w-3.5 h-3.5" />
+              <span>Simulate Rider GPS Movement</span>
             </button>
           </div>
 

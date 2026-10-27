@@ -449,11 +449,45 @@ async function initRelationalDb() {
     CREATE TABLE IF NOT EXISTS customer_wallets (
       wallet_id INTEGER PRIMARY KEY ${isSqlite ? 'AUTOINCREMENT' : 'AUTO_INCREMENT'},
       customer_id INTEGER NOT NULL UNIQUE,
-      balance DECIMAL(10,2) NOT NULL DEFAULT 1250.00,
+      balance DECIMAL(10,2) NOT NULL DEFAULT 0.00,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (customer_id) REFERENCES users(user_id) ON DELETE CASCADE
     )
   `);
+
+  try {
+    if (!isSqlite) {
+      await query(`ALTER TABLE customer_wallets MODIFY COLUMN balance DECIMAL(10,2) NOT NULL DEFAULT 0.00`);
+    }
+  } catch (err) {}
+
+  try {
+    // Reset any old starter demo balances of 1250 to 0.00 strictly
+    await query(`UPDATE customer_wallets SET balance = 0.00 WHERE balance = 1250.00`);
+    await query(`UPDATE customer_wallets SET balance = 0.00 WHERE customer_id IN (SELECT user_id FROM users WHERE name = 'ksr2008' OR email LIKE '%ksr2008%')`);
+  } catch (err) {}
+
+  try {
+    await query(`ALTER TABLE users ADD COLUMN business_name VARCHAR(255)`);
+  } catch (err) {}
+  try {
+    await query(`ALTER TABLE users ADD COLUMN chef_bio TEXT`);
+  } catch (err) {}
+  try {
+    await query(`ALTER TABLE users ADD COLUMN operating_hours VARCHAR(100)`);
+  } catch (err) {}
+  try {
+    await query(`ALTER TABLE users ADD COLUMN open_time VARCHAR(20)`);
+  } catch (err) {}
+  try {
+    await query(`ALTER TABLE users ADD COLUMN close_time VARCHAR(20)`);
+  } catch (err) {}
+  try {
+    await query(`ALTER TABLE users ADD COLUMN is_open INTEGER DEFAULT 1`);
+  } catch (err) {}
+  try {
+    await query(`ALTER TABLE users ADD COLUMN closed_reason VARCHAR(255)`);
+  } catch (err) {}
 
   try {
     await query(`ALTER TABLE orders ADD COLUMN payment_method VARCHAR(100) DEFAULT 'Card'`);

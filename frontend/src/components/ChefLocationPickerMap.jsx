@@ -3,8 +3,9 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { MapPin, Navigation, Crosshair, ZoomIn, ZoomOut, Compass } from 'lucide-react';
 
-const TILE_VOYAGER = 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png';
-const TILE_DARK = 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
+// Clean OpenStreetMap tiles - Free, public & NO "API KEY REQUIRED" watermark
+const TILE_VOYAGER = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
+const TILE_DARK = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
 
 // Fast 7-Character Geohash Generator (~150m precision for spatial indexing)
 export function computeGeohash(latitude, longitude, precision = 7) {

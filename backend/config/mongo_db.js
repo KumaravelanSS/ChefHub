@@ -57,6 +57,14 @@ const vendorMenuSchema = new mongoose.Schema({
   chef_bio: String,
   hero_image_url: String,
   operating_hours: String,
+  open_time: String,
+  close_time: String,
+  is_open: { type: Boolean, default: true },
+  closed_reason: String,
+  last_closed_date: String,
+  primary_address: String,
+  latitude: Number,
+  longitude: Number,
   categories: [
     {
       category_name: String,
@@ -73,7 +81,7 @@ const vendorMenuSchema = new mongoose.Schema({
       ]
     }
   ]
-}, { timestamps: true });
+}, { timestamps: true, strict: false });
 
 // 2. Rider Logistics Schema
 const riderLogisticsSchema = new mongoose.Schema({
@@ -192,14 +200,19 @@ const MongoAdapter = {
               }
             }
           }
+          const cleanItem = item.toObject ? item.toObject() : { ...item };
+          delete cleanItem._id;
+          delete cleanItem.__v;
+          await VendorMenu.findOneAndUpdate({ vendor_id: item.vendor_id }, { $set: cleanItem }, { upsert: true, new: true });
         }
-        await VendorMenu.findOneAndUpdate({ vendor_id: item.vendor_id }, item, { upsert: true });
       }
     } else {
       if (!Array.isArray(memoryDocs.vendors_menus)) {
         memoryDocs.vendors_menus = [];
       }
       for (const item of seedData) {
+
+
         const idx = memoryDocs.vendors_menus.findIndex(v => Number(v.vendor_id) === Number(item.vendor_id));
         if (idx >= 0) {
           const existing = memoryDocs.vendors_menus[idx];

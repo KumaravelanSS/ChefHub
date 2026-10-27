@@ -273,11 +273,10 @@ export default function SecurityCredentialsModal({ user, onClose, onUserUpdated 
           <button
             type="button"
             onClick={() => setActiveTab('PASSWORD')}
-            className={`py-2 rounded-lg text-xs font-black transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
-              activeTab === 'PASSWORD'
+            className={`py-2 rounded-lg text-xs font-black transition-all flex items-center justify-center gap-1.5 cursor-pointer ${activeTab === 'PASSWORD'
                 ? 'bg-orange-500 text-white shadow-md'
                 : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-            }`}
+              }`}
           >
             <Lock className="w-3.5 h-3.5" />
             <span>Password</span>
@@ -286,11 +285,10 @@ export default function SecurityCredentialsModal({ user, onClose, onUserUpdated 
           <button
             type="button"
             onClick={() => setActiveTab('EMAIL')}
-            className={`py-2 rounded-lg text-xs font-black transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
-              activeTab === 'EMAIL'
+            className={`py-2 rounded-lg text-xs font-black transition-all flex items-center justify-center gap-1.5 cursor-pointer ${activeTab === 'EMAIL'
                 ? 'bg-orange-500 text-white shadow-md'
                 : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-            }`}
+              }`}
           >
             <Mail className="w-3.5 h-3.5" />
             <span>Email</span>
@@ -299,11 +297,10 @@ export default function SecurityCredentialsModal({ user, onClose, onUserUpdated 
           <button
             type="button"
             onClick={() => setActiveTab('USERNAME')}
-            className={`py-2 rounded-lg text-xs font-black transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
-              activeTab === 'USERNAME'
+            className={`py-2 rounded-lg text-xs font-black transition-all flex items-center justify-center gap-1.5 cursor-pointer ${activeTab === 'USERNAME'
                 ? 'bg-orange-500 text-white shadow-md'
                 : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-            }`}
+              }`}
           >
             <User className="w-3.5 h-3.5" />
             <span>Username</span>
@@ -376,9 +373,8 @@ export default function SecurityCredentialsModal({ user, onClose, onUserUpdated 
                 <div className="mt-2 space-y-1.5">
                   <div className="w-full h-1.5 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
                     <div
-                      className={`h-full transition-all duration-300 ${
-                        pwdScore.score >= 4 ? 'bg-emerald-500' : pwdScore.score >= 2 ? 'bg-amber-500' : 'bg-rose-500'
-                      }`}
+                      className={`h-full transition-all duration-300 ${pwdScore.score >= 4 ? 'bg-emerald-500' : pwdScore.score >= 2 ? 'bg-amber-500' : 'bg-rose-500'
+                        }`}
                       style={{ width: `${(pwdScore.score / 5) * 100}%` }}
                     />
                   </div>
@@ -539,7 +535,7 @@ export default function SecurityCredentialsModal({ user, onClose, onUserUpdated 
               </label>
               <div className="flex items-center gap-2 px-3.5 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-mono font-bold text-slate-600 dark:text-slate-300">
                 <Hash className="w-4 h-4 text-orange-500" />
-                <span>Permanent Database ID #{user?.user_id} (Can be used for login)</span>
+                <span>User ID #{user?.user_id} (To be used for login purposes.)</span>
               </div>
             </div>
 

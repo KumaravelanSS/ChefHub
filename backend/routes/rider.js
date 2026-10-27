@@ -11,7 +11,9 @@ router.get('/jobs', authenticateToken, requireRole('RIDER'), async (req, res) =>
     const rider_id = req.user.user_id;
 
     const availableOrders = await query(`
-      SELECT o.*, uv.name AS vendor_name, uc.name AS customer_name, uc.phone AS customer_phone
+      SELECT o.*, 
+             uv.name AS vendor_name, uv.latitude AS vendor_lat, uv.longitude AS vendor_lng, uv.primary_address AS vendor_address,
+             uc.name AS customer_name, uc.phone AS customer_phone, uc.latitude AS customer_lat, uc.longitude AS customer_lng
       FROM orders o
       JOIN users uv ON o.vendor_id = uv.user_id
       JOIN users uc ON o.customer_id = uc.user_id
@@ -33,7 +35,50 @@ router.patch('/orders/:id/accept', authenticateToken, requireRole('RIDER'), asyn
     const order_id = req.params.id;
     const rider_id = req.user.user_id;
 
-    // 1. Parallelize primary relational updates & outbox recording
+    // 1. Rider Shift Status Validation: If rider is OFFLINE, reject order acceptance
+    const riderProfile = await MongoAdapter.getRider(rider_id);
+    if (riderProfile && riderProfile.shift_status === 'OFFLINE') {
+      return res.status(400).json({
+        success: false,
+        message: 'You are currently OFFLINE. Please toggle your shift status to ONLINE before accepting delivery orders.'
+      });
+    }
+
+    // 2. Active Orders Capacity & Same-Chef Batching Constraint
+    // A rider can have a maximum of 1 or 2 orders simultaneously, and ONLY from the same chef!
+    const activeOrders = await query(`
+      SELECT order_id, vendor_id, status 
+      FROM orders 
+      WHERE rider_id = ? AND status = 'OUT_FOR_DELIVERY'
+    `, [rider_id]);
+
+    if (activeOrders.length >= 2) {
+      return res.status(400).json({
+        success: false,
+        message: 'Maximum active order capacity reached (Max 2 orders at a time). Deliver your current orders before picking up more.'
+      });
+    }
+
+    const targetOrderRows = await query(`
+      SELECT o.order_id, o.vendor_id, o.status, uv.name AS vendor_name 
+      FROM orders o
+      JOIN users uv ON o.vendor_id = uv.user_id
+      WHERE o.order_id = ?
+    `, [order_id]);
+
+    if (targetOrderRows.length === 0) {
+      return res.status(404).json({ success: false, message: 'Order not found.' });
+    }
+    const targetOrder = targetOrderRows[0];
+
+    if (activeOrders.length === 1 && Number(activeOrders[0].vendor_id) !== Number(targetOrder.vendor_id)) {
+      return res.status(400).json({
+        success: false,
+        message: `Batching Restriction: You already have an active pickup from Chef #${activeOrders[0].vendor_id}. You can only batch up to 2 orders from the SAME chef, not from different chefs!`
+      });
+    }
+
+    // 3. Parallelize primary relational updates & outbox recording
     await Promise.all([
       query(`
         UPDATE orders 
