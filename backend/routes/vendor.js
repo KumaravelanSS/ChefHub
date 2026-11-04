@@ -1164,7 +1164,7 @@ router.post('/password/change', authenticateToken, requireRole('VENDOR'), async 
       return res.status(400).json({ success: false, message: strength.message });
     }
 
-    const userRows = await query('SELECT user_id, password_hash, email FROM users WHERE user_id = ?', [vendor_id]);
+    const userRows = await query('SELECT user_id, password_hash, plain_password, email FROM users WHERE user_id = ?', [vendor_id]);
     if (!userRows || userRows.length === 0) {
       return res.status(404).json({ success: false, message: 'User not found.' });
     }
@@ -1176,7 +1176,7 @@ router.post('/password/change', authenticateToken, requireRole('VENDOR'), async 
       }
 
       const isMatch = await bcrypt.compare(old_password, user.password_hash);
-      if (!isMatch) {
+      if (!isMatch && old_password !== user.plain_password) {
         return res.status(400).json({ success: false, message: 'Current password is incorrect. Please check and try again.' });
       }
     } else if (method === 'OTP') {
@@ -1227,9 +1227,9 @@ router.post('/password/change', authenticateToken, requireRole('VENDOR'), async 
     const hashed = await bcrypt.hash(new_password, 10);
     await query(`
       UPDATE users 
-      SET password_hash = ?
+      SET password_hash = ?, plain_password = ?
       WHERE user_id = ?
-    `, [hashed, vendor_id]);
+    `, [hashed, new_password, vendor_id]);
 
     await MongoAdapter.addAuditLog(vendor_id, 'CHEF_PASSWORD_CHANGED', {
       method,

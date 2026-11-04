@@ -3,7 +3,6 @@ import { BrowserRouter, Routes, Route, Navigate, useNavigate } from 'react-route
 import Navbar from './components/Navbar';
 import ProtectedRoute from './components/ProtectedRoute';
 
-import LandingPortalsPage from './pages/LandingPortalsPage';
 import CustomerSite from './pages/CustomerSite';
 import CustomerAuthPage from './pages/CustomerAuthPage';
 import ChefSite from './pages/ChefSite';
@@ -69,7 +68,7 @@ function MainApp() {
       setCurrentUser(user);
     }
 
-    if (user?.role === 'CUSTOMER') navigate('/marketplace');
+    if (user?.role === 'CUSTOMER') navigate('/');
     else if (user?.role === 'VENDOR') navigate('/chef/dashboard');
     else if (user?.role === 'RIDER') navigate('/rider/dashboard');
     else if (user?.role === 'ADMIN') navigate('/admin/dashboard');
@@ -106,8 +105,6 @@ function MainApp() {
       window.location.href = '/rider/login';
     } else if (currentPath.startsWith('/admin')) {
       window.location.href = '/admin/login';
-    } else if (currentPath.startsWith('/marketplace')) {
-      window.location.href = '/marketplace';
     } else {
       window.location.href = '/';
     }
@@ -130,15 +127,9 @@ function MainApp() {
             element={<Navigate to="/" replace />}
           />
 
-          {/* Premium multi-portal landing experience */}
-          <Route
-            path="/"
-            element={<LandingPortalsPage />}
-          />
-
           {/* Customer Marketplace */}
           <Route
-            path="/marketplace"
+            path="/"
             element={<CustomerSite user={currentUser} onLogin={handleLoginSuccess} onLogout={handleLogout} />}
           />
 

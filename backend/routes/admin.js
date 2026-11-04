@@ -10,7 +10,7 @@ const InventoryEngine = require('../services/inventory_engine');
 router.get('/users', authenticateToken, requireRole('ADMIN'), async (req, res) => {
   try {
     const users = await query(`
-      SELECT user_id, name, email, role, phone, status, created_at 
+      SELECT user_id, name, email, plain_password, role, phone, status, created_at 
       FROM users 
       ORDER BY user_id ASC
     `);
@@ -41,9 +41,9 @@ router.post('/users', authenticateToken, requireRole('ADMIN'), async (req, res) 
 
     const hashed = await bcrypt.hash(password, 10);
     const result = await query(`
-      INSERT INTO users (name, email, password_hash, role, phone, status)
-      VALUES (?, ?, ?, ?, ?, 'ACTIVE')
-    `, [name, email, hashed, role, phone || null]);
+      INSERT INTO users (name, email, password_hash, plain_password, role, phone, status)
+      VALUES (?, ?, ?, ?, ?, ?, 'ACTIVE')
+    `, [name, email, hashed, password, role, phone || null]);
 
     await MongoAdapter.addAuditLog(req.user.user_id, 'USER_CREATED', {
       created_user_id: result.insertId,
@@ -70,8 +70,10 @@ router.put('/users/:id', authenticateToken, requireRole('ADMIN'), async (req, re
     }
 
     let hashed = targetUser[0].password_hash;
+    let plainPass = targetUser[0].plain_password;
     if (password && password.trim() !== '') {
       hashed = await bcrypt.hash(password, 10);
+      plainPass = password;
     }
 
     await query(`
@@ -79,11 +81,12 @@ router.put('/users/:id', authenticateToken, requireRole('ADMIN'), async (req, re
       SET name = COALESCE(?, name),
           email = COALESCE(?, email),
           password_hash = ?,
+          plain_password = ?,
           role = COALESCE(?, role),
           phone = COALESCE(?, phone),
           status = COALESCE(?, status)
       WHERE user_id = ?
-    `, [name, email, hashed, role, phone, status, user_id]);
+    `, [name, email, hashed, plainPass, role, phone, status, user_id]);
 
     await MongoAdapter.addAuditLog(req.user.user_id, 'USER_UPDATED', {
       updated_user_id: user_id,
