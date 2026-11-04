@@ -120,17 +120,7 @@ router.post('/login', async (req, res) => {
       return res.status(403).json({ success: false, message: 'Account has been suspended/banned by Platform Admin.' });
     }
 
-    let isMatch = await bcrypt.compare(password, user.password_hash);
-    if (!isMatch) {
-      if (
-        (user.role === 'CUSTOMER' && (password === 'Customer@123' || password === 'customer123')) ||
-        (user.role === 'VENDOR' && (password === 'Vendor@123' || password === 'vendor123')) ||
-        (user.role === 'RIDER' && (password === 'Rider@123' || password === 'rider123')) ||
-        (user.role === 'ADMIN' && (password === 'admin' || password === 'Admin@123'))
-      ) {
-        isMatch = true;
-      }
-    }
+    const isMatch = await bcrypt.compare(password, user.password_hash);
     if (!isMatch) {
       return res.status(401).json({ success: false, message: 'Invalid credentials. Incorrect password.' });
     }
@@ -202,9 +192,9 @@ router.post('/social-login', async (req, res) => {
       const defaultLng = 77.5946;
 
       const result = await query(`
-        INSERT INTO users (name, email, password_hash, plain_password, role, phone, primary_address, latitude, longitude, status, avatar_url)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'ACTIVE', ?)
-      `, [cleanName, cleanEmail, hashed, randomPwd, targetRole, '+91 98765 43210', defaultAddress, defaultLat, defaultLng, avatar_url || null]);
+        INSERT INTO users (name, email, password_hash, role, phone, primary_address, latitude, longitude, status, avatar_url)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'ACTIVE', ?)
+      `, [cleanName, cleanEmail, hashed, targetRole, '+91 98765 43210', defaultAddress, defaultLat, defaultLng, avatar_url || null]);
 
       user = {
         user_id: result.insertId,
@@ -311,9 +301,9 @@ router.post('/register', async (req, res) => {
     const defaultLng = longitude ? Number(longitude) : 77.5946;
 
     const result = await query(`
-      INSERT INTO users (name, email, password_hash, plain_password, role, phone, primary_address, latitude, longitude, status)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'ACTIVE')
-    `, [name.trim(), email.trim(), hashed, password, targetRole, cleanPhone, defaultAddress, defaultLat, defaultLng]);
+      INSERT INTO users (name, email, password_hash, role, phone, primary_address, latitude, longitude, status)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'ACTIVE')
+    `, [name.trim(), email.trim(), hashed, targetRole, cleanPhone, defaultAddress, defaultLat, defaultLng]);
 
     const newUserId = result.insertId;
 
@@ -538,9 +528,9 @@ router.post('/profile/change-password', authenticateToken, async (req, res) => {
     const newHash = await bcrypt.hash(new_password, 10);
     await query(`
       UPDATE users 
-      SET password_hash = ?, plain_password = ?
+      SET password_hash = ?
       WHERE user_id = ?
-    `, [newHash, new_password, req.user.user_id]);
+    `, [newHash, req.user.user_id]);
 
     await MongoAdapter.addAuditLog(req.user.user_id, 'PASSWORD_CHANGED', {
       user_id: req.user.user_id,

@@ -217,7 +217,6 @@ async function initRelationalDb() {
       name VARCHAR(255) NOT NULL,
       email VARCHAR(255) UNIQUE NOT NULL,
       password_hash VARCHAR(255) NOT NULL,
-      plain_password VARCHAR(255),
       role VARCHAR(50) NOT NULL CHECK (role IN ('CUSTOMER', 'VENDOR', 'RIDER', 'ADMIN')),
       phone VARCHAR(50),
       status VARCHAR(50) DEFAULT 'ACTIVE',
@@ -226,9 +225,9 @@ async function initRelationalDb() {
   `);
 
   try {
-    await query(`ALTER TABLE users ADD COLUMN plain_password VARCHAR(255)`);
+    await query('ALTER TABLE users DROP COLUMN plain_password');
   } catch (err) {
-    // Column already exists
+    // Column already removed or DB does not expose it in migration metadata.
   }
 
   // 2. Dishes Table
