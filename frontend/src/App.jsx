@@ -69,7 +69,7 @@ function MainApp() {
       setCurrentUser(user);
     }
 
-    if (user?.role === 'CUSTOMER') navigate('/');
+    if (user?.role === 'CUSTOMER') navigate('/marketplace');
     else if (user?.role === 'VENDOR') navigate('/chef/dashboard');
     else if (user?.role === 'RIDER') navigate('/rider/dashboard');
     else if (user?.role === 'ADMIN') navigate('/admin/dashboard');
@@ -124,22 +124,22 @@ function MainApp() {
 
       <main className="flex-1 pb-16">
         <Routes>
-          {/* Portal launchpad */}
+          {/* Redirect /portals directly to Customer Site */}
           <Route
             path="/portals"
+            element={<Navigate to="/" replace />}
+          />
+
+          {/* Premium multi-portal landing experience */}
+          <Route
+            path="/"
             element={<LandingPortalsPage />}
           />
 
           {/* Customer Marketplace */}
           <Route
-            path="/"
-            element={<CustomerSite user={currentUser} onLogin={handleLoginSuccess} onLogout={handleLogout} />}
-          />
-
-          {/* Customer Marketplace alias */}
-          <Route
             path="/marketplace"
-            element={<Navigate to="/" replace />}
+            element={<CustomerSite user={currentUser} onLogin={handleLoginSuccess} onLogout={handleLogout} />}
           />
 
           {/* Customer Auth Page - dedicated isolated login/register */}
