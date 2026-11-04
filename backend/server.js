@@ -52,11 +52,11 @@ const publicPath = path.join(__dirname, 'public');
 const frontendDistPath = path.join(__dirname, '../frontend/dist');
 
 let staticPath = null;
-// Prioritize the directory that actually contains the bundled assets
-if (fs.existsSync(path.join(publicPath, 'assets'))) {
-  staticPath = publicPath;
-} else if (fs.existsSync(path.join(frontendDistPath, 'assets'))) {
+// Prefer the latest frontend build, keeping the checked-in bundle as a fallback.
+if (fs.existsSync(path.join(frontendDistPath, 'assets'))) {
   staticPath = frontendDistPath;
+} else if (fs.existsSync(path.join(publicPath, 'assets'))) {
+  staticPath = publicPath;
 } else if (fs.existsSync(publicPath)) {
   staticPath = publicPath;
 } else if (fs.existsSync(frontendDistPath)) {

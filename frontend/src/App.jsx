@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate, useNavigate } from 'react-route
 import Navbar from './components/Navbar';
 import ProtectedRoute from './components/ProtectedRoute';
 
+import LandingPortalsPage from './pages/LandingPortalsPage';
 import CustomerSite from './pages/CustomerSite';
 import CustomerAuthPage from './pages/CustomerAuthPage';
 import ChefSite from './pages/ChefSite';
@@ -105,6 +106,8 @@ function MainApp() {
       window.location.href = '/rider/login';
     } else if (currentPath.startsWith('/admin')) {
       window.location.href = '/admin/login';
+    } else if (currentPath.startsWith('/marketplace')) {
+      window.location.href = '/marketplace';
     } else {
       window.location.href = '/';
     }
@@ -121,16 +124,22 @@ function MainApp() {
 
       <main className="flex-1 pb-16">
         <Routes>
-          {/* Redirect /portals directly to Customer Site */}
+          {/* Portal launchpad */}
           <Route
             path="/portals"
-            element={<Navigate to="/" replace />}
+            element={<LandingPortalsPage />}
           />
 
           {/* Customer Marketplace */}
           <Route
             path="/"
             element={<CustomerSite user={currentUser} onLogin={handleLoginSuccess} onLogout={handleLogout} />}
+          />
+
+          {/* Customer Marketplace alias */}
+          <Route
+            path="/marketplace"
+            element={<Navigate to="/" replace />}
           />
 
           {/* Customer Auth Page - dedicated isolated login/register */}
