@@ -357,3 +357,4 @@ export function buildDbmsSearchIndex(items = [], strategy = 'QUADRATIC') {
 
   return hashTable;
 }
+

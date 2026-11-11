@@ -1,4 +1,5 @@
-import React, { useId, useMemo, useState } from 'react';
+import React, { useId, useMemo, useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { Search, Sparkles, X, Cpu, Zap, BarChart3, Check, Layers, Info, RefreshCw } from 'lucide-react';
 import { buildDbmsSearchIndex } from '../utils/hashSearchEngine';
 
@@ -156,6 +157,24 @@ export default function SearchSuggestInput({
   const [showInspectorModal, setShowInspectorModal] = useState(false);
   const [benchmarkResult, setBenchmarkResult] = useState(null);
   const [isBenchmarking, setIsBenchmarking] = useState(false);
+
+  // Lock body scroll and handle Escape key when inspector modal is open
+  useEffect(() => {
+    if (!showInspectorModal) return;
+    const originalOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+
+    const handleEscape = (e) => {
+      if (e.key === 'Escape') {
+        setShowInspectorModal(false);
+      }
+    };
+    window.addEventListener('keydown', handleEscape);
+    return () => {
+      document.body.style.overflow = originalOverflow;
+      window.removeEventListener('keydown', handleEscape);
+    };
+  }, [showInspectorModal]);
 
   // Inverted & Token Search Index
   const searchIndex = useMemo(() => buildSearchIndex(items || []), [items]);
@@ -355,14 +374,16 @@ export default function SearchSuggestInput({
 
       {/* =================================================================== */}
       {/* DBMS HASH SEARCH INSPECTOR & BENCHMARK MODAL (ACADEMIC EVALUATION)   */}
+      {/* Rendered via React Portal directly into document.body to escape any  */}
+      {/* parent stacking context or backdrop-filter clipping.                 */}
       {/* =================================================================== */}
-      {showInspectorModal && (
+      {showInspectorModal && typeof document !== 'undefined' && createPortal(
         <div
-          className="fixed inset-0 z-[9999] flex items-center justify-center p-3 sm:p-4 bg-slate-950/80 backdrop-blur-md animate-fade-in"
+          className="fixed inset-0 z-[99999] flex items-center justify-center p-3 sm:p-4 bg-slate-950/75 backdrop-blur-md animate-fade-in overflow-y-auto"
           onClick={() => setShowInspectorModal(false)}
         >
           <div
-            className="glass-card bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-5 sm:p-6 max-w-xl w-full shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto custom-scrollbar"
+            className="glass-card bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-5 sm:p-6 max-w-xl w-full shadow-2xl space-y-4 my-auto relative max-h-[90vh] overflow-y-auto custom-scrollbar ring-1 ring-slate-900/10 dark:ring-white/10"
             onClick={e => e.stopPropagation()}
           >
             {/* Header */}
@@ -553,7 +574,8 @@ export default function SearchSuggestInput({
               </div>
             )}
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );
