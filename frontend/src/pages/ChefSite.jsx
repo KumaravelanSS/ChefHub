@@ -9,6 +9,7 @@ import { KitchenLoadingScreen, KitchenDataLoader, KitchenSkeletonRows } from '..
 import ChefAuthPage from './ChefAuthPage';
 import ChefLocationPickerMap from '../components/ChefLocationPickerMap';
 import CancelOrderLoadingModal from '../components/CancelOrderLoadingModal';
+import SearchSuggestInput, { normalizeSearchText } from '../components/SearchSuggestInput';
 
 const presetImages = [
   { label: 'Pasta', url: 'https://images.unsplash.com/photo-1551183053-bf91a1d81141?auto=format&fit=crop&w=600&q=80' },
@@ -47,6 +48,7 @@ export default function ChefSite({ user, onLogin, onLogout }) {
 
   const [activeTab, setActiveTab] = useState('dishes');
   const [orders, setOrders] = useState([]);
+  const [orderSearchQuery, setOrderSearchQuery] = useState('');
   const [dishes, setDishes] = useState([]);
   const [inventory, setInventory] = useState([]);
   const [recipes, setRecipes] = useState([]);
@@ -61,6 +63,29 @@ export default function ChefSite({ user, onLogin, onLogout }) {
   const [loadingPayouts, setLoadingPayouts] = useState(false);
   const [loadingInitial, setLoadingInitial] = useState(true);
   const [chefReviews, setChefReviews] = useState([]);
+  const orderSearchItems = React.useMemo(() => orders.map(order => ({
+    id: `order-${order.order_id}`,
+    label: `Order #${order.order_id}`,
+    detail: [order.status, order.customer_name].filter(Boolean).join(' · '),
+    searchText: [
+      `Order ${order.order_id}`,
+      order.status,
+      order.customer_name,
+      order.customer_phone,
+      ...(Array.isArray(order.items) ? order.items.map(item => item.dish_name || item.name) : [])
+    ].filter(Boolean).join(' ')
+  })), [orders]);
+  const filteredOrders = React.useMemo(() => {
+    const query = normalizeSearchText(orderSearchQuery);
+    if (!query) return orders;
+    return orders.filter(order => normalizeSearchText([
+      `Order ${order.order_id}`,
+      order.status,
+      order.customer_name,
+      order.customer_phone,
+      ...(Array.isArray(order.items) ? order.items.map(item => item.dish_name || item.name) : [])
+    ].filter(Boolean).join(' ')).includes(query));
+  }, [orders, orderSearchQuery]);
 
   // Add Dish Form
   const [newDish, setNewDish] = useState({ name: '', category: 'Pasta', base_price: '', daily_stock: '20', description: '', image_url: '', is_available: true, is_veg: true });
@@ -3063,6 +3088,22 @@ export default function ChefSite({ user, onLogin, onLogout }) {
             </div>
           </div>
 
+          {orders.length > 0 && (
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <SearchSuggestInput
+                value={orderSearchQuery}
+                onChange={setOrderSearchQuery}
+                items={orderSearchItems}
+                placeholder="Search order ID, customer, dish or status..."
+                containerClassName="sm:max-w-sm"
+                ariaLabel="Search kitchen orders"
+              />
+              <span className="text-xs text-slate-500">
+                Showing {filteredOrders.length} of {orders.length} tickets
+              </span>
+            </div>
+          )}
+
           {orders.length === 0 ? (
             <div className="text-center py-16 glass-card bg-white/60 dark:bg-slate-900/60 rounded-3xl border border-slate-200/80 dark:border-slate-800 space-y-2">
               <div className="w-12 h-12 rounded-2xl bg-slate-100 dark:bg-slate-800 text-slate-400 flex items-center justify-center mx-auto">
@@ -3071,9 +3112,14 @@ export default function ChefSite({ user, onLogin, onLogout }) {
               <p className="text-sm font-bold text-slate-700 dark:text-slate-300">No incoming orders in queue</p>
               <p className="text-xs text-slate-500 dark:text-slate-400">Incoming customer orders will appear here in real-time</p>
             </div>
+          ) : filteredOrders.length === 0 ? (
+            <div className="glass-card rounded-3xl border border-slate-200/80 bg-white/70 p-10 text-center dark:border-slate-800 dark:bg-slate-900/70">
+              <p className="text-sm font-bold text-slate-800 dark:text-slate-200">No orders match “{orderSearchQuery}”</p>
+              <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Choose a suggested match or clear the search to see every ticket.</p>
+            </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {orders.map((o) => (
+              {filteredOrders.map((o) => (
                 <div key={o.order_id} className="glass-card rounded-3xl p-5 sm:p-6 border border-slate-200/80 dark:border-slate-800 bg-white/95 dark:bg-slate-900/95 space-y-4 flex flex-col justify-between shadow-xl shadow-slate-200/40 dark:shadow-none hover:border-slate-300 dark:hover:border-slate-700 transition-all">
                   <div className="space-y-3.5">
                     <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-800 pb-3">

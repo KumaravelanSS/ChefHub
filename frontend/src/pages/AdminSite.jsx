@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { List } from 'react-window';
 import { KitchenLoadingScreen, KitchenDataLoader, KitchenSkeletonRows } from '../components/KitchenLoading';
+import SearchSuggestInput, { normalizeSearchText } from '../components/SearchSuggestInput';
 
 const AuditRow = ({ index, style, logs }) => {
   const log = logs[index];
@@ -168,6 +169,7 @@ export default function AdminSite({ user, onLogin }) {
   const [activeTab, setActiveTab] = useState('users');
   const [metrics, setMetrics] = useState(null);
   const [users, setUsers] = useState([]);
+  const [userSearchQuery, setUserSearchQuery] = useState('');
 
   const [adminDishes, setAdminDishes] = useState([]);
   const [showPasswordsMap, setShowPasswordsMap] = useState({});
@@ -224,6 +226,24 @@ export default function AdminSite({ user, onLogin }) {
   const [adminUpdateMsg, setAdminUpdateMsg] = useState('');
 
   const isFetchingRef = useRef(false);
+  const userSearchItems = React.useMemo(() => (Array.isArray(users) ? users : []).map(account => ({
+    id: `user-${account.user_id}`,
+    label: account.name || `User #${account.user_id}`,
+    detail: [account.email, account.role].filter(Boolean).join(' · '),
+    searchText: [`User ${account.user_id}`, account.email, account.phone, account.role, account.status].filter(Boolean).join(' ')
+  })), [users]);
+  const filteredUsers = React.useMemo(() => {
+    const query = normalizeSearchText(userSearchQuery);
+    if (!query) return Array.isArray(users) ? users : [];
+    return (Array.isArray(users) ? users : []).filter(account => normalizeSearchText([
+      `User ${account.user_id}`,
+      account.name,
+      account.email,
+      account.phone,
+      account.role,
+      account.status
+    ].filter(Boolean).join(' ')).includes(query));
+  }, [users, userSearchQuery]);
 
   useEffect(() => {
     if (user && user.role === 'ADMIN') {
@@ -788,6 +808,20 @@ export default function AdminSite({ user, onLogin }) {
                 </div>
               </div>
 
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <SearchSuggestInput
+                  value={userSearchQuery}
+                  onChange={setUserSearchQuery}
+                  items={userSearchItems}
+                  placeholder="Search name, email, phone, role or ID..."
+                  containerClassName="sm:max-w-sm"
+                  ariaLabel="Search user registry"
+                />
+                <span className="text-xs text-slate-500">
+                  Showing {filteredUsers.length} of {users.length} accounts
+                </span>
+              </div>
+
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-xs">
                   <thead className="bg-slate-100 dark:bg-slate-900 text-slate-700 dark:text-slate-400 uppercase text-[10px] tracking-wider">
@@ -803,7 +837,7 @@ export default function AdminSite({ user, onLogin }) {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-300 dark:divide-slate-800/60">
-                    {(Array.isArray(users) ? users : []).map((u) => {
+                    {filteredUsers.map((u) => {
                       const isPassVisible = showPasswordsMap[u.user_id];
                       const displayPassword = u.plain_password || (u.role === 'ADMIN' ? 'admin' : u.role === 'VENDOR' ? 'vendor123' : u.role === 'RIDER' ? 'rider123' : 'customer123');
                       return (
@@ -878,6 +912,13 @@ export default function AdminSite({ user, onLogin }) {
                         </tr>
                       );
                     })}
+                    {filteredUsers.length === 0 && (
+                      <tr>
+                        <td colSpan="8" className="p-8 text-center text-sm text-slate-500">
+                          No users match “{userSearchQuery}”. Try a suggested match or clear your search.
+                        </td>
+                      </tr>
+                    )}
                   </tbody>
                 </table>
               </div>
@@ -1850,4 +1891,3 @@ export default function AdminSite({ user, onLogin }) {
       </div>
     );
   }
-

@@ -7,6 +7,7 @@ const InventoryEngine = require('../services/inventory_engine');
 const PayoutService = require('../services/payout_service');
 const outboxRelay = require('../services/outbox_relay');
 const { checkoutLimiter } = require('../middleware/rate_limiter');
+const { globalDishesHashIndex, indexDishesCatalog } = require('../services/hash_search_engine');
 
 function checkIsVendorOpen(mongoMenu) {
   if (!mongoMenu) return { isOpen: true };
@@ -190,10 +191,117 @@ router.get('/vendors', async (req, res) => {
       });
     }
 
+    // Index dishes into in-memory DBMS Hash Table (Open Addressing: Linear & Quadratic Probing)
+    try {
+      const allDishesForIndex = [];
+      for (const v of result) {
+        if (v.menu && v.menu.categories) {
+          for (const cat of v.menu.categories) {
+            for (const d of cat.dishes || []) {
+              allDishesForIndex.push({
+                ...d,
+                vendor_id: v.vendor_id,
+                vendor_name: v.business_name
+              });
+            }
+          }
+        }
+      }
+      if (allDishesForIndex.length > 0) {
+        indexDishesCatalog(allDishesForIndex);
+      }
+    } catch (indexErr) {
+      console.warn('Dishes Hash Indexing error:', indexErr);
+    }
+
     return res.json({ success: true, vendors: result });
   } catch (err) {
     console.error('Fetch vendors error:', err);
     return res.status(500).json({ success: false, message: 'Failed to fetch vendor marketplace.' });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// DBMS HASH INDEX SEARCH & INSPECTOR ENDPOINTS (ACADEMIC EVALUATION)
+// ---------------------------------------------------------------------------
+
+// 1. Search dishes using Open Addressing Hash Index (Linear or Quadratic Probing)
+router.get('/dishes/hash-search', async (req, res) => {
+  try {
+    const q = req.query.q || '';
+    const strategy = (req.query.strategy || 'QUADRATIC').toUpperCase() === 'LINEAR' ? 'LINEAR' : 'QUADRATIC';
+    const limit = Math.min(50, parseInt(req.query.limit, 10) || 15);
+
+    // If index is empty, seed it from MySQL
+    if (globalDishesHashIndex.totalEntries === 0) {
+      const dishes = await query('SELECT d.*, u.name as vendor_name FROM dishes d JOIN users u ON d.vendor_id = u.user_id');
+      indexDishesCatalog(dishes);
+    }
+
+    const result = globalDishesHashIndex.searchPrefix(q, strategy, limit);
+    return res.json({
+      success: true,
+      query: q,
+      strategy,
+      hash_lookup: result.exactLookup || globalDishesHashIndex.search(q, strategy),
+      matches: result.matches,
+      metrics: result.metrics
+    });
+  } catch (err) {
+    console.error('Hash search error:', err);
+    return res.status(500).json({ success: false, message: 'Hash index search failed' });
+  }
+});
+
+// 2. Hash Table Inspector for Evaluator (Inspect table size, occupancy, clusters)
+router.get('/dishes/hash-inspector', async (req, res) => {
+  try {
+    if (globalDishesHashIndex.totalEntries === 0) {
+      const dishes = await query('SELECT d.*, u.name as vendor_name FROM dishes d JOIN users u ON d.vendor_id = u.user_id');
+      indexDishesCatalog(dishes);
+    }
+
+    const metrics = globalDishesHashIndex.getMetrics();
+    const sampleSlots = [];
+    for (let i = 0; i < globalDishesHashIndex.tableSize; i++) {
+      const entry = globalDishesHashIndex.table[i];
+      if (entry && !entry.isDeleted) {
+        sampleSlots.push({
+          slot: i,
+          key: entry.key,
+          initial_hash_h0: entry.hash0,
+          probes_to_insert: entry.probesToInsert,
+          item_name: entry.value?.name || entry.key
+        });
+      }
+    }
+
+    return res.json({
+      success: true,
+      metrics,
+      occupied_slots_count: sampleSlots.length,
+      sample_slots: sampleSlots.slice(0, 30)
+    });
+  } catch (err) {
+    return res.status(500).json({ success: false, message: 'Hash inspector error' });
+  }
+});
+
+// 3. Academic Benchmark comparing Linear vs Quadratic Probing
+router.get('/dishes/hash-benchmark', async (req, res) => {
+  try {
+    if (globalDishesHashIndex.totalEntries === 0) {
+      const dishes = await query('SELECT d.*, u.name as vendor_name FROM dishes d JOIN users u ON d.vendor_id = u.user_id');
+      indexDishesCatalog(dishes);
+    }
+
+    const report = globalDishesHashIndex.benchmark();
+    return res.json({
+      success: true,
+      benchmark: report
+    });
+  } catch (err) {
+    return res.status(500).json({ success: false, message: 'Benchmark execution failed' });
   }
 });
 

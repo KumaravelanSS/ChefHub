@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import RiderAuthPage from './RiderAuthPage';
 import LiveDeliveryMap from '../components/LiveDeliveryMap';
+import SearchSuggestInput, { normalizeSearchText } from '../components/SearchSuggestInput';
 
 export default function RiderSite({ user, onLogin }) {
   const navigate = useNavigate();
@@ -15,12 +16,38 @@ export default function RiderSite({ user, onLogin }) {
   const [loginError, setLoginError] = useState('');
 
   const [jobs, setJobs] = useState([]);
+  const [jobSearchQuery, setJobSearchQuery] = useState('');
   const [earnings, setEarnings] = useState({ total_earned: '0.00', payouts: [] });
   const [riderReviews, setRiderReviews] = useState([]);
   const [shiftStatus, setShiftStatus] = useState('ONLINE');
   const [coords, setCoords] = useState({ lat: 12.9716, lng: 77.5946 });
   const [activeMapJobId, setActiveMapJobId] = useState(null);
   const [updatingJobIds, setUpdatingJobIds] = useState({});
+  const jobSearchItems = React.useMemo(() => jobs.map(job => ({
+    id: `order-${job.order_id}`,
+    label: `Order #${job.order_id}`,
+    detail: [job.vendor_name, job.customer_name].filter(Boolean).join(' · '),
+    searchText: [
+      `Order ${job.order_id}`,
+      job.vendor_name,
+      job.customer_name,
+      job.customer_phone,
+      job.delivery_address,
+      job.status
+    ].filter(Boolean).join(' ')
+  })), [jobs]);
+  const filteredJobs = React.useMemo(() => {
+    const query = normalizeSearchText(jobSearchQuery);
+    if (!query) return jobs;
+    return jobs.filter(job => normalizeSearchText([
+      `Order ${job.order_id}`,
+      job.vendor_name,
+      job.customer_name,
+      job.customer_phone,
+      job.delivery_address,
+      job.status
+    ].filter(Boolean).join(' ')).includes(query));
+  }, [jobs, jobSearchQuery]);
 
   // Offline Storage Queue for Trip Status Events
   const [isOnline, setIsOnline] = useState(() => navigator.onLine !== false);
@@ -523,11 +550,31 @@ export default function RiderSite({ user, onLogin }) {
             <span className="text-xs font-bold text-sky-600 dark:text-sky-400">{jobs.length} jobs</span>
           </h2>
 
+          {jobs.length > 0 && (
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <SearchSuggestInput
+                value={jobSearchQuery}
+                onChange={setJobSearchQuery}
+                items={jobSearchItems}
+                placeholder="Search order ID, kitchen, customer..."
+                containerClassName="sm:max-w-sm"
+                ariaLabel="Search delivery jobs"
+              />
+              <span className="text-xs text-slate-500">
+                Showing {filteredJobs.length} of {jobs.length} jobs
+              </span>
+            </div>
+          )}
+
           {jobs.length === 0 ? (
             <p className="text-xs text-slate-500 dark:text-slate-400 text-center py-12 backdrop-blur-xl bg-white/70 dark:bg-slate-900/70 border border-slate-200/90 dark:border-white/10 rounded-3xl shadow-sm">No available delivery jobs at this time.</p>
+          ) : filteredJobs.length === 0 ? (
+            <p className="glass-card rounded-3xl border border-slate-200/80 bg-white/70 p-10 text-center text-sm text-slate-600 dark:border-slate-800 dark:bg-slate-900/70 dark:text-slate-300">
+              No jobs match “{jobSearchQuery}”. Try a suggested match or clear the search.
+            </p>
           ) : (
             <div className="space-y-4">
-              {jobs.map((job) => (
+              {filteredJobs.map((job) => (
                 <div key={job.order_id} className="backdrop-blur-xl bg-white/75 dark:bg-slate-900/75 rounded-3xl p-5 sm:p-6 border border-slate-200/90 dark:border-white/10 space-y-4 shadow-xl shadow-slate-200/30 dark:shadow-none hover:-translate-y-0.5 transition-all duration-300">
                   <div className="flex justify-between items-start">
                     <div>

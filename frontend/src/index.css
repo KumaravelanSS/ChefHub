@@ -4,11 +4,11 @@
 
 :root, html.light {
   /* Light Mode Semantic Variables - Warm, crisp, luxury culinary aesthetic */
-  --bg-main: #f8fafc;
+  --bg-main: #f7f7f5;
   --bg-surface: #ffffff;
-  --bg-elevated: #ffffff;
+  --bg-elevated: #fbfbfa;
   --bg-modal: #ffffff;
-  --border-subtle: #e2e8f0;
+  --border-subtle: #e5e7eb;
   --border-accent: rgba(249, 115, 22, 0.4);
   --text-primary: #0f172a;
   --text-secondary: #475569;
@@ -17,19 +17,23 @@
 
 html.dark {
   /* Dark Mode Semantic Elevation System - Obsidian, rich slate, ember glow */
-  --bg-main: #090d16;       /* Layer 0: Page backdrop */
-  --bg-surface: #111726;    /* Layer 1: Component cards & containers */
-  --bg-elevated: #182032;   /* Layer 2: Sub-cards & interactive containers */
-  --bg-modal: #1e273e;      /* Layer 3: Modals, dropdowns & popups */
-  --border-subtle: rgba(255, 255, 255, 0.08);
+  --bg-main: #0d121b;
+  --bg-surface: #151e2b;
+  --bg-elevated: #1d2938;
+  --bg-modal: #202d3d;
+  --border-subtle: rgba(148, 163, 184, 0.14);
   --border-accent: rgba(249, 115, 22, 0.4);
   --text-primary: #f8fafc;
-  --text-secondary: #94a3b8;
+  --text-secondary: #a6b2c2;
   --accent-orange: #f97316;
 }
 
 body {
   background-color: var(--bg-main);
+  background-image:
+    radial-gradient(ellipse at 10% 0%, rgba(249, 115, 22, 0.045), transparent 36%),
+    radial-gradient(ellipse at 88% 24%, rgba(14, 165, 233, 0.035), transparent 32%);
+  background-attachment: fixed;
   color: var(--text-primary);
   font-family: 'Plus Jakarta Sans', 'Inter', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
   letter-spacing: -0.012em;
@@ -54,10 +58,10 @@ body {
     border: 1px solid var(--border-subtle);
     box-shadow: 0 10px 25px -5px rgba(15, 23, 42, 0.05), 0 8px 10px -6px rgba(15, 23, 42, 0.03);
     position: relative;
-    transition: background-color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
+    transition: background-color 0.28s ease, border-color 0.28s ease, box-shadow 0.28s ease, transform 0.28s cubic-bezier(0.2, 0.8, 0.2, 1);
   }
   html.dark .glass-card {
-    box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.5), inset 0 1px 0 0 rgba(255, 255, 255, 0.05);
+    box-shadow: 0 10px 30px -12px rgba(0, 0, 0, 0.42), inset 0 1px 0 0 rgba(255, 255, 255, 0.035);
   }
 
   .elevated-card {
@@ -87,12 +91,12 @@ body {
   }
 
   .glass-card-hover {
-    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    transition: transform 0.28s cubic-bezier(0.2, 0.8, 0.2, 1), border-color 0.28s ease, box-shadow 0.28s ease;
   }
   .glass-card-hover:hover {
-    border-color: rgba(249, 115, 22, 0.45);
-    box-shadow: 0 18px 40px -10px rgba(249, 115, 22, 0.22), inset 0 1px 0 0 rgba(249, 115, 22, 0.25);
-    transform: translateY(-3px);
+    border-color: rgba(249, 115, 22, 0.38);
+    box-shadow: 0 16px 36px -12px rgba(249, 115, 22, 0.16), inset 0 1px 0 0 rgba(249, 115, 22, 0.16);
+    transform: translateY(-2px);
   }
 
   /* Portal Accent Borders for Visual Pop */
@@ -140,20 +144,20 @@ body {
 
   /* Food Card Animations & Glows */
   .dish-card {
-    transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+    transition: transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1), border-color 0.3s ease, box-shadow 0.3s ease, background-color 0.3s ease;
     background-color: var(--bg-surface);
     border: 1px solid var(--border-subtle);
   }
   .dish-card:hover {
-    transform: translateY(-5px);
-    border-color: rgba(249, 115, 22, 0.5) !important;
-    box-shadow: 0 22px 45px -15px rgba(249, 115, 22, 0.28), 0 0 25px 0 rgba(249, 115, 22, 0.15);
+    transform: translateY(-2px);
+    border-color: rgba(249, 115, 22, 0.4) !important;
+    box-shadow: 0 16px 36px -14px rgba(249, 115, 22, 0.2), 0 0 20px 0 rgba(249, 115, 22, 0.08);
   }
   .food-image-zoom {
-    transition: transform 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+    transition: transform 0.45s cubic-bezier(0.2, 0.8, 0.2, 1);
   }
   .dish-card:hover .food-image-zoom {
-    transform: scale(1.09);
+    transform: scale(1.04);
   }
   .glow-badge {
     box-shadow: 0 0 15px rgba(249, 115, 22, 0.4);
@@ -164,7 +168,7 @@ body {
     background-color: #ffffff;
     border: 1px solid #e2e8f0;
     color: #0f172a;
-    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    transition: background-color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
   }
   html.dark .input-luxury {
     background-color: rgba(15, 23, 42, 0.85);
@@ -210,12 +214,42 @@ body {
 }
 ::-webkit-scrollbar-thumb {
   background: #cbd5e1;
+  border-radius: 999px;
 }
 html.dark ::-webkit-scrollbar-thumb {
   background: #222c44;
 }
 ::-webkit-scrollbar-thumb:hover {
   background: #f97316;
+}
+
+html {
+  scroll-behavior: smooth;
+  scroll-padding-top: 5rem;
+}
+
+button:focus-visible,
+a[href]:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 3px solid rgba(249, 115, 22, 0.8);
+  outline-offset: 3px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
 }
 
 @keyframes paymentCheckPulse {
@@ -399,5 +433,4 @@ html.dark ::-webkit-scrollbar-thumb {
 .animate-timeline-beam {
   animation: timelineBeamSweep 2.2s ease-in-out infinite;
 }
-
 

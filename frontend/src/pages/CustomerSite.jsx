@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import {
   ShoppingBag, Star, Clock, MapPin, CheckCircle2, ChevronRight, ChevronLeft,
   X, AlertCircle, AlertTriangle, Sparkles, Send, Ban, Utensils, Flame, Heart,
-  Search, Filter, Eye, EyeOff, CreditCard, ShieldCheck, Lock, Receipt, ArrowRight,
+  Filter, Eye, EyeOff, CreditCard, ShieldCheck, Lock, Receipt, ArrowRight,
   Truck, QrCode, Building, Wallet, Download, RefreshCw, Tag, Percent, Navigation,
   Compass, ChefHat, Check, Info, SlidersHorizontal, ArrowUpDown, Plus,
   Trash2, MapPinOff, Smartphone, Home, Briefcase, User, Phone, CheckCircle, KeyRound, Radio
@@ -10,6 +10,7 @@ import {
 import { KitchenLoadingScreen } from '../components/KitchenLoading';
 import CustomerAuthPage from './CustomerAuthPage';
 import LiveDeliveryMap from '../components/LiveDeliveryMap';
+import SearchSuggestInput, { normalizeSearchText } from '../components/SearchSuggestInput';
 import {
   GooglePayIcon, PhonePeIcon, PaytmIcon, BhimIcon, UpiIcon,
   VisaIcon, MastercardIcon, RupayIcon, CreditCardTabIcon, NetBankingTabIcon,
@@ -568,6 +569,7 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
   // Top Customer View Switcher (Marketplace vs My Orders)
   const [customerTab, setCustomerTab] = useState('MARKETPLACE'); // 'MARKETPLACE' | 'ORDERS'
   const [ordersFilter, setOrdersFilter] = useState('ALL'); // 'ALL' | 'ACTIVE' | 'DELIVERED' | 'CANCELLED'
+  const [ordersSearchQuery, setOrdersSearchQuery] = useState('');
   const [timelineAnimKey, setTimelineAnimKey] = useState(0);
   const menuSectionRef = useRef(null);
   const cuisineScrollRef = useRef(null);
@@ -1936,6 +1938,27 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
     return list;
   }, [vendors]);
 
+  const dishSearchItems = React.useMemo(() => allDishesMarketplace.map(dish => ({
+    id: `dish-${dish.dish_id}`,
+    label: dish.name,
+    detail: [dish.vendor_name, dish.category_name].filter(Boolean).join(' · '),
+    searchText: [dish.description, dish.vendor_name, dish.category_name, dish.category].filter(Boolean).join(' ')
+  })), [allDishesMarketplace]);
+
+  const orderSearchItems = React.useMemo(() => myOrders.map(order => ({
+    id: `order-${order.order_id}`,
+    label: `Order #${order.order_id}`,
+    detail: [order.status, order.vendor_name || order.business_name].filter(Boolean).join(' · '),
+    searchText: [
+      order.order_id,
+      order.status,
+      order.vendor_name,
+      order.business_name,
+      order.rider_name,
+      ...(Array.isArray(order.items) ? order.items.map(item => item.dish_name || item.name) : [])
+    ].filter(Boolean).join(' ')
+  })), [myOrders]);
+
   // Dynamic Cuisines / Categories derived from active kitchen dishes + base presets
   const dynamicCuisineList = React.useMemo(() => {
     const baseCuisines = [
@@ -2760,21 +2783,14 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
               
               {/* Search Bar & Diet Segment */}
               <div className="glass-card rounded-2xl p-4 border border-slate-200/90 dark:border-slate-800 bg-white/80 dark:bg-slate-900/90 backdrop-blur-xl flex flex-col sm:flex-row items-center justify-between gap-3 shadow-md">
-                <div className="relative w-full sm:w-80">
-                  <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
-                  <input
-                    type="text"
+                <SearchSuggestInput
                     value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
+                    onChange={setSearchQuery}
+                    items={dishSearchItems}
                     placeholder="Search dishes, chefs, ramen, biryani..."
-                    className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white text-xs outline-none focus:border-orange-500 transition-all shadow-inner"
-                  />
-                  {searchQuery && (
-                    <button onClick={() => setSearchQuery('')} className="absolute right-3 top-3 text-slate-400 hover:text-white">
-                      <X className="w-4 h-4" />
-                    </button>
-                  )}
-                </div>
+                    containerClassName="sm:w-80"
+                    ariaLabel="Search dishes and kitchens"
+                />
 
                 <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar w-full sm:w-auto">
                   {[
@@ -2972,6 +2988,15 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
               <p className="text-xs text-slate-500">Live order journey, escrow transparency and dish ratings</p>
             </div>
 
+            <SearchSuggestInput
+              value={ordersSearchQuery}
+              onChange={setOrdersSearchQuery}
+              items={orderSearchItems}
+              placeholder="Search orders, dishes, status..."
+              containerClassName="w-full sm:max-w-xs"
+              ariaLabel="Search order history"
+            />
+
             <div className="flex items-center gap-1 bg-slate-200/80 dark:bg-slate-950 p-1 rounded-xl">
               {[
                 { id: 'ALL', label: 'All Orders' },
@@ -2997,6 +3022,17 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
           {/* Orders List */}
           {(() => {
             const filteredOrders = myOrders.filter(o => {
+              const query = normalizeSearchText(ordersSearchQuery);
+              const searchable = normalizeSearchText([
+                `Order ${o.order_id}`,
+                o.order_id,
+                o.status,
+                o.vendor_name,
+                o.business_name,
+                o.rider_name,
+                ...(Array.isArray(o.items) ? o.items.map(item => item.dish_name || item.name) : [])
+              ].filter(Boolean).join(' '));
+              if (query && !searchable.includes(query)) return false;
               if (ordersFilter === 'ACTIVE') return !['DELIVERED', 'CANCELLED'].includes(o.status);
               if (ordersFilter === 'DELIVERED') return o.status === 'DELIVERED';
               if (ordersFilter === 'CANCELLED') return o.status === 'CANCELLED';
@@ -3010,7 +3046,9 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
                   <div>
                     <h3 className="text-lg font-black text-slate-900 dark:text-white">No Orders Found</h3>
                     <p className="text-xs text-slate-500 max-w-sm mx-auto mt-1">
-                      {ordersFilter === 'ALL'
+                      {ordersSearchQuery
+                        ? `No orders match "${ordersSearchQuery}". Try a suggestion above or clear the search.`
+                        : ordersFilter === 'ALL'
                         ? "You haven't placed any orders yet. Explore our handcrafted gourmet marketplace!"
                         : `No orders matching filter "${ordersFilter}".`}
                     </p>
