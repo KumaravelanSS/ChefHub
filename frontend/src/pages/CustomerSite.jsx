@@ -4787,19 +4787,45 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
             {/* Split Grid: Live Leaflet Map + Flowing Timeline */}
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
               
-              {/* Left 7 cols: Interactive Leaflet Live Map */}
+              {/* Left 7 cols: Interactive Leaflet Live Map OR Delivered State */}
               <div className="lg:col-span-7 space-y-3">
-                <LiveDeliveryMap
-                  orderId={activeTrackingOrder.order_id}
-                  orderStatus={activeTrackingOrder.status}
-                  chefLocation={activeTrackingOrder.chef_location || CHEF_AVATARS[activeTrackingOrder.vendor_email]?.coords || { lat: 12.9784, lng: 77.6408, locality: activeTrackingOrder.vendor_name }}
-                  customerLocation={{ lat: currentCoords.lat, lng: currentCoords.lng, locality: primaryAddress }}
-                  riderName={activeTrackingOrder.rider_name || 'David Rider'}
-                  riderPhone={activeTrackingOrder.rider_phone || '+91 98450 12890'}
-                  vehicleType="Ather 450X EV Scooter"
-                  viewerRole="CUSTOMER"
-                  isDarkMode={true}
-                />
+                {String(activeTrackingOrder.status || '').toUpperCase() === 'DELIVERED' ? (
+                  <div className="glass-card rounded-3xl p-8 border-2 border-emerald-500/30 bg-emerald-500/5 text-center space-y-4 my-auto min-h-[350px] flex flex-col items-center justify-center">
+                    <div className="w-16 h-16 rounded-3xl bg-emerald-500/20 text-emerald-500 mx-auto flex items-center justify-center animate-bounce">
+                      <CheckCircle2 className="w-10 h-10" />
+                    </div>
+                    <div className="space-y-1">
+                      <span className="text-[10px] font-black uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-500 border border-emerald-500/30">
+                        Trip Completed
+                      </span>
+                      <h3 className="text-xl font-extrabold text-slate-900 dark:text-white">Order Delivered Successfully! 🎉</h3>
+                      <p className="text-xs text-slate-600 dark:text-slate-400 max-w-sm mx-auto">
+                        Your meal has safely arrived at your doorstep. The live route map is closed. We hope you enjoy your food!
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2 pt-2">
+                      <button
+                        type="button"
+                        onClick={() => setActiveTrackingOrder(null)}
+                        className="px-5 py-2.5 rounded-2xl bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs shadow-lg shadow-emerald-500/25 transition cursor-pointer"
+                      >
+                        Close Tracking Window
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <LiveDeliveryMap
+                    orderId={activeTrackingOrder.order_id}
+                    orderStatus={activeTrackingOrder.status}
+                    chefLocation={activeTrackingOrder.chef_location || CHEF_AVATARS[activeTrackingOrder.vendor_email]?.coords || { lat: 12.9784, lng: 77.6408, locality: activeTrackingOrder.vendor_name }}
+                    customerLocation={{ lat: currentCoords.lat, lng: currentCoords.lng, locality: primaryAddress }}
+                    riderName={activeTrackingOrder.rider_name || 'David Rider'}
+                    riderPhone={activeTrackingOrder.rider_phone || '+91 98450 12890'}
+                    vehicleType="Ather 450X EV Scooter"
+                    viewerRole="CUSTOMER"
+                    isDarkMode={true}
+                  />
+                )}
               </div>
 
               {/* Right 5 cols: Flipkart-Style Animated Flowing Timeline */}

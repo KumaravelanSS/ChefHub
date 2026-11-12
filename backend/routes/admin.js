@@ -6,6 +6,51 @@ const { MongoAdapter } = require('../config/mongo_db');
 const { authenticateToken, requireRole } = require('../middleware/auth_rbac');
 const InventoryEngine = require('../services/inventory_engine');
 
+// Password Strength Validator for Admin User Management
+function validatePasswordStrength(password) {
+  if (!password || typeof password !== 'string') {
+    return { valid: false, score: 0, message: 'Password is required.' };
+  }
+  const hasMinLength = password.length >= 8;
+  const hasUpper = /[A-Z]/.test(password);
+  const hasLower = /[a-z]/.test(password);
+  const hasNumber = /[0-9]/.test(password);
+  const hasSpecial = /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password);
+
+  let score = 0;
+  if (hasMinLength) score++;
+  if (hasUpper) score++;
+  if (hasLower) score++;
+  if (hasNumber) score++;
+  if (hasSpecial) score++;
+
+  if (score < 4 || !hasMinLength) {
+    return {
+      valid: false,
+      score,
+      message: 'Password security too low. Must be at least 8 characters and include uppercase, lowercase, numbers, and special characters.'
+    };
+  }
+  return { valid: true, score };
+}
+
+// Phone Number Validator & Normalizer
+function validatePhoneNumber(phone) {
+  if (!phone) return { valid: true, cleanPhone: null };
+  const clean = String(phone).replace(/\D/g, '');
+  let finalDigits = clean;
+  if (clean.length === 12 && clean.startsWith('91')) {
+    finalDigits = clean.slice(2);
+  }
+  if (finalDigits.length !== 10) {
+    return {
+      valid: false,
+      message: 'Phone number must be a valid 10-digit mobile number (e.g. 9876543210).'
+    };
+  }
+  return { valid: true, cleanPhone: finalDigits };
+}
+
 // Global Users Management
 router.get('/users', authenticateToken, requireRole('ADMIN'), async (req, res) => {
   try {
@@ -34,6 +79,22 @@ router.post('/users', authenticateToken, requireRole('ADMIN'), async (req, res) 
       return res.status(400).json({ success: false, message: 'Role must be CUSTOMER, VENDOR, or RIDER. (Admin count is restricted to 1).' });
     }
 
+    // Password strength check
+    const passCheck = validatePasswordStrength(password);
+    if (!passCheck.valid) {
+      return res.status(400).json({ success: false, message: passCheck.message });
+    }
+
+    // Phone validation
+    let sanitizedPhone = null;
+    if (phone && phone.trim() !== '') {
+      const phoneCheck = validatePhoneNumber(phone);
+      if (!phoneCheck.valid) {
+        return res.status(400).json({ success: false, message: phoneCheck.message });
+      }
+      sanitizedPhone = phoneCheck.cleanPhone;
+    }
+
     const existing = await query('SELECT user_id FROM users WHERE LOWER(email) = LOWER(?)', [email]);
     if (existing.length > 0) {
       return res.status(400).json({ success: false, message: `Email '${email}' is already registered.` });
@@ -43,7 +104,7 @@ router.post('/users', authenticateToken, requireRole('ADMIN'), async (req, res) 
     const result = await query(`
       INSERT INTO users (name, email, password_hash, plain_password, role, phone, status)
       VALUES (?, ?, ?, ?, ?, ?, 'ACTIVE')
-    `, [name, email, hashed, password, role, phone || null]);
+    `, [name, email, hashed, password, role, sanitizedPhone]);
 
     await MongoAdapter.addAuditLog(req.user.user_id, 'USER_CREATED', {
       created_user_id: result.insertId,
@@ -58,6 +119,7 @@ router.post('/users', authenticateToken, requireRole('ADMIN'), async (req, res) 
     return res.status(500).json({ success: false, message: 'Failed to create user.' });
   }
 });
+
 // UPDATE USER DETAILS (Admin Edit User CRUD)
 router.put('/users/:id', authenticateToken, requireRole('ADMIN'), async (req, res) => {
   try {
@@ -72,8 +134,25 @@ router.put('/users/:id', authenticateToken, requireRole('ADMIN'), async (req, re
     let hashed = targetUser[0].password_hash;
     let plainPass = targetUser[0].plain_password;
     if (password && password.trim() !== '') {
+      const passCheck = validatePasswordStrength(password);
+      if (!passCheck.valid) {
+        return res.status(400).json({ success: false, message: passCheck.message });
+      }
       hashed = await bcrypt.hash(password, 10);
       plainPass = password;
+    }
+
+    let sanitizedPhone = targetUser[0].phone;
+    if (phone !== undefined) {
+      if (phone && phone.trim() !== '') {
+        const phoneCheck = validatePhoneNumber(phone);
+        if (!phoneCheck.valid) {
+          return res.status(400).json({ success: false, message: phoneCheck.message });
+        }
+        sanitizedPhone = phoneCheck.cleanPhone;
+      } else {
+        sanitizedPhone = null;
+      }
     }
 
     await query(`
@@ -83,10 +162,10 @@ router.put('/users/:id', authenticateToken, requireRole('ADMIN'), async (req, re
           password_hash = ?,
           plain_password = ?,
           role = COALESCE(?, role),
-          phone = COALESCE(?, phone),
+          phone = ?,
           status = COALESCE(?, status)
       WHERE user_id = ?
-    `, [name, email, hashed, plainPass, role, phone, status, user_id]);
+    `, [name, email, hashed, plainPass, role, sanitizedPhone, status, user_id]);
 
     await MongoAdapter.addAuditLog(req.user.user_id, 'USER_UPDATED', {
       updated_user_id: user_id,

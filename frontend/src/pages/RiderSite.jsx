@@ -2,7 +2,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Bike, MapPin, CheckCircle2, DollarSign, Navigation, Power, AlertCircle,
-  Eye, EyeOff, Phone, Loader2, ShoppingBag, Wifi, WifiOff, CloudUpload, Clock
+  Eye, EyeOff, Phone, Loader2, ShoppingBag, Wifi, WifiOff, CloudUpload, Clock,
+  X, BellRing, Check, AlertTriangle
 } from 'lucide-react';
 import RiderAuthPage from './RiderAuthPage';
 import LiveDeliveryMap from '../components/LiveDeliveryMap';
@@ -23,6 +24,12 @@ export default function RiderSite({ user, onLogin }) {
   const [coords, setCoords] = useState({ lat: 12.9716, lng: 77.5946 });
   const [activeMapJobId, setActiveMapJobId] = useState(null);
   const [updatingJobIds, setUpdatingJobIds] = useState({});
+
+  // Real-time Incoming Kitchen Order Toast & Delivery Lifecycle State
+  const [newOrderToast, setNewOrderToast] = useState(null);
+  const [lastDeliveredOrder, setLastDeliveredOrder] = useState(null);
+  const knownReadyJobIdsRef = useRef(new Set());
+  const isInitialLoadRef = useRef(true);
   const jobSearchItems = React.useMemo(() => jobs.map(job => ({
     id: `order-${job.order_id}`,
     label: `Order #${job.order_id}`,
@@ -262,6 +269,63 @@ export default function RiderSite({ user, onLogin }) {
     };
   }, []);
 
+  // Synthesize a pleasant high 2-tone audio chime for incoming kitchen orders using Web Audio API
+  const playRiderNotificationChime = () => {
+    try {
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      if (!AudioCtx) return;
+      const ctx = new AudioCtx();
+      if (ctx.state === 'suspended') ctx.resume();
+      const now = ctx.currentTime;
+
+      // Tone 1: E5 (659.25Hz)
+      const osc1 = ctx.createOscillator();
+      const gain1 = ctx.createGain();
+      osc1.type = 'sine';
+      osc1.frequency.setValueAtTime(659.25, now);
+      gain1.gain.setValueAtTime(0.25, now);
+      gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.22);
+      osc1.connect(gain1);
+      gain1.connect(ctx.destination);
+      osc1.start(now);
+      osc1.stop(now + 0.22);
+
+      // Tone 2: A5 harmonic high (880.00Hz)
+      const osc2 = ctx.createOscillator();
+      const gain2 = ctx.createGain();
+      osc2.type = 'sine';
+      osc2.frequency.setValueAtTime(880.0, now + 0.12);
+      gain2.gain.setValueAtTime(0.3, now + 0.12);
+      gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.45);
+      osc2.connect(gain2);
+      gain2.connect(ctx.destination);
+      osc2.start(now + 0.12);
+      osc2.stop(now + 0.45);
+    } catch (e) {
+      // Audio playback non-blocking
+    }
+  };
+
+  // Auto-dismiss new order toast after exactly 5 seconds
+  useEffect(() => {
+    if (newOrderToast) {
+      const timer = setTimeout(() => {
+        setNewOrderToast(null);
+      }, 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [newOrderToast]);
+
+  // Polling for new delivery orders every 4 seconds
+  useEffect(() => {
+    if (user && user.role === 'RIDER') {
+      const interval = setInterval(() => {
+        fetchJobs();
+      }, 4000);
+      return () => clearInterval(interval);
+    }
+  }, [user, shiftStatus]);
+
   const fetchJobs = async () => {
     try {
       const token = localStorage.getItem('chefhub_token');
@@ -269,7 +333,22 @@ export default function RiderSite({ user, onLogin }) {
         headers: { Authorization: `Bearer ${token}` }
       });
       const data = await res.json();
-      if (data.success) setJobs(data.jobs);
+      if (data.success) {
+        const fetchedJobs = data.jobs || [];
+        setJobs(fetchedJobs);
+
+        // Detect newly ready delivery jobs to pop up sideways toast if shift is ONLINE
+        const readyJobs = fetchedJobs.filter(j => j.status === 'READY');
+        if (!isInitialLoadRef.current && shiftStatus === 'ONLINE') {
+          const newReadyJob = readyJobs.find(j => !knownReadyJobIdsRef.current.has(j.order_id));
+          if (newReadyJob) {
+            setNewOrderToast(newReadyJob);
+            playRiderNotificationChime();
+          }
+        }
+        knownReadyJobIdsRef.current = new Set(readyJobs.map(j => j.order_id));
+        isInitialLoadRef.current = false;
+      }
     } catch (err) {
       console.error(err);
     }
@@ -322,7 +401,7 @@ export default function RiderSite({ user, onLogin }) {
   };
 
   const acceptJob = async (order_id) => {
-    // 1. Shift Status Validation
+    // 1. Shift Status Validation: Must NOT be able to take up order if OFFLINE
     if (shiftStatus === 'OFFLINE') {
       alert('You are currently OFFLINE. Please toggle your Shift Status to ONLINE at the top right before accepting orders.');
       return;
@@ -350,6 +429,7 @@ export default function RiderSite({ user, onLogin }) {
       const vLng = Number(targetJob.vendor_lng) || 77.6408;
       setCoords({ lat: vLat, lng: vLng });
       setActiveMapJobId(order_id);
+      setLastDeliveredOrder(null);
     }
 
     setJobs((prev) =>
@@ -387,9 +467,13 @@ export default function RiderSite({ user, onLogin }) {
         delete next[order_id];
         return next;
       });
-      if (!data.success) {
+
+      // Handle Race Condition / Concurrency (409 Conflict: taken by another rider)
+      if (res.status === 409 || !data.success) {
         setJobs(originalJobs);
-        alert(data.message || 'Failed to accept job. Reverting.');
+        alert(data.message || 'This order has already been taken by another rider.');
+        fetchJobs(); // Refresh jobs so taken job disappears from available list
+        return;
       }
     } catch (err) {
       queueOfflineTripAction(order_id, 'OUT_FOR_DELIVERY', `/api/rider/orders/${order_id}/accept`, 'PATCH');
@@ -403,11 +487,14 @@ export default function RiderSite({ user, onLogin }) {
 
   const completeDelivery = async (order_id) => {
     const originalJobs = [...jobs];
+    const deliveredJob = jobs.find(j => j.order_id === order_id);
     setUpdatingJobIds((prev) => ({ ...prev, [order_id]: 'COMPLETING' }));
 
     setJobs((prev) =>
       prev.map((j) => (j.order_id === order_id ? { ...j, status: 'DELIVERED' } : j))
     );
+    setLastDeliveredOrder(deliveredJob);
+    setActiveMapJobId(null);
 
     if (!navigator.onLine) {
       queueOfflineTripAction(order_id, 'DELIVERED', `/api/rider/orders/${order_id}/complete`, 'PATCH');
@@ -592,45 +679,59 @@ export default function RiderSite({ user, onLogin }) {
                   </div>
 
                   <div className="pt-2 border-t border-slate-300 dark:border-slate-800 space-y-2.5">
-                    {/* Live Route Simulation Map Toggle */}
-                    <button
-                      type="button"
-                      onClick={() => setActiveMapJobId(activeMapJobId === job.order_id ? null : job.order_id)}
-                      className="w-full py-2 px-3 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800/80 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 font-bold text-xs flex items-center justify-between border border-slate-300 dark:border-slate-700 transition"
-                    >
-                      <span className="flex items-center gap-1.5">
-                        <MapPin className="w-3.5 h-3.5 text-sky-500" />
-                        <span>{activeMapJobId === job.order_id ? 'Hide Live Navigation Map' : '🗺️ Open Live Delivery Simulation Map'}</span>
-                      </span>
-                      <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-extrabold uppercase bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">
-                        Driver Safety Mode
-                      </span>
-                    </button>
-
-                    {/* Active Live Delivery Map Section */}
-                    {activeMapJobId === job.order_id && (
-                      <div className="pt-2 animate-fade-in">
-                        <LiveDeliveryMap
-                          orderId={job.order_id}
-                          orderStatus={job.status}
-                          chefLocation={{
-                            lat: Number(job.vendor_lat) || 12.9784,
-                            lng: Number(job.vendor_lng) || 77.6408,
-                            locality: job.vendor_address || job.vendor_name || 'Chef Kitchen'
-                          }}
-                          customerLocation={{
-                            lat: Number(job.customer_lat) || 12.9352,
-                            lng: Number(job.customer_lng) || 77.6245,
-                            locality: job.delivery_address || 'Customer Location'
-                          }}
-                          riderName={user.name}
-                          customerName={job.customer_name || 'Customer'}
-                          customerPhone={job.customer_phone || '+91 98765 43210'}
-                          vehicleType="Ather 450X EV Scooter"
-                          viewerRole="RIDER"
-                          isDarkMode={true}
-                        />
+                    {/* Live Route Navigation Map: Only available while en route or ready, completely hidden once delivered */}
+                    {job.status === 'DELIVERED' ? (
+                      <div className="p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-xs font-bold flex items-center justify-between">
+                        <span className="flex items-center gap-1.5">
+                          <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+                          <span>Delivery Completed • Escrow Payout Released</span>
+                        </span>
+                        <span className="text-[10px] uppercase font-black tracking-wider text-slate-500">
+                          Map Closed
+                        </span>
                       </div>
+                    ) : (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => setActiveMapJobId(activeMapJobId === job.order_id ? null : job.order_id)}
+                          className="w-full py-2 px-3 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800/80 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 font-bold text-xs flex items-center justify-between border border-slate-300 dark:border-slate-700 transition"
+                        >
+                          <span className="flex items-center gap-1.5">
+                            <MapPin className="w-3.5 h-3.5 text-sky-500" />
+                            <span>{activeMapJobId === job.order_id ? 'Hide Live Navigation Map' : '🗺️ Open Live Delivery Simulation Map'}</span>
+                          </span>
+                          <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-extrabold uppercase bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">
+                            Driver Safety Mode
+                          </span>
+                        </button>
+
+                        {/* Active Live Delivery Map Section */}
+                        {activeMapJobId === job.order_id && (
+                          <div className="pt-2 animate-fade-in">
+                            <LiveDeliveryMap
+                              orderId={job.order_id}
+                              orderStatus={job.status}
+                              chefLocation={{
+                                lat: Number(job.vendor_lat) || 12.9784,
+                                lng: Number(job.vendor_lng) || 77.6408,
+                                locality: job.vendor_address || job.vendor_name || 'Chef Kitchen'
+                              }}
+                              customerLocation={{
+                                lat: Number(job.customer_lat) || 12.9352,
+                                lng: Number(job.customer_lng) || 77.6245,
+                                locality: job.delivery_address || 'Customer Location'
+                              }}
+                              riderName={user.name}
+                              customerName={job.customer_name || 'Customer'}
+                              customerPhone={job.customer_phone || '+91 98765 43210'}
+                              vehicleType="Ather 450X EV Scooter"
+                              viewerRole="RIDER"
+                              isDarkMode={true}
+                            />
+                          </div>
+                        )}
+                      </>
                     )}
 
                     {updatingJobIds[job.order_id] ? (
@@ -726,11 +827,55 @@ export default function RiderSite({ user, onLogin }) {
                   </div>
                 );
               }
+              if (lastDeliveredOrder) {
+                return (
+                  <div className="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-center space-y-2">
+                    <div className="w-10 h-10 rounded-full bg-emerald-500/20 text-emerald-500 mx-auto flex items-center justify-center">
+                      <CheckCircle2 className="w-6 h-6" />
+                    </div>
+                    <h4 className="text-xs font-black text-slate-900 dark:text-white">Order #{lastDeliveredOrder.order_id} Delivered! 🎉</h4>
+                    <p className="text-[11px] text-slate-500">Destination reached. Navigation map closed & escrow payout credited.</p>
+                  </div>
+                );
+              }
               return (
                 <div className="p-3 rounded-xl bg-slate-100 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 text-[11px] text-slate-500 text-center">
-                  Accept an order on the left to lock navigation route from Chef Kitchen to Customer.
+                  Accept an order on the left to lock navigation route from Chef Kitchen to Customer. (Map will display automatically).
                 </div>
               );
+            })()}
+
+            {/* Embedded Live Route Navigation Map: Shows driver location to help navigate once order is accepted */}
+            {(() => {
+              const activeOrder = jobs.find(j => j.status === 'OUT_FOR_DELIVERY' && j.rider_id === user?.user_id);
+              if (activeOrder) {
+                return (
+                  <div className="rounded-2xl overflow-hidden border border-slate-300 dark:border-slate-800 shadow-md">
+                    <LiveDeliveryMap
+                      orderId={activeOrder.order_id}
+                      orderStatus="OUT_FOR_DELIVERY"
+                      chefLocation={{
+                        lat: Number(activeOrder.vendor_lat) || 12.9784,
+                        lng: Number(activeOrder.vendor_lng) || 77.6408,
+                        locality: activeOrder.vendor_address || activeOrder.vendor_name || 'Chef Kitchen'
+                      }}
+                      customerLocation={{
+                        lat: Number(activeOrder.customer_lat) || 12.9352,
+                        lng: Number(activeOrder.customer_lng) || 77.6245,
+                        locality: activeOrder.delivery_address || 'Customer Location'
+                      }}
+                      riderName={user.name}
+                      customerName={activeOrder.customer_name || 'Customer'}
+                      customerPhone={activeOrder.customer_phone || '+91 98765 43210'}
+                      vehicleType="Ather 450X EV Scooter"
+                      viewerRole="RIDER"
+                      isDarkMode={true}
+                    />
+                  </div>
+                );
+              }
+              // Map is completely hidden once delivered or when no active order
+              return null;
             })()}
 
             <div className="bg-slate-100 dark:bg-slate-950 p-4 rounded-xl border border-slate-300 dark:border-slate-900 space-y-2 font-mono text-xs">
@@ -746,7 +891,12 @@ export default function RiderSite({ user, onLogin }) {
 
             <button
               onClick={updateGpsLocation}
-              className="w-full py-2.5 rounded-xl bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-600 hover:to-blue-700 text-white font-bold text-xs shadow-md transition-all active:scale-95 flex items-center justify-center gap-1.5 cursor-pointer"
+              disabled={!jobs.some(j => j.status === 'OUT_FOR_DELIVERY' && j.rider_id === user?.user_id)}
+              className={`w-full py-2.5 rounded-xl text-white font-bold text-xs shadow-md transition-all flex items-center justify-center gap-1.5 ${
+                jobs.some(j => j.status === 'OUT_FOR_DELIVERY' && j.rider_id === user?.user_id)
+                  ? 'bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-600 hover:to-blue-700 active:scale-95 cursor-pointer'
+                  : 'bg-slate-400 dark:bg-slate-700 cursor-not-allowed opacity-60'
+              }`}
             >
               <Navigation className="w-3.5 h-3.5" />
               <span>Simulate Rider GPS Movement</span>
@@ -798,6 +948,79 @@ export default function RiderSite({ user, onLogin }) {
         </div>
 
       </div>
+
+      {/* Real-Time Incoming Kitchen Delivery Order Floating Pop-up Toast */}
+      {newOrderToast && shiftStatus === 'ONLINE' && (
+        <div
+          role="alert"
+          className="fixed top-5 right-5 z-[9999] max-w-sm sm:max-w-md w-full bg-slate-900/95 dark:bg-slate-950/95 text-white border-2 border-sky-500 rounded-3xl p-4 sm:p-5 shadow-2xl shadow-sky-500/30 backdrop-blur-xl animate-in slide-in-from-top-4 duration-300"
+        >
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-2xl bg-sky-500 text-slate-950 flex items-center justify-center font-black shadow-lg shadow-sky-500/30 shrink-0 animate-bounce">
+                <Bike className="w-5 h-5 stroke-[2.5]" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-sky-500/20 text-sky-400 border border-sky-500/30">
+                    New Delivery Available!
+                  </span>
+                  <span className="text-xs font-mono font-bold text-slate-400">
+                    #{newOrderToast.order_id}
+                  </span>
+                </div>
+                <h4 className="text-sm font-black text-white mt-1">
+                  Pickup: {newOrderToast.vendor_name || 'Chef Kitchen'}
+                </h4>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setNewOrderToast(null)}
+              className="text-slate-400 hover:text-white p-1 rounded-xl hover:bg-slate-800 transition cursor-pointer"
+              title="Dismiss (Still available in queue)"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+
+          <div className="mt-3 pt-2.5 border-t border-slate-800 text-xs text-slate-300 space-y-1">
+            <div className="flex justify-between items-center">
+              <span className="text-slate-400">Delivery Address:</span>
+              <span className="font-bold text-slate-200 truncate max-w-[200px]">
+                {newOrderToast.delivery_address || 'Customer Location'}
+              </span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-slate-400">Driver Payout (10%):</span>
+              <span className="font-extrabold text-emerald-400 font-mono text-sm">
+                ₹{(Number(newOrderToast.total_amount || 0) * 0.10).toFixed(2)}
+              </span>
+            </div>
+          </div>
+
+          {/* 5-second countdown progress bar */}
+          <div className="mt-3 h-1 w-full bg-slate-800 rounded-full overflow-hidden">
+            <div className="h-full bg-sky-500 w-full animate-[shrink_5s_linear_forwards]" />
+          </div>
+
+          <div className="mt-3 flex items-center justify-between gap-2">
+            <span className="text-[10px] text-slate-500">Auto-hiding in 5s (Saved to queue)</span>
+            <button
+              type="button"
+              onClick={() => {
+                const oid = newOrderToast.order_id;
+                setNewOrderToast(null);
+                acceptJob(oid);
+              }}
+              className="px-4 py-2 rounded-xl bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-600 hover:to-blue-700 text-white font-black text-xs shadow-lg shadow-sky-500/25 active:scale-95 transition-all cursor-pointer flex items-center gap-1.5"
+            >
+              <CheckCircle2 className="w-3.5 h-3.5" />
+              <span>Accept Job</span>
+            </button>
+          </div>
+        </div>
+      )}
 
     </div>
   );

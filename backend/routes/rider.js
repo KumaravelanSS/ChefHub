@@ -60,7 +60,7 @@ router.patch('/orders/:id/accept', authenticateToken, requireRole('RIDER'), asyn
     }
 
     const targetOrderRows = await query(`
-      SELECT o.order_id, o.vendor_id, o.status, uv.name AS vendor_name 
+      SELECT o.order_id, o.vendor_id, o.status, o.rider_id, uv.name AS vendor_name 
       FROM orders o
       JOIN users uv ON o.vendor_id = uv.user_id
       WHERE o.order_id = ?
@@ -71,6 +71,21 @@ router.patch('/orders/:id/accept', authenticateToken, requireRole('RIDER'), asyn
     }
     const targetOrder = targetOrderRows[0];
 
+    // Concurrency Check: If already claimed by another rider
+    if (targetOrder.rider_id && Number(targetOrder.rider_id) !== Number(rider_id)) {
+      return res.status(409).json({
+        success: false,
+        message: 'This order has already been taken by another rider.'
+      });
+    }
+
+    if (targetOrder.status !== 'READY' && Number(targetOrder.rider_id) !== Number(rider_id)) {
+      return res.status(409).json({
+        success: false,
+        message: 'This order has already been taken by another rider.'
+      });
+    }
+
     if (activeOrders.length === 1 && Number(activeOrders[0].vendor_id) !== Number(targetOrder.vendor_id)) {
       return res.status(400).json({
         success: false,
@@ -78,13 +93,21 @@ router.patch('/orders/:id/accept', authenticateToken, requireRole('RIDER'), asyn
       });
     }
 
-    // 3. Parallelize primary relational updates & outbox recording
+    // 3. Atomic Assignment & Update: Ensure only one rider can claim this order
+    const updateResult = await query(`
+      UPDATE orders 
+      SET rider_id = ?, status = 'OUT_FOR_DELIVERY', dispatched_at = COALESCE(dispatched_at, CURRENT_TIMESTAMP), updated_at = CURRENT_TIMESTAMP
+      WHERE order_id = ? AND (rider_id IS NULL OR rider_id = ?) AND status = 'READY'
+    `, [rider_id, order_id, rider_id]);
+
+    if (updateResult.affectedRows === 0) {
+      return res.status(409).json({
+        success: false,
+        message: 'This order has already been taken by another rider.'
+      });
+    }
+
     await Promise.all([
-      query(`
-        UPDATE orders 
-        SET rider_id = ?, status = 'OUT_FOR_DELIVERY', dispatched_at = COALESCE(dispatched_at, CURRENT_TIMESTAMP), updated_at = CURRENT_TIMESTAMP
-        WHERE order_id = ?
-      `, [rider_id, order_id]),
       query(`UPDATE payouts SET rider_id = ? WHERE order_id = ?`, [rider_id, order_id]),
       outboxRelay.recordEvent(null, {
         aggregate_type: 'ORDER',

@@ -225,17 +225,105 @@ export default function AdminSite({ user, onLogin }) {
   const [newAdminPassword, setNewAdminPassword] = useState('');
   const [adminUpdateMsg, setAdminUpdateMsg] = useState('');
 
+  // Role Filtering for Global User Accounts Registry
+  const [userRoleFilter, setUserRoleFilter] = useState('ALL'); // 'ALL' | 'CUSTOMER' | 'VENDOR' | 'RIDER' | 'ADMIN'
+  const [editUserError, setEditUserError] = useState('');
+
+  // Password Strength & Security Evaluator (Required: 8+ chars, upper, lower, digit, special)
+  const checkPasswordStrength = (pwd) => {
+    if (!pwd) {
+      return {
+        score: 0,
+        label: 'Not Entered',
+        color: 'text-slate-400 bg-slate-100 dark:bg-slate-800 border-slate-300 dark:border-slate-700',
+        barColor: 'bg-slate-300 dark:bg-slate-700',
+        isStrong: false,
+        checks: { length: false, upper: false, lower: false, number: false, special: false }
+      };
+    }
+    const checks = {
+      length: pwd.length >= 8,
+      upper: /[A-Z]/.test(pwd),
+      lower: /[a-z]/.test(pwd),
+      number: /[0-9]/.test(pwd),
+      special: /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(pwd)
+    };
+    let score = 0;
+    if (checks.length) score++;
+    if (checks.upper) score++;
+    if (checks.lower) score++;
+    if (checks.number) score++;
+    if (checks.special) score++;
+
+    let label = 'Very Weak';
+    let color = 'text-rose-600 dark:text-rose-400 bg-rose-500/15 border-rose-500/30';
+    let barColor = 'bg-rose-500';
+    if (score >= 5) {
+      label = 'Strong';
+      color = 'text-emerald-600 dark:text-emerald-400 bg-emerald-500/15 border-emerald-500/30';
+      barColor = 'bg-emerald-500';
+    } else if (score >= 4 && checks.length) {
+      label = 'Good';
+      color = 'text-emerald-500 dark:text-emerald-400 bg-emerald-400/15 border-emerald-400/30';
+      barColor = 'bg-emerald-400';
+    } else if (score >= 3) {
+      label = 'Medium';
+      color = 'text-amber-600 dark:text-amber-400 bg-amber-500/15 border-amber-500/30';
+      barColor = 'bg-amber-500';
+    }
+
+    return {
+      score,
+      label,
+      color,
+      barColor,
+      isStrong: score >= 4 && checks.length,
+      checks
+    };
+  };
+
+  // Phone Validator & Normalizer (Requires valid 10 digits)
+  const checkPhoneNumber = (phone) => {
+    if (!phone || String(phone).trim() === '') return { valid: true, clean: '', error: null };
+    const clean = String(phone).replace(/\D/g, '');
+    const stripped = clean.length === 12 && clean.startsWith('91') ? clean.slice(2) : clean;
+    if (stripped.length !== 10) {
+      return {
+        valid: false,
+        clean: stripped,
+        error: 'Phone number must be a valid 10-digit mobile number (e.g., 9876543210).'
+      };
+    }
+    return { valid: true, clean: stripped, error: null };
+  };
+
   const isFetchingRef = useRef(false);
+  const userRoleCounts = React.useMemo(() => {
+    const list = Array.isArray(users) ? users : [];
+    return {
+      ALL: list.length,
+      CUSTOMER: list.filter(u => u.role === 'CUSTOMER').length,
+      VENDOR: list.filter(u => u.role === 'VENDOR').length,
+      RIDER: list.filter(u => u.role === 'RIDER').length,
+      ADMIN: list.filter(u => u.role === 'ADMIN').length
+    };
+  }, [users]);
+
   const userSearchItems = React.useMemo(() => (Array.isArray(users) ? users : []).map(account => ({
     id: `user-${account.user_id}`,
     label: account.name || `User #${account.user_id}`,
     detail: [account.email, account.role].filter(Boolean).join(' · '),
     searchText: [`User ${account.user_id}`, account.email, account.phone, account.role, account.status].filter(Boolean).join(' ')
   })), [users]);
+
   const filteredUsers = React.useMemo(() => {
+    let list = Array.isArray(users) ? users : [];
+    if (userRoleFilter !== 'ALL') {
+      list = list.filter(account => account.role === userRoleFilter);
+    }
     const query = normalizeSearchText(userSearchQuery);
-    if (!query) return Array.isArray(users) ? users : [];
-    return (Array.isArray(users) ? users : []).filter(account => normalizeSearchText([
+    if (!query) return list;
+    return list.filter(account => normalizeSearchText([
       `User ${account.user_id}`,
       account.name,
       account.email,
@@ -243,7 +331,7 @@ export default function AdminSite({ user, onLogin }) {
       account.role,
       account.status
     ].filter(Boolean).join(' ')).includes(query));
-  }, [users, userSearchQuery]);
+  }, [users, userSearchQuery, userRoleFilter]);
 
   useEffect(() => {
     if (user && user.role === 'ADMIN') {
@@ -419,6 +507,23 @@ export default function AdminSite({ user, onLogin }) {
   const handleCreateUser = async (e) => {
     e.preventDefault();
     setUserMsg('');
+
+    // Password strength check
+    const passEval = checkPasswordStrength(newUser.password);
+    if (!passEval.isStrong) {
+      setUserMsg('❌ Password must be at least 8 characters with uppercase, lowercase, numbers, and special characters.');
+      return;
+    }
+
+    // Phone validation
+    if (newUser.phone && newUser.phone.trim() !== '') {
+      const phoneEval = checkPhoneNumber(newUser.phone);
+      if (!phoneEval.valid) {
+        setUserMsg('❌ ' + phoneEval.error);
+        return;
+      }
+    }
+
     try {
       const token = localStorage.getItem('chefhub_token');
       const res = await fetch('/api/admin/users', {
@@ -443,6 +548,26 @@ export default function AdminSite({ user, onLogin }) {
   const handleEditUserSubmit = async (e) => {
     e.preventDefault();
     if (!editingUser) return;
+    setEditUserError('');
+
+    // Password strength validation (if new password entered)
+    if (editingUser.password && editingUser.password.trim() !== '') {
+      const passEval = checkPasswordStrength(editingUser.password);
+      if (!passEval.isStrong) {
+        setEditUserError('Password security too low. Must be at least 8 characters with uppercase, lowercase, numbers, and special characters.');
+        return;
+      }
+    }
+
+    // Phone number validation
+    if (editingUser.phone && editingUser.phone.trim() !== '') {
+      const phoneEval = checkPhoneNumber(editingUser.phone);
+      if (!phoneEval.valid) {
+        setEditUserError(phoneEval.error);
+        return;
+      }
+    }
+
     try {
       const token = localStorage.getItem('chefhub_token');
       const res = await fetch(`/api/admin/users/${editingUser.user_id}`, {
@@ -460,12 +585,13 @@ export default function AdminSite({ user, onLogin }) {
       const data = await res.json();
       if (data.success) {
         setEditingUser(null);
+        setEditUserError('');
         fetchData();
       } else {
-        alert(data.message);
+        setEditUserError(data.message || 'Failed to update user.');
       }
     } catch (err) {
-      alert('Failed to update user.');
+      setEditUserError('Failed to update user. Please check your connection.');
     }
   };
 
@@ -808,6 +934,38 @@ export default function AdminSite({ user, onLogin }) {
                 </div>
               </div>
 
+              {/* Role Filter Pills: All Users, Customers, Vendors (Chefs), Riders, Admins */}
+              <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                {[
+                  { key: 'ALL', label: 'All Users', count: userRoleCounts.ALL },
+                  { key: 'CUSTOMER', label: 'Customers', count: userRoleCounts.CUSTOMER },
+                  { key: 'VENDOR', label: 'Vendors (Chefs)', count: userRoleCounts.VENDOR },
+                  { key: 'RIDER', label: 'Riders', count: userRoleCounts.RIDER },
+                  { key: 'ADMIN', label: 'Admins', count: userRoleCounts.ADMIN }
+                ].map((rf) => {
+                  const isSelected = userRoleFilter === rf.key;
+                  return (
+                    <button
+                      key={rf.key}
+                      type="button"
+                      onClick={() => setUserRoleFilter(rf.key)}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                        isSelected
+                          ? 'bg-rose-500 text-white shadow-md shadow-rose-500/25 ring-1 ring-rose-400/50'
+                          : 'bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700/80 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-800'
+                      }`}
+                    >
+                      <span>{rf.label}</span>
+                      <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-mono font-black ${
+                        isSelected ? 'bg-white/25 text-white' : 'bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300'
+                      }`}>
+                        {rf.count}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+
               <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                 <SearchSuggestInput
                   value={userSearchQuery}
@@ -818,7 +976,7 @@ export default function AdminSite({ user, onLogin }) {
                   ariaLabel="Search user registry"
                 />
                 <span className="text-xs text-slate-500">
-                  Showing {filteredUsers.length} of {users.length} accounts
+                  Showing {filteredUsers.length} of {userRoleFilter === 'ALL' ? users.length : userRoleCounts[userRoleFilter]} accounts
                 </span>
               </div>
 
@@ -963,15 +1121,55 @@ export default function AdminSite({ user, onLogin }) {
                 </div>
 
                 <div>
-                  <label className="font-semibold text-slate-700 dark:text-slate-300">Password</label>
+                  <div className="flex items-center justify-between">
+                    <label className="font-semibold text-slate-700 dark:text-slate-300">Password</label>
+                    {newUser.password && (() => {
+                      const st = checkPasswordStrength(newUser.password);
+                      return (
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${st.color}`}>
+                          {st.label}
+                        </span>
+                      );
+                    })()}
+                  </div>
                   <input
                     type="password"
                     value={newUser.password}
                     onChange={(e) => setNewUser({ ...newUser, password: e.target.value })}
-                    placeholder="••••••••"
+                    placeholder="Min 8 chars (mixed case, number, symbol)"
                     className="w-full mt-1.5 px-3.5 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 text-slate-900 dark:text-white outline-none focus:border-rose-500"
                     required
                   />
+                  {newUser.password && (() => {
+                    const st = checkPasswordStrength(newUser.password);
+                    return (
+                      <div className="mt-2 space-y-1.5 p-2.5 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800">
+                        <div className="h-1.5 w-full bg-slate-200 dark:bg-slate-800 rounded-full overflow-hidden">
+                          <div
+                            className={`h-full transition-all duration-300 ${st.barColor}`}
+                            style={{ width: `${(st.score / 5) * 100}%` }}
+                          />
+                        </div>
+                        <div className="flex flex-wrap gap-1 text-[10px] pt-1">
+                          <span className={`px-1.5 py-0.5 rounded font-medium ${st.checks.length ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400' : 'bg-slate-200 dark:bg-slate-800 text-slate-500'}`}>
+                            {st.checks.length ? '✓ 8+ chars' : '• 8+ chars'}
+                          </span>
+                          <span className={`px-1.5 py-0.5 rounded font-medium ${st.checks.upper ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400' : 'bg-slate-200 dark:bg-slate-800 text-slate-500'}`}>
+                            {st.checks.upper ? '✓ Uppercase' : '• Uppercase'}
+                          </span>
+                          <span className={`px-1.5 py-0.5 rounded font-medium ${st.checks.lower ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400' : 'bg-slate-200 dark:bg-slate-800 text-slate-500'}`}>
+                            {st.checks.lower ? '✓ Lowercase' : '• Lowercase'}
+                          </span>
+                          <span className={`px-1.5 py-0.5 rounded font-medium ${st.checks.number ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400' : 'bg-slate-200 dark:bg-slate-800 text-slate-500'}`}>
+                            {st.checks.number ? '✓ Number' : '• Number'}
+                          </span>
+                          <span className={`px-1.5 py-0.5 rounded font-medium ${st.checks.special ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400' : 'bg-slate-200 dark:bg-slate-800 text-slate-500'}`}>
+                            {st.checks.special ? '✓ Special (!@#$)' : '• Special'}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })()}
                 </div>
 
                 <div className="grid grid-cols-2 gap-3">
@@ -989,13 +1187,27 @@ export default function AdminSite({ user, onLogin }) {
                   </div>
 
                   <div>
-                    <label className="font-semibold text-slate-700 dark:text-slate-300">Phone</label>
+                    <div className="flex items-center justify-between">
+                      <label className="font-semibold text-slate-700 dark:text-slate-300">Phone</label>
+                      {newUser.phone && (() => {
+                        const ph = checkPhoneNumber(newUser.phone);
+                        return (
+                          <span className={`text-[9px] font-bold ${ph.valid ? 'text-emerald-500' : 'text-rose-500'}`}>
+                            {ph.valid ? '✓ Valid 10d' : '⚠ 10 digits'}
+                          </span>
+                        );
+                      })()}
+                    </div>
                     <input
-                      type="text"
+                      type="tel"
                       value={newUser.phone}
                       onChange={(e) => setNewUser({ ...newUser, phone: e.target.value })}
-                      placeholder="+1555-0999"
-                      className="w-full mt-1.5 px-3.5 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 text-slate-900 dark:text-white outline-none focus:border-rose-500"
+                      placeholder="9876543210"
+                      className={`w-full mt-1.5 px-3.5 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-900 border text-slate-900 dark:text-white outline-none ${
+                        newUser.phone && !checkPhoneNumber(newUser.phone).valid
+                          ? 'border-rose-400 focus:border-rose-500'
+                          : 'border-slate-300 dark:border-slate-800 focus:border-rose-500'
+                      }`}
                     />
                   </div>
                 </div>
@@ -1584,10 +1796,17 @@ export default function AdminSite({ user, onLogin }) {
                   <Edit3 className="w-4 h-4 text-sky-500" />
                   <span>Edit User Account #{editingUser.user_id}</span>
                 </h3>
-                <button onClick={() => setEditingUser(null)} className="text-slate-400 hover:text-slate-600 dark:hover:text-white">
+                <button onClick={() => { setEditingUser(null); setEditUserError(''); }} className="text-slate-400 hover:text-slate-600 dark:hover:text-white">
                   <X className="w-5 h-5" />
                 </button>
               </div>
+
+              {editUserError && (
+                <div className="p-3 rounded-xl bg-rose-500/15 border border-rose-500/30 text-rose-600 dark:text-rose-400 text-xs flex items-center gap-2 animate-shake">
+                  <AlertCircle className="w-4 h-4 shrink-0" />
+                  <span>{editUserError}</span>
+                </div>
+              )}
 
               <form onSubmit={handleEditUserSubmit} className="space-y-4 text-xs">
                 <div>
@@ -1613,14 +1832,54 @@ export default function AdminSite({ user, onLogin }) {
                 </div>
 
                 <div>
-                  <label className="font-semibold text-slate-700 dark:text-slate-300">Password</label>
+                  <div className="flex items-center justify-between">
+                    <label className="font-semibold text-slate-700 dark:text-slate-300">Password</label>
+                    {editingUser.password && (() => {
+                      const st = checkPasswordStrength(editingUser.password);
+                      return (
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${st.color}`}>
+                          {st.label}
+                        </span>
+                      );
+                    })()}
+                  </div>
                   <input
                     type="text"
                     value={editingUser.password || ''}
                     onChange={(e) => setEditingUser({ ...editingUser, password: e.target.value })}
-                    placeholder="Enter new password to change"
+                    placeholder="Enter new password to change (min 8 chars)"
                     className="w-full mt-1.5 px-3.5 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 text-slate-900 dark:text-white outline-none focus:border-sky-500 font-mono"
                   />
+                  {editingUser.password && (() => {
+                    const st = checkPasswordStrength(editingUser.password);
+                    return (
+                      <div className="mt-2 space-y-1.5 p-2.5 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800">
+                        <div className="h-1.5 w-full bg-slate-200 dark:bg-slate-800 rounded-full overflow-hidden">
+                          <div
+                            className={`h-full transition-all duration-300 ${st.barColor}`}
+                            style={{ width: `${(st.score / 5) * 100}%` }}
+                          />
+                        </div>
+                        <div className="flex flex-wrap gap-1 text-[10px] pt-1">
+                          <span className={`px-1.5 py-0.5 rounded font-medium ${st.checks.length ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400' : 'bg-slate-200 dark:bg-slate-800 text-slate-500'}`}>
+                            {st.checks.length ? '✓ 8+ chars' : '• 8+ chars'}
+                          </span>
+                          <span className={`px-1.5 py-0.5 rounded font-medium ${st.checks.upper ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400' : 'bg-slate-200 dark:bg-slate-800 text-slate-500'}`}>
+                            {st.checks.upper ? '✓ Uppercase' : '• Uppercase'}
+                          </span>
+                          <span className={`px-1.5 py-0.5 rounded font-medium ${st.checks.lower ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400' : 'bg-slate-200 dark:bg-slate-800 text-slate-500'}`}>
+                            {st.checks.lower ? '✓ Lowercase' : '• Lowercase'}
+                          </span>
+                          <span className={`px-1.5 py-0.5 rounded font-medium ${st.checks.number ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400' : 'bg-slate-200 dark:bg-slate-800 text-slate-500'}`}>
+                            {st.checks.number ? '✓ Number' : '• Number'}
+                          </span>
+                          <span className={`px-1.5 py-0.5 rounded font-medium ${st.checks.special ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400' : 'bg-slate-200 dark:bg-slate-800 text-slate-500'}`}>
+                            {st.checks.special ? '✓ Special (!@#$)' : '• Special'}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })()}
                 </div>
 
                 <div className="grid grid-cols-2 gap-3">
@@ -1651,13 +1910,31 @@ export default function AdminSite({ user, onLogin }) {
                 </div>
 
                 <div>
-                  <label className="font-semibold text-slate-700 dark:text-slate-300">Phone</label>
+                  <div className="flex items-center justify-between">
+                    <label className="font-semibold text-slate-700 dark:text-slate-300">Phone</label>
+                    {editingUser.phone && (() => {
+                      const ph = checkPhoneNumber(editingUser.phone);
+                      return (
+                        <span className={`text-[10px] font-bold ${ph.valid ? 'text-emerald-500' : 'text-rose-500'}`}>
+                          {ph.valid ? '✓ Valid 10 digits' : '⚠ 10 digits required'}
+                        </span>
+                      );
+                    })()}
+                  </div>
                   <input
-                    type="text"
+                    type="tel"
                     value={editingUser.phone || ''}
                     onChange={(e) => setEditingUser({ ...editingUser, phone: e.target.value })}
-                    className="w-full mt-1.5 px-3.5 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 text-slate-900 dark:text-white outline-none focus:border-sky-500"
+                    placeholder="9876543210"
+                    className={`w-full mt-1.5 px-3.5 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-900 border text-slate-900 dark:text-white outline-none font-mono ${
+                      editingUser.phone && !checkPhoneNumber(editingUser.phone).valid
+                        ? 'border-rose-400 focus:border-rose-500'
+                        : 'border-slate-300 dark:border-slate-800 focus:border-sky-500'
+                    }`}
                   />
+                  {editingUser.phone && !checkPhoneNumber(editingUser.phone).valid && (
+                    <p className="text-[11px] text-rose-500 mt-1">Please enter a valid 10-digit mobile number.</p>
+                  )}
                 </div>
 
                 <div className="flex gap-3 pt-2">

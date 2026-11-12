@@ -434,3 +434,12 @@ textarea:focus-visible {
   animation: timelineBeamSweep 2.2s ease-in-out infinite;
 }
 
+@keyframes shrinkBar {
+  0% {
+    width: 100%;
+  }
+  100% {
+    width: 0%;
+  }
+}
+
