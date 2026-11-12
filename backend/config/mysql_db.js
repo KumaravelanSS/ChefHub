@@ -531,16 +531,23 @@ async function initRelationalDb() {
     'CREATE INDEX IF NOT EXISTS idx_orders_customer ON orders(customer_id)',
     'CREATE INDEX IF NOT EXISTS idx_orders_rider ON orders(rider_id)',
     'CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(status)',
+    'CREATE INDEX IF NOT EXISTS idx_orders_id_status ON orders(order_id, status)',
+    'CREATE INDEX IF NOT EXISTS idx_orders_rider_status ON orders(rider_id, status)',
+    'CREATE INDEX IF NOT EXISTS idx_orders_vendor_status ON orders(vendor_id, status)',
     'CREATE INDEX IF NOT EXISTS idx_order_items_order ON order_items(order_id)',
     'CREATE INDEX IF NOT EXISTS idx_order_items_dish ON order_items(dish_id)',
     'CREATE INDEX IF NOT EXISTS idx_dishes_vendor ON dishes(vendor_id)',
+    'CREATE INDEX IF NOT EXISTS idx_dishes_id_vendor ON dishes(dish_id, vendor_id)',
     'CREATE INDEX IF NOT EXISTS idx_inventory_vendor ON inventory(vendor_id)',
     'CREATE INDEX IF NOT EXISTS idx_payouts_vendor ON payouts(vendor_id)',
     'CREATE INDEX IF NOT EXISTS idx_payouts_order ON payouts(order_id)',
     'CREATE INDEX IF NOT EXISTS idx_outbox_status ON outbox_events(status, retry_count)',
     'CREATE INDEX IF NOT EXISTS idx_password_otps_user ON password_otps(user_id, otp_code)',
     'CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)',
-    'CREATE INDEX IF NOT EXISTS idx_users_role ON users(role)'
+    'CREATE INDEX IF NOT EXISTS idx_users_role ON users(role)',
+    'CREATE INDEX IF NOT EXISTS idx_users_id_role ON users(user_id, role)',
+    'CREATE INDEX IF NOT EXISTS idx_customer_wallets_user ON customer_wallets(customer_id)',
+    'CREATE INDEX IF NOT EXISTS idx_coupons_code ON coupons(code)'
   ];
 
   for (const idxSql of indexStatements) {

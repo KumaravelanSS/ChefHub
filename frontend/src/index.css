@@ -2,13 +2,14 @@
 @tailwind components;
 @tailwind utilities;
 
-:root, html.light {
+:root,
+html.light {
   /* Light Mode Semantic Variables - Warm, crisp, luxury culinary aesthetic */
-  --bg-main: #f7f7f5;
+  --bg-main: #f8fafc;
   --bg-surface: #ffffff;
-  --bg-elevated: #fbfbfa;
+  --bg-elevated: #ffffff;
   --bg-modal: #ffffff;
-  --border-subtle: #e5e7eb;
+  --border-subtle: #e2e8f0;
   --border-accent: rgba(249, 115, 22, 0.4);
   --text-primary: #0f172a;
   --text-secondary: #475569;
@@ -17,23 +18,23 @@
 
 html.dark {
   /* Dark Mode Semantic Elevation System - Obsidian, rich slate, ember glow */
-  --bg-main: #0d121b;
-  --bg-surface: #151e2b;
-  --bg-elevated: #1d2938;
-  --bg-modal: #202d3d;
-  --border-subtle: rgba(148, 163, 184, 0.14);
+  --bg-main: #090d16;
+  /* Layer 0: Page backdrop */
+  --bg-surface: #111726;
+  /* Layer 1: Component cards & containers */
+  --bg-elevated: #182032;
+  /* Layer 2: Sub-cards & interactive containers */
+  --bg-modal: #1e273e;
+  /* Layer 3: Modals, dropdowns & popups */
+  --border-subtle: rgba(255, 255, 255, 0.08);
   --border-accent: rgba(249, 115, 22, 0.4);
   --text-primary: #f8fafc;
-  --text-secondary: #a6b2c2;
+  --text-secondary: #94a3b8;
   --accent-orange: #f97316;
 }
 
 body {
   background-color: var(--bg-main);
-  background-image:
-    radial-gradient(ellipse at 10% 0%, rgba(249, 115, 22, 0.045), transparent 36%),
-    radial-gradient(ellipse at 88% 24%, rgba(14, 165, 233, 0.035), transparent 32%);
-  background-attachment: fixed;
   color: var(--text-primary);
   font-family: 'Plus Jakarta Sans', 'Inter', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
   letter-spacing: -0.012em;
@@ -58,10 +59,11 @@ body {
     border: 1px solid var(--border-subtle);
     box-shadow: 0 10px 25px -5px rgba(15, 23, 42, 0.05), 0 8px 10px -6px rgba(15, 23, 42, 0.03);
     position: relative;
-    transition: background-color 0.28s ease, border-color 0.28s ease, box-shadow 0.28s ease, transform 0.28s cubic-bezier(0.2, 0.8, 0.2, 1);
+    transition: background-color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
   }
+
   html.dark .glass-card {
-    box-shadow: 0 10px 30px -12px rgba(0, 0, 0, 0.42), inset 0 1px 0 0 rgba(255, 255, 255, 0.035);
+    box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.5), inset 0 1px 0 0 rgba(255, 255, 255, 0.05);
   }
 
   .elevated-card {
@@ -74,10 +76,11 @@ body {
     border: 1px solid var(--border-subtle);
     box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25), 0 0 15px rgba(0, 0, 0, 0.1);
   }
+
   html.dark .modal-surface {
     box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.6), 0 0 25px rgba(0, 0, 0, 0.4);
   }
-  
+
   /* Gradient Edge Accent Line on Top/Bottom of Cards */
   .glass-card::before {
     content: '';
@@ -91,12 +94,13 @@ body {
   }
 
   .glass-card-hover {
-    transition: transform 0.28s cubic-bezier(0.2, 0.8, 0.2, 1), border-color 0.28s ease, box-shadow 0.28s ease;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   }
+
   .glass-card-hover:hover {
-    border-color: rgba(249, 115, 22, 0.38);
-    box-shadow: 0 16px 36px -12px rgba(249, 115, 22, 0.16), inset 0 1px 0 0 rgba(249, 115, 22, 0.16);
-    transform: translateY(-2px);
+    border-color: rgba(249, 115, 22, 0.45);
+    box-shadow: 0 18px 40px -10px rgba(249, 115, 22, 0.22), inset 0 1px 0 0 rgba(249, 115, 22, 0.25);
+    transform: translateY(-3px);
   }
 
   /* Portal Accent Borders for Visual Pop */
@@ -104,6 +108,7 @@ body {
     background-color: var(--bg-surface);
     border: 1px solid rgba(245, 158, 11, 0.3);
   }
+
   .portal-card-customer:hover {
     border-color: rgba(245, 158, 11, 0.65);
     box-shadow: 0 20px 45px -10px rgba(245, 158, 11, 0.25);
@@ -113,6 +118,7 @@ body {
     background-color: var(--bg-surface);
     border: 1px solid rgba(16, 185, 129, 0.3);
   }
+
   .portal-card-vendor:hover {
     border-color: rgba(16, 185, 129, 0.65);
     box-shadow: 0 20px 45px -10px rgba(16, 185, 129, 0.25);
@@ -122,6 +128,7 @@ body {
     background-color: var(--bg-surface);
     border: 1px solid rgba(14, 165, 233, 0.3);
   }
+
   .portal-card-rider:hover {
     border-color: rgba(14, 165, 233, 0.65);
     box-shadow: 0 20px 45px -10px rgba(14, 165, 233, 0.25);
@@ -131,6 +138,7 @@ body {
     background-color: var(--bg-surface);
     border: 1px solid rgba(244, 63, 94, 0.3);
   }
+
   .portal-card-admin:hover {
     border-color: rgba(244, 63, 94, 0.65);
     box-shadow: 0 20px 45px -10px rgba(244, 63, 94, 0.25);
@@ -144,21 +152,25 @@ body {
 
   /* Food Card Animations & Glows */
   .dish-card {
-    transition: transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1), border-color 0.3s ease, box-shadow 0.3s ease, background-color 0.3s ease;
+    transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1);
     background-color: var(--bg-surface);
     border: 1px solid var(--border-subtle);
   }
+
   .dish-card:hover {
-    transform: translateY(-2px);
-    border-color: rgba(249, 115, 22, 0.4) !important;
-    box-shadow: 0 16px 36px -14px rgba(249, 115, 22, 0.2), 0 0 20px 0 rgba(249, 115, 22, 0.08);
+    transform: translateY(-5px);
+    border-color: rgba(249, 115, 22, 0.5) !important;
+    box-shadow: 0 22px 45px -15px rgba(249, 115, 22, 0.28), 0 0 25px 0 rgba(249, 115, 22, 0.15);
   }
+
   .food-image-zoom {
-    transition: transform 0.45s cubic-bezier(0.2, 0.8, 0.2, 1);
+    transition: transform 0.6s cubic-bezier(0.16, 1, 0.3, 1);
   }
+
   .dish-card:hover .food-image-zoom {
-    transform: scale(1.04);
+    transform: scale(1.09);
   }
+
   .glow-badge {
     box-shadow: 0 0 15px rgba(249, 115, 22, 0.4);
   }
@@ -168,13 +180,15 @@ body {
     background-color: #ffffff;
     border: 1px solid #e2e8f0;
     color: #0f172a;
-    transition: background-color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   }
+
   html.dark .input-luxury {
     background-color: rgba(15, 23, 42, 0.85);
     border: 1px solid #1e293b;
     color: #f8fafc;
   }
+
   .input-luxury:focus {
     border-color: #f97316;
     box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.15);
@@ -186,6 +200,7 @@ body {
     color: #065f46;
     border: 1px solid #a7f3d0;
   }
+
   html.dark .badge-stock-in {
     background-color: rgba(16, 185, 129, 0.15);
     color: #34d399;
@@ -197,6 +212,7 @@ body {
     color: #9f1239;
     border: 1px solid #fecdd3;
   }
+
   html.dark .badge-stock-out {
     background-color: rgba(244, 63, 94, 0.15);
     color: #fb7185;
@@ -209,70 +225,88 @@ body {
   width: 7px;
   height: 7px;
 }
+
 ::-webkit-scrollbar-track {
   background: transparent;
 }
+
 ::-webkit-scrollbar-thumb {
   background: #cbd5e1;
-  border-radius: 999px;
 }
+
 html.dark ::-webkit-scrollbar-thumb {
   background: #222c44;
 }
+
 ::-webkit-scrollbar-thumb:hover {
   background: #f97316;
 }
 
-html {
-  scroll-behavior: smooth;
-  scroll-padding-top: 5rem;
-}
-
-button:focus-visible,
-a[href]:focus-visible,
-input:focus-visible,
-select:focus-visible,
-textarea:focus-visible {
-  outline: 3px solid rgba(249, 115, 22, 0.8);
-  outline-offset: 3px;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  html {
-    scroll-behavior: auto;
-  }
-
-  *,
-  *::before,
-  *::after {
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    scroll-behavior: auto !important;
-    transition-duration: 0.01ms !important;
-  }
-}
-
 @keyframes paymentCheckPulse {
-  0% { transform: scale(0.3); opacity: 0; }
-  60% { transform: scale(1.15); opacity: 1; }
-  100% { transform: scale(1); opacity: 1; }
+  0% {
+    transform: scale(0.3);
+    opacity: 0;
+  }
+
+  60% {
+    transform: scale(1.15);
+    opacity: 1;
+  }
+
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
 }
 
 @keyframes paymentRingRipple {
-  0% { transform: scale(0.8); opacity: 0.8; box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.6); }
-  70% { transform: scale(1.15); opacity: 0.2; box-shadow: 0 0 0 25px rgba(16, 185, 129, 0); }
-  100% { transform: scale(1.2); opacity: 0; box-shadow: 0 0 0 40px rgba(16, 185, 129, 0); }
+  0% {
+    transform: scale(0.8);
+    opacity: 0.8;
+    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.6);
+  }
+
+  70% {
+    transform: scale(1.15);
+    opacity: 0.2;
+    box-shadow: 0 0 0 25px rgba(16, 185, 129, 0);
+  }
+
+  100% {
+    transform: scale(1.2);
+    opacity: 0;
+    box-shadow: 0 0 0 40px rgba(16, 185, 129, 0);
+  }
 }
 
 @keyframes paymentFailRingRipple {
-  0% { transform: scale(0.8); opacity: 0.8; box-shadow: 0 0 0 0 rgba(244, 63, 94, 0.6); }
-  70% { transform: scale(1.15); opacity: 0.2; box-shadow: 0 0 0 25px rgba(244, 63, 94, 0); }
-  100% { transform: scale(1.2); opacity: 0; box-shadow: 0 0 0 40px rgba(244, 63, 94, 0); }
+  0% {
+    transform: scale(0.8);
+    opacity: 0.8;
+    box-shadow: 0 0 0 0 rgba(244, 63, 94, 0.6);
+  }
+
+  70% {
+    transform: scale(1.15);
+    opacity: 0.2;
+    box-shadow: 0 0 0 25px rgba(244, 63, 94, 0);
+  }
+
+  100% {
+    transform: scale(1.2);
+    opacity: 0;
+    box-shadow: 0 0 0 40px rgba(244, 63, 94, 0);
+  }
 }
 
 @keyframes progressBarShrink {
-  0% { width: 100%; }
-  100% { width: 0%; }
+  0% {
+    width: 100%;
+  }
+
+  100% {
+    width: 0%;
+  }
 }
 
 .animate-check-pop {
@@ -293,32 +327,80 @@ textarea:focus-visible {
 
 /* --- Kitchen Culinary Loading Animations --- */
 @keyframes kitchenPanSimmer {
-  0%, 100% { transform: rotate(0deg) translateY(0); }
-  25% { transform: rotate(-3deg) translateY(-2px); }
-  50% { transform: rotate(0deg) translateY(-1px); }
-  75% { transform: rotate(3deg) translateY(-2px); }
+
+  0%,
+  100% {
+    transform: rotate(0deg) translateY(0);
+  }
+
+  25% {
+    transform: rotate(-3deg) translateY(-2px);
+  }
+
+  50% {
+    transform: rotate(0deg) translateY(-1px);
+  }
+
+  75% {
+    transform: rotate(3deg) translateY(-2px);
+  }
 }
 
 @keyframes steamPuff {
-  0% { transform: translateY(0) scale(0.7); opacity: 0; }
-  35% { opacity: 0.85; }
-  100% { transform: translateY(-22px) scale(1.35); opacity: 0; }
+  0% {
+    transform: translateY(0) scale(0.7);
+    opacity: 0;
+  }
+
+  35% {
+    opacity: 0.85;
+  }
+
+  100% {
+    transform: translateY(-22px) scale(1.35);
+    opacity: 0;
+  }
 }
 
 @keyframes chefHatBounce {
-  0%, 100% { transform: translateY(0) scale(1) rotate(0deg); }
-  30% { transform: translateY(-9px) scale(1.06) rotate(-3deg); }
-  60% { transform: translateY(-3px) scale(0.98) rotate(3deg); }
+
+  0%,
+  100% {
+    transform: translateY(0) scale(1) rotate(0deg);
+  }
+
+  30% {
+    transform: translateY(-9px) scale(1.06) rotate(-3deg);
+  }
+
+  60% {
+    transform: translateY(-3px) scale(0.98) rotate(3deg);
+  }
 }
 
 @keyframes flameFlicker {
-  0%, 100% { transform: scale(1); opacity: 0.9; }
-  50% { transform: scale(1.15) translateY(-1px); opacity: 1; filter: drop-shadow(0 0 12px rgba(249, 115, 22, 0.7)); }
+
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 0.9;
+  }
+
+  50% {
+    transform: scale(1.15) translateY(-1px);
+    opacity: 1;
+    filter: drop-shadow(0 0 12px rgba(249, 115, 22, 0.7));
+  }
 }
 
 @keyframes shimmerSweep {
-  0% { transform: translateX(-100%); }
-  100% { transform: translateX(100%); }
+  0% {
+    transform: translateX(-100%);
+  }
+
+  100% {
+    transform: translateX(100%);
+  }
 }
 
 .animate-pan-simmer {
@@ -353,17 +435,19 @@ textarea:focus-visible {
   overflow: hidden;
   background-color: rgba(148, 163, 184, 0.1);
 }
+
 .skeleton-shimmer::after {
   position: absolute;
-  top: 0; right: 0; bottom: 0; left: 0;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
   transform: translateX(-100%);
-  background-image: linear-gradient(
-    90deg,
-    rgba(255, 255, 255, 0) 0,
-    rgba(255, 255, 255, 0.08) 20%,
-    rgba(255, 255, 255, 0.16) 60%,
-    rgba(255, 255, 255, 0)
-  );
+  background-image: linear-gradient(90deg,
+      rgba(255, 255, 255, 0) 0,
+      rgba(255, 255, 255, 0.08) 20%,
+      rgba(255, 255, 255, 0.16) 60%,
+      rgba(255, 255, 255, 0));
   animation: shimmerSweep 1.6s infinite;
   content: '';
 }
@@ -374,6 +458,7 @@ textarea:focus-visible {
     height: 0%;
     opacity: 0.2;
   }
+
   100% {
     height: 100%;
     opacity: 1;
@@ -385,10 +470,12 @@ textarea:focus-visible {
     transform: scale(0.35);
     opacity: 0.3;
   }
+
   60% {
     transform: scale(1.3);
     opacity: 1;
   }
+
   100% {
     transform: scale(1);
     opacity: 1;
@@ -396,9 +483,12 @@ textarea:focus-visible {
 }
 
 @keyframes timelinePulseGlow {
-  0%, 100% {
+
+  0%,
+  100% {
     box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.6);
   }
+
   50% {
     box-shadow: 0 0 0 10px rgba(245, 158, 11, 0);
   }
@@ -409,9 +499,11 @@ textarea:focus-visible {
     top: -20%;
     opacity: 0;
   }
+
   50% {
     opacity: 1;
   }
+
   100% {
     top: 120%;
     opacity: 0;
@@ -433,7 +525,6 @@ textarea:focus-visible {
 .animate-timeline-beam {
   animation: timelineBeamSweep 2.2s ease-in-out infinite;
 }
-
 @keyframes shrinkBar {
   0% {
     width: 100%;
@@ -442,4 +533,3 @@ textarea:focus-visible {
     width: 0%;
   }
 }
-

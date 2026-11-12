@@ -106,14 +106,25 @@ router.post('/users', authenticateToken, requireRole('ADMIN'), async (req, res) 
       VALUES (?, ?, ?, ?, ?, ?, 'ACTIVE')
     `, [name, email, hashed, password, role, sanitizedPhone]);
 
-    await MongoAdapter.addAuditLog(req.user.user_id, 'USER_CREATED', {
-      created_user_id: result.insertId,
-      name,
-      email,
-      role
-    });
+    const created_id = result.insertId;
 
-    return res.json({ success: true, message: `User '${name}' (${role}) created successfully!`, user_id: result.insertId });
+    // 1. Immediately return 200 OK to frontend (sub-10ms response)
+    res.json({ success: true, message: `User '${name}' (${role}) created successfully!`, user_id: created_id });
+
+    // 2. Background Async Processing: add system audit log to MongoDB without blocking UI
+    setImmediate(async () => {
+      try {
+        await MongoAdapter.addAuditLog(req.user.user_id, 'USER_CREATED', {
+          created_user_id: created_id,
+          name,
+          email,
+          role
+        });
+      } catch (bgErr) {
+        console.warn('[Background Audit Sync Warning]', bgErr.message);
+      }
+    });
+    return;
   } catch (err) {
     console.error('Create user error:', err);
     return res.status(500).json({ success: false, message: 'Failed to create user.' });
@@ -167,14 +178,23 @@ router.put('/users/:id', authenticateToken, requireRole('ADMIN'), async (req, re
       WHERE user_id = ?
     `, [name, email, hashed, plainPass, role, sanitizedPhone, status, user_id]);
 
-    await MongoAdapter.addAuditLog(req.user.user_id, 'USER_UPDATED', {
-      updated_user_id: user_id,
-      name: name || targetUser[0].name,
-      email: email || targetUser[0].email,
-      role: role || targetUser[0].role
-    });
+    // 1. Immediately return 200 OK so UI unlocks without waiting
+    res.json({ success: true, message: `User #${user_id} updated successfully!` });
 
-    return res.json({ success: true, message: `User #${user_id} updated successfully!` });
+    // 2. Background Async Sync: write audit log to MongoDB asynchronously
+    setImmediate(async () => {
+      try {
+        await MongoAdapter.addAuditLog(req.user.user_id, 'USER_UPDATED', {
+          updated_user_id: user_id,
+          name: name || targetUser[0].name,
+          email: email || targetUser[0].email,
+          role: role || targetUser[0].role
+        });
+      } catch (bgErr) {
+        console.warn('[Background Audit Sync Warning]', bgErr.message);
+      }
+    });
+    return;
   } catch (err) {
     console.error('Update user error:', err);
     return res.status(500).json({ success: false, message: 'Failed to update user.' });
@@ -197,12 +217,21 @@ router.delete('/users/:id', authenticateToken, requireRole('ADMIN'), async (req,
 
     await query('DELETE FROM users WHERE user_id = ?', [user_id]);
 
-    await MongoAdapter.addAuditLog(req.user.user_id, 'USER_DELETED', {
-      deleted_user_id: user_id,
-      email: targetUser[0].email
-    });
+    // 1. Immediately return 200 OK
+    res.json({ success: true, message: `User #${user_id} deleted successfully.` });
 
-    return res.json({ success: true, message: `User #${user_id} deleted successfully.` });
+    // 2. Background Async Sync: push audit log
+    setImmediate(async () => {
+      try {
+        await MongoAdapter.addAuditLog(req.user.user_id, 'USER_DELETED', {
+          deleted_user_id: user_id,
+          email: targetUser[0].email
+        });
+      } catch (bgErr) {
+        console.warn('[Background Audit Sync Warning]', bgErr.message);
+      }
+    });
+    return;
   } catch (err) {
     console.error('Delete user error:', err);
     return res.status(500).json({ success: false, message: 'Failed to delete user.' });
@@ -230,13 +259,22 @@ router.patch('/users/:id/status', authenticateToken, requireRole('ADMIN'), async
 
     await query('UPDATE users SET status = ? WHERE user_id = ?', [status, user_id]);
 
-    await MongoAdapter.addAuditLog(req.user.user_id, 'USER_STATUS_CHANGE', {
-      target_user_id: user_id,
-      target_email: targetUser[0].email,
-      new_status: status
-    });
+    // 1. Immediately return 200 OK
+    res.json({ success: true, message: `User #${user_id} status updated to ${status}.` });
 
-    return res.json({ success: true, message: `User #${user_id} status updated to ${status}.` });
+    // 2. Background Async Sync: record audit event
+    setImmediate(async () => {
+      try {
+        await MongoAdapter.addAuditLog(req.user.user_id, 'USER_STATUS_CHANGE', {
+          target_user_id: user_id,
+          target_email: targetUser[0].email,
+          new_status: status
+        });
+      } catch (bgErr) {
+        console.warn('[Background Audit Sync Warning]', bgErr.message);
+      }
+    });
+    return;
   } catch (err) {
     console.error('Update user status error:', err);
     return res.status(500).json({ success: false, message: 'Failed to update user status.' });
@@ -285,31 +323,40 @@ router.put('/dishes/:id', authenticateToken, requireRole('ADMIN'), async (req, r
       WHERE dish_id = ?
     `, [name || null, category || null, base_price !== undefined ? Number(base_price) : null, stockVal, availVal, defaultReason, dish_id]);
 
-    const targetDish = await query('SELECT vendor_id FROM dishes WHERE dish_id = ?', [dish_id]);
-    if (targetDish.length > 0) {
-      const vendor_id = targetDish[0].vendor_id;
-      const mongoMenu = await MongoAdapter.findVendorMenu(vendor_id);
-      if (mongoMenu && mongoMenu.categories) {
-        for (const cat of mongoMenu.categories) {
-          if (cat.dishes) {
-            const d = cat.dishes.find(x => Number(x.dish_id) === Number(dish_id));
-            if (d) {
-              d.is_available = availVal === 1;
-              d.daily_stock = stockVal;
+    // 1. Immediately return 200 OK to frontend (instant UI unlock)
+    res.json({ success: true, message: `Dish #${dish_id} updated successfully by Admin!` });
+
+    // 2. Background Async Sync: Update MongoDB menu and write Audit Log without user wait
+    setImmediate(async () => {
+      try {
+        const targetDish = await query('SELECT vendor_id FROM dishes WHERE dish_id = ?', [dish_id]);
+        if (targetDish.length > 0) {
+          const vendor_id = targetDish[0].vendor_id;
+          const mongoMenu = await MongoAdapter.findVendorMenu(vendor_id);
+          if (mongoMenu && mongoMenu.categories) {
+            for (const cat of mongoMenu.categories) {
+              if (cat.dishes) {
+                const d = cat.dishes.find(x => Number(x.dish_id) === Number(dish_id));
+                if (d) {
+                  d.is_available = availVal === 1;
+                  d.daily_stock = stockVal;
+                }
+              }
             }
+            await MongoAdapter.findOrSeedVendorMenus([mongoMenu]);
           }
         }
-        await MongoAdapter.findOrSeedVendorMenus([mongoMenu]);
+
+        await MongoAdapter.addAuditLog(req.user.user_id, 'ADMIN_DISH_UPDATED', {
+          dish_id,
+          is_available: availVal === 1,
+          out_of_stock_reason: defaultReason
+        });
+      } catch (bgErr) {
+        console.warn('[Background Admin Dish Sync Warning]', bgErr.message);
       }
-    }
-
-    await MongoAdapter.addAuditLog(req.user.user_id, 'ADMIN_DISH_UPDATED', {
-      dish_id,
-      is_available: availVal === 1,
-      out_of_stock_reason: defaultReason
     });
-
-    return res.json({ success: true, message: `Dish #${dish_id} updated successfully by Admin!` });
+    return;
   } catch (err) {
     console.error('Admin edit dish error:', err);
     return res.status(500).json({ success: false, message: 'Failed to update dish details.' });
@@ -458,18 +505,29 @@ router.post('/coupons', authenticateToken, requireRole('ADMIN'), async (req, res
       VALUES (?, ?, ?, ?, ?, ?, 1)
     `, [cleanCode, description.trim(), discount_type, Number(discount_val), Number(min_order) || 0, max_discount ? Number(max_discount) : null]);
 
-    await MongoAdapter.addAuditLog(req.user.user_id, 'COUPON_CREATED', {
-      coupon_id: result.insertId,
-      code: cleanCode,
-      discount_type,
-      discount_val
-    });
+    const createdCouponId = result.insertId;
 
-    return res.json({
+    // 1. Immediately respond 200 OK
+    res.json({
       success: true,
       message: `Coupon '${cleanCode}' created successfully!`,
-      coupon_id: result.insertId
+      coupon_id: createdCouponId
     });
+
+    // 2. Background Async Sync: Audit log in MongoDB
+    setImmediate(async () => {
+      try {
+        await MongoAdapter.addAuditLog(req.user.user_id, 'COUPON_CREATED', {
+          coupon_id: createdCouponId,
+          code: cleanCode,
+          discount_type,
+          discount_val
+        });
+      } catch (bgErr) {
+        console.warn('[Background Coupon Audit Warning]', bgErr.message);
+      }
+    });
+    return;
   } catch (err) {
     console.error('Create coupon error:', err);
     return res.status(500).json({ success: false, message: 'Failed to create coupon.' });
@@ -488,17 +546,26 @@ router.patch('/coupons/:id/toggle', authenticateToken, requireRole('ADMIN'), asy
     const newStatus = existing[0].is_active === 1 ? 0 : 1;
     await query('UPDATE coupons SET is_active = ? WHERE coupon_id = ?', [newStatus, couponId]);
 
-    await MongoAdapter.addAuditLog(req.user.user_id, 'COUPON_TOGGLED', {
-      coupon_id: couponId,
-      code: existing[0].code,
-      is_active: newStatus
-    });
-
-    return res.json({
+    // 1. Immediately return 200 OK
+    res.json({
       success: true,
       message: `Coupon '${existing[0].code}' is now ${newStatus === 1 ? 'ACTIVE' : 'DEACTIVATED'}.`,
       is_active: newStatus
     });
+
+    // 2. Background Async Sync: Audit log
+    setImmediate(async () => {
+      try {
+        await MongoAdapter.addAuditLog(req.user.user_id, 'COUPON_TOGGLED', {
+          coupon_id: couponId,
+          code: existing[0].code,
+          is_active: newStatus
+        });
+      } catch (bgErr) {
+        console.warn('[Background Coupon Toggle Audit Warning]', bgErr.message);
+      }
+    });
+    return;
   } catch (err) {
     console.error('Toggle coupon error:', err);
     return res.status(500).json({ success: false, message: 'Failed to toggle coupon status.' });
@@ -511,9 +578,18 @@ router.delete('/coupons/:id', authenticateToken, requireRole('ADMIN'), async (re
     const couponId = req.params.id;
     await query('DELETE FROM coupons WHERE coupon_id = ?', [couponId]);
 
-    await MongoAdapter.addAuditLog(req.user.user_id, 'COUPON_DELETED', { coupon_id: couponId });
+    // 1. Immediately return 200 OK
+    res.json({ success: true, message: 'Coupon deleted successfully.' });
 
-    return res.json({ success: true, message: 'Coupon deleted successfully.' });
+    // 2. Background Async Sync: Audit log
+    setImmediate(async () => {
+      try {
+        await MongoAdapter.addAuditLog(req.user.user_id, 'COUPON_DELETED', { coupon_id: couponId });
+      } catch (bgErr) {
+        console.warn('[Background Coupon Delete Audit Warning]', bgErr.message);
+      }
+    });
+    return;
   } catch (err) {
     console.error('Delete coupon error:', err);
     return res.status(500).json({ success: false, message: 'Failed to delete coupon.' });

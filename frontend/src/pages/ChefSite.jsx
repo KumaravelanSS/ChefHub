@@ -887,6 +887,18 @@ export default function ChefSite({ user, onLogin, onLogout }) {
   const handleRestoreDailyStock = async () => {
     setIsRestoringStock(true);
     setStockRestoreToast('');
+    const previousDishes = [...dishes];
+
+    // Optimistic Update: Immediately increment all dish portions by +20 and mark available
+    setDishes(prev => prev.map(d => ({
+      ...d,
+      daily_stock: (Number(d.daily_stock) || 0) + 20,
+      is_available: 1,
+      out_of_stock_reason: null
+    })));
+    setStockRestoreToast('🎉 Daily stock restored! Added +20 portions to all your dishes.');
+    setTimeout(() => setStockRestoreToast(''), 5000);
+
     try {
       const token = localStorage.getItem('chefhub_token');
       const res = await fetch('/api/vendor/dishes/restore-stock', {
@@ -898,13 +910,15 @@ export default function ChefSite({ user, onLogin, onLogout }) {
         if (Array.isArray(data.dishes)) {
           setDishes(data.dishes);
         }
-        setStockRestoreToast(data.message || 'Daily stock successfully replenished (+20 portions to all items)!');
-        fetchData();
-        setTimeout(() => setStockRestoreToast(''), 6000);
       } else {
+        // Rollback on server error
+        setDishes(previousDishes);
+        setStockRestoreToast('');
         alert(data.message || 'Failed to restore daily stock.');
       }
     } catch (err) {
+      setDishes(previousDishes);
+      setStockRestoreToast('');
       console.error('Error restoring daily stock:', err);
       alert('Network or server error while restoring daily stock.');
     } finally {
@@ -930,6 +944,22 @@ export default function ChefSite({ user, onLogin, onLogout }) {
 
   const handleSaveEditDish = async (e) => {
     e.preventDefault();
+    const previousDishes = [...dishes];
+    // Optimistic Update: Update dish card instantly in UI
+    setDishes(prev => prev.map(d => d.dish_id === editForm.dish_id ? {
+      ...d,
+      name: editForm.name,
+      category: editForm.category,
+      base_price: Number(editForm.base_price),
+      daily_stock: Number(editForm.daily_stock),
+      description: editForm.description,
+      image_url: editForm.image_url,
+      is_available: editForm.is_available ? 1 : 0,
+      is_veg: editForm.is_veg ? 1 : 0,
+      out_of_stock_reason: editForm.out_of_stock_reason
+    } : d));
+    setEditingDish(null);
+
     try {
       const token = localStorage.getItem('chefhub_token');
       const res = await fetch(`/api/vendor/dishes/${editForm.dish_id}`, {
@@ -941,19 +971,22 @@ export default function ChefSite({ user, onLogin, onLogout }) {
         body: JSON.stringify(editForm)
       });
       const data = await res.json();
-      if (data.success) {
-        setEditingDish(null);
-        fetchData();
-      } else {
-        alert(data.message);
+      if (!data.success) {
+        setDishes(previousDishes);
+        alert(data.message || 'Failed to update dish.');
       }
     } catch (err) {
+      setDishes(previousDishes);
       alert('Failed to update dish.');
     }
   };
 
   const handleDeleteDish = async (dish_id) => {
     if (!confirm('Are you sure you want to delete this dish?')) return;
+    const previousDishes = [...dishes];
+    // Optimistic Update: Immediately remove dish from UI
+    setDishes(prev => prev.filter(d => d.dish_id !== dish_id));
+
     try {
       const token = localStorage.getItem('chefhub_token');
       const res = await fetch(`/api/vendor/dishes/${dish_id}`, {
@@ -961,8 +994,12 @@ export default function ChefSite({ user, onLogin, onLogout }) {
         headers: { Authorization: `Bearer ${token}` }
       });
       const data = await res.json();
-      if (data.success) fetchData();
+      if (!data.success) {
+        setDishes(previousDishes);
+        alert(data.message || 'Failed to delete dish.');
+      }
     } catch (err) {
+      setDishes(previousDishes);
       alert('Failed to delete dish.');
     }
   };

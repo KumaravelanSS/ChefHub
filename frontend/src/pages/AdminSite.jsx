@@ -568,6 +568,19 @@ export default function AdminSite({ user, onLogin }) {
       }
     }
 
+    // Optimistic Update: Save state snapshot & update UI immediately
+    const previousUsers = [...users];
+    setUsers(prev => prev.map(u => u.user_id === editingUser.user_id ? {
+      ...u,
+      name: editingUser.name,
+      email: editingUser.email,
+      role: editingUser.role,
+      phone: editingUser.phone,
+      status: editingUser.status
+    } : u));
+    setEditingUser(null);
+    setEditUserError('');
+
     try {
       const token = localStorage.getItem('chefhub_token');
       const res = await fetch(`/api/admin/users/${editingUser.user_id}`, {
@@ -583,21 +596,24 @@ export default function AdminSite({ user, onLogin }) {
         })
       });
       const data = await res.json();
-      if (data.success) {
-        setEditingUser(null);
-        setEditUserError('');
-        fetchData();
-      } else {
+      if (!data.success) {
+        // Rollback
+        setUsers(previousUsers);
         setEditUserError(data.message || 'Failed to update user.');
       }
     } catch (err) {
+      setUsers(previousUsers);
       setEditUserError('Failed to update user. Please check your connection.');
     }
   };
 
-  // Delete User CRUD
+  // Delete User CRUD (Optimistic)
   const handleDeleteUser = async (user_id) => {
     if (!confirm(`Are you sure you want to permanently delete User #${user_id}?`)) return;
+    const previousUsers = [...users];
+    // Optimistic Update: remove user immediately from table
+    setUsers(prev => prev.filter(u => u.user_id !== user_id));
+
     try {
       const token = localStorage.getItem('chefhub_token');
       const res = await fetch(`/api/admin/users/${user_id}`, {
@@ -605,15 +621,23 @@ export default function AdminSite({ user, onLogin }) {
         headers: { Authorization: `Bearer ${token}` }
       });
       const data = await res.json();
-      if (data.success) fetchData();
-      else alert(data.message);
+      if (!data.success) {
+        // Rollback on failure
+        setUsers(previousUsers);
+        alert(data.message || 'Failed to delete user.');
+      }
     } catch (err) {
+      setUsers(previousUsers);
       alert('Failed to delete user.');
     }
   };
 
   const toggleUserStatus = async (user_id, currentStatus) => {
     const newStatus = currentStatus === 'ACTIVE' ? 'BANNED' : 'ACTIVE';
+    const previousUsers = [...users];
+    // Optimistic Update: flip status badge immediately
+    setUsers(prev => prev.map(u => u.user_id === user_id ? { ...u, status: newStatus } : u));
+
     try {
       const token = localStorage.getItem('chefhub_token');
       const res = await fetch(`/api/admin/users/${user_id}/status`, {
@@ -625,8 +649,13 @@ export default function AdminSite({ user, onLogin }) {
         body: JSON.stringify({ status: newStatus })
       });
       const data = await res.json();
-      if (data.success) fetchData();
+      if (!data.success) {
+        // Rollback on failure
+        setUsers(previousUsers);
+        alert(data.message || 'Failed to update user status.');
+      }
     } catch (err) {
+      setUsers(previousUsers);
       alert('Failed to update user status.');
     }
   };
@@ -646,6 +675,16 @@ export default function AdminSite({ user, onLogin }) {
 
   const handleSaveAdminDish = async (e) => {
     e.preventDefault();
+    const previousDishes = [...dishes];
+    // Optimistic Update: update dish in dishes table immediately
+    setDishes(prev => prev.map(d => d.dish_id === adminDishForm.dish_id ? {
+      ...d,
+      daily_stock: Number(adminDishForm.daily_stock),
+      is_available: adminDishForm.is_available ? 1 : 0,
+      out_of_stock_reason: adminDishForm.out_of_stock_reason
+    } : d));
+    setEditingAdminDish(null);
+
     try {
       const token = localStorage.getItem('chefhub_token');
       const res = await fetch(`/api/admin/dishes/${adminDishForm.dish_id}`, {
@@ -661,13 +700,12 @@ export default function AdminSite({ user, onLogin }) {
         })
       });
       const data = await res.json();
-      if (data.success) {
-        setEditingAdminDish(null);
-        fetchData();
-      } else {
-        alert(data.message);
+      if (!data.success) {
+        setDishes(previousDishes);
+        alert(data.message || 'Failed to update dish.');
       }
     } catch (err) {
+      setDishes(previousDishes);
       alert('Failed to update dish stock & out of stock reason.');
     }
   };
@@ -725,6 +763,10 @@ export default function AdminSite({ user, onLogin }) {
   };
 
   const handleToggleCoupon = async (coupon_id) => {
+    const previousCoupons = [...coupons];
+    // Optimistic Update: toggle coupon status in UI immediately
+    setCoupons(prev => prev.map(c => c.coupon_id === coupon_id ? { ...c, is_active: c.is_active ? 0 : 1 } : c));
+
     try {
       const token = localStorage.getItem('chefhub_token');
       const res = await fetch(`/api/admin/coupons/${coupon_id}/toggle`, {
@@ -732,14 +774,22 @@ export default function AdminSite({ user, onLogin }) {
         headers: { Authorization: `Bearer ${token}` }
       });
       const data = await res.json();
-      if (data.success) fetchData();
+      if (!data.success) {
+        setCoupons(previousCoupons);
+        alert(data.message || 'Failed to toggle coupon status.');
+      }
     } catch (err) {
+      setCoupons(previousCoupons);
       alert('Failed to toggle coupon status.');
     }
   };
 
   const handleDeleteCoupon = async (coupon_id) => {
     if (!window.confirm('Delete this coupon code from platform?')) return;
+    const previousCoupons = [...coupons];
+    // Optimistic Update: remove coupon immediately
+    setCoupons(prev => prev.filter(c => c.coupon_id !== coupon_id));
+
     try {
       const token = localStorage.getItem('chefhub_token');
       const res = await fetch(`/api/admin/coupons/${coupon_id}`, {
@@ -747,8 +797,12 @@ export default function AdminSite({ user, onLogin }) {
         headers: { Authorization: `Bearer ${token}` }
       });
       const data = await res.json();
-      if (data.success) fetchData();
+      if (!data.success) {
+        setCoupons(previousCoupons);
+        alert(data.message || 'Failed to delete coupon.');
+      }
     } catch (err) {
+      setCoupons(previousCoupons);
       alert('Failed to delete coupon.');
     }
   };

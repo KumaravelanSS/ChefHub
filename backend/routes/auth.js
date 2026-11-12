@@ -418,16 +418,23 @@ router.put('/admin/update-credentials', authenticateToken, requireRole('ADMIN'),
       WHERE role = 'ADMIN' AND user_id = ?
     `, [new_username, new_username, hashed, req.user.user_id]);
 
-    await MongoAdapter.addAuditLog(req.user.user_id, 'ADMIN_CREDENTIALS_CHANGED', {
-      new_username,
-      updated_at: new Date()
-    });
-
-    return res.json({
+    res.json({
       success: true,
       message: 'Admin credentials updated successfully! Please log in again with your new credentials.',
       new_username
     });
+
+    setImmediate(async () => {
+      try {
+        await MongoAdapter.addAuditLog(req.user.user_id, 'ADMIN_CREDENTIALS_CHANGED', {
+          new_username,
+          updated_at: new Date()
+        });
+      } catch (bgErr) {
+        console.warn('[Background Admin Creds Audit Warning]', bgErr.message);
+      }
+    });
+    return;
   } catch (err) {
     console.error('Update admin credentials error:', err);
     return res.status(500).json({ success: false, message: 'Failed to update admin credentials.' });
@@ -542,15 +549,22 @@ router.post('/profile/change-password', authenticateToken, async (req, res) => {
       WHERE user_id = ?
     `, [newHash, new_password, req.user.user_id]);
 
-    await MongoAdapter.addAuditLog(req.user.user_id, 'PASSWORD_CHANGED', {
-      user_id: req.user.user_id,
-      timestamp: new Date()
-    });
-
-    return res.json({
+    res.json({
       success: true,
       message: 'Password successfully updated! Your account security is enhanced.'
     });
+
+    setImmediate(async () => {
+      try {
+        await MongoAdapter.addAuditLog(req.user.user_id, 'PASSWORD_CHANGED', {
+          user_id: req.user.user_id,
+          timestamp: new Date()
+        });
+      } catch (bgErr) {
+        console.warn('[Background Password Change Audit Warning]', bgErr.message);
+      }
+    });
+    return;
   } catch (err) {
     console.error('Change password error:', err);
     return res.status(500).json({ success: false, message: 'Failed to change password.' });
@@ -644,17 +658,24 @@ router.post('/profile/verify-email-otp-and-update', authenticateToken, async (re
     await query('UPDATE users SET email = ? WHERE user_id = ?', [cleanEmail, req.user.user_id]);
     secureOtpStore.delete(`EMAIL_CHANGE:${req.user.user_id}`);
 
-    await MongoAdapter.addAuditLog(req.user.user_id, 'EMAIL_CHANGED', {
-      user_id: req.user.user_id,
-      new_email: cleanEmail,
-      timestamp: new Date()
-    });
-
-    return res.json({
+    res.json({
       success: true,
       message: 'Email address updated successfully!',
       new_email: cleanEmail
     });
+
+    setImmediate(async () => {
+      try {
+        await MongoAdapter.addAuditLog(req.user.user_id, 'EMAIL_CHANGED', {
+          user_id: req.user.user_id,
+          new_email: cleanEmail,
+          timestamp: new Date()
+        });
+      } catch (bgErr) {
+        console.warn('[Background Email Change Audit Warning]', bgErr.message);
+      }
+    });
+    return;
   } catch (err) {
     console.error('Verify email OTP error:', err);
     return res.status(500).json({ success: false, message: 'Failed to update email address.' });
@@ -705,17 +726,24 @@ router.post('/profile/update-username', authenticateToken, async (req, res) => {
     // Update in MySQL
     await query('UPDATE users SET name = ? WHERE user_id = ?', [cleanUsername, req.user.user_id]);
 
-    await MongoAdapter.addAuditLog(req.user.user_id, 'USERNAME_CHANGED', {
-      user_id: req.user.user_id,
-      new_username: cleanUsername,
-      timestamp: new Date()
-    });
-
-    return res.json({
+    res.json({
       success: true,
       message: 'Username updated successfully!',
       new_username: cleanUsername
     });
+
+    setImmediate(async () => {
+      try {
+        await MongoAdapter.addAuditLog(req.user.user_id, 'USERNAME_CHANGED', {
+          user_id: req.user.user_id,
+          new_username: cleanUsername,
+          timestamp: new Date()
+        });
+      } catch (bgErr) {
+        console.warn('[Background Username Change Audit Warning]', bgErr.message);
+      }
+    });
+    return;
   } catch (err) {
     console.error('Update username error:', err);
     return res.status(500).json({ success: false, message: 'Failed to update username.' });

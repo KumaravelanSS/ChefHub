@@ -244,55 +244,58 @@ router.post('/dishes/restore-stock', authenticateToken, requireRole('VENDOR'), a
   try {
     const vendor_id = req.user.user_id;
 
-    // 1. Add +20 to all dishes for this vendor in MySQL
-    await query(`
-      UPDATE dishes 
-      SET daily_stock = COALESCE(daily_stock, 0) + 20,
-          is_available = 1,
-          out_of_stock_reason = NULL
-      WHERE vendor_id = ?
-    `, [vendor_id]);
+    // 1. Parallelize primary MySQL updates & outbox recording
+    await Promise.all([
+      query(`
+        UPDATE dishes 
+        SET daily_stock = COALESCE(daily_stock, 0) + 20,
+            is_available = 1,
+            out_of_stock_reason = NULL
+        WHERE vendor_id = ?
+      `, [vendor_id]),
+      query(`
+        UPDATE inventory 
+        SET stock_quantity = stock_quantity + 50.0,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE vendor_id = ?
+      `, [vendor_id]),
+      outboxRelay.recordEvent(null, {
+        aggregate_type: 'VENDOR_STOCK',
+        aggregate_id: String(vendor_id),
+        event_type: 'STOCK_RESTORED_ALL',
+        payload: { vendor_id, addition: 20 }
+      })
+    ]);
 
-    // 2. Replenish raw inventory with +50.0 units
-    await query(`
-      UPDATE inventory 
-      SET stock_quantity = stock_quantity + 50.0,
-          updated_at = CURRENT_TIMESTAMP
-      WHERE vendor_id = ?
-    `, [vendor_id]);
-
-    // 3. Update MongoDB menu
-    try {
-      let mongoMenu = await MongoAdapter.findVendorMenu(vendor_id);
-      if (mongoMenu && mongoMenu.categories) {
-        for (const cat of mongoMenu.categories) {
-          for (const d of cat.dishes || []) {
-            d.is_available = true;
-            d.daily_stock = (Number(d.daily_stock) || 0) + 20;
-          }
-        }
-        await MongoAdapter.findOrSeedVendorMenus([mongoMenu]);
-      }
-    } catch (e) {
-      console.warn('Mongo menu sync on stock restore warning:', e);
-    }
-
-    // 4. Record Outbox Event
-    await outboxRelay.recordEvent(null, {
-      aggregate_type: 'VENDOR_STOCK',
-      aggregate_id: String(vendor_id),
-      event_type: 'STOCK_RESTORED_ALL',
-      payload: { vendor_id, addition: 20 }
-    });
-    outboxRelay.dispatchNow();
-
-    // 5. Fetch and return all updated dishes
+    // 2. Query updated dishes
     const updatedDishes = await query('SELECT * FROM dishes WHERE vendor_id = ? ORDER BY dish_id DESC', [vendor_id]);
-    return res.json({
+
+    // 3. Immediately respond with 200 OK so UI unlocks without waiting
+    res.json({
       success: true,
       message: '🎉 Daily stock restored! Added +20 portions to all your dishes and replenished raw inventory.',
       dishes: updatedDishes
     });
+
+    // 4. Background Async Sync: Update MongoDB menu document & dispatch Outbox Relay
+    setImmediate(async () => {
+      try {
+        outboxRelay.dispatchNow();
+        let mongoMenu = await MongoAdapter.findVendorMenu(vendor_id);
+        if (mongoMenu && mongoMenu.categories) {
+          for (const cat of mongoMenu.categories) {
+            for (const d of cat.dishes || []) {
+              d.is_available = true;
+              d.daily_stock = (Number(d.daily_stock) || 0) + 20;
+            }
+          }
+          await MongoAdapter.findOrSeedVendorMenus([mongoMenu]);
+        }
+      } catch (e) {
+        console.warn('Mongo menu sync on stock restore warning:', e);
+      }
+    });
+    return;
   } catch (err) {
     console.error('Daily stock restoration error:', err);
     return res.status(500).json({ success: false, message: 'Failed to restore daily stock.' });
@@ -313,66 +316,75 @@ router.post('/dishes', authenticateToken, requireRole('VENDOR'), async (req, res
     const stockVal = daily_stock !== undefined ? Number(daily_stock) : 20;
     const vegVal = (is_veg === 0 || is_veg === false || is_veg === '0') ? 0 : 1;
 
-    // 1. Insert into MySQL `dishes`
-    const result = await query(`
-      INSERT INTO dishes (vendor_id, name, category, base_price, daily_stock, is_available, is_veg, description, image_url)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `, [
-      vendor_id,
-      name,
-      category,
-      Number(base_price),
-      stockVal,
-      availVal,
-      vegVal,
-      description || 'Handcrafted fresh dish',
-      image_url || 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&w=600&q=80'
+    // 1. Parallelize primary MySQL insert & outbox event record
+    const [result] = await Promise.all([
+      query(`
+        INSERT INTO dishes (vendor_id, name, category, base_price, daily_stock, is_available, is_veg, description, image_url)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `, [
+        vendor_id,
+        name,
+        category,
+        Number(base_price),
+        stockVal,
+        availVal,
+        vegVal,
+        description || 'Handcrafted fresh dish',
+        image_url || 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&w=600&q=80'
+      ]),
+      outboxRelay.recordEvent(null, {
+        aggregate_type: 'DISH',
+        aggregate_id: name,
+        event_type: 'DISH_CREATED',
+        payload: { vendor_id, name, category, base_price, daily_stock: stockVal, is_available: availVal, is_veg: vegVal }
+      })
     ]);
 
     const dish_id = result.insertId;
 
-    // Record Outbox Event for MongoDB menu synchronization
-    await outboxRelay.recordEvent(null, {
-      aggregate_type: 'DISH',
-      aggregate_id: dish_id,
-      event_type: 'DISH_UPDATED',
-      payload: { vendor_id, dish_id, name }
+    // 2. Immediately respond with 200 OK to frontend (sub-10ms response)
+    res.json({ success: true, message: `Dish '${name}' added to menu successfully!`, dish_id });
+
+    // 3. Background Async Sync: sync to MongoDB `vendors_menus` asynchronously
+    setImmediate(async () => {
+      try {
+        outboxRelay.dispatchNow();
+        let mongoMenu = await MongoAdapter.findVendorMenu(vendor_id);
+        if (!mongoMenu) {
+          const vendorUser = await query('SELECT name FROM users WHERE user_id = ?', [vendor_id]);
+          mongoMenu = {
+            vendor_id,
+            business_name: vendorUser[0]?.name || 'Chef Kitchen',
+            cuisine_types: [category],
+            categories: []
+          };
+        }
+
+        let catObj = mongoMenu.categories?.find(c => c.category_name.toLowerCase() === category.toLowerCase());
+        if (!catObj) {
+          catObj = { category_name: category, dishes: [] };
+          if (!mongoMenu.categories) mongoMenu.categories = [];
+          mongoMenu.categories.push(catObj);
+        }
+
+        catObj.dishes.push({
+          dish_id,
+          name,
+          description: description || 'Handcrafted fresh dish',
+          price: Number(base_price),
+          image_url: image_url || 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&w=600&q=80',
+          is_available: availVal === 1,
+          is_veg: vegVal === 1,
+          dietary_tags: Array.isArray(dietary_tags) ? dietary_tags : [vegVal === 1 ? 'Vegetarian' : 'Fresh'],
+          customizations: []
+        });
+
+        await MongoAdapter.findOrSeedVendorMenus([mongoMenu]);
+      } catch (e) {
+        console.warn('Background Mongo menu add dish sync warning:', e);
+      }
     });
-    outboxRelay.dispatchNow();
-
-    // 2. Add to MongoDB `vendors_menus`
-    let mongoMenu = await MongoAdapter.findVendorMenu(vendor_id);
-    if (!mongoMenu) {
-      const vendorUser = await query('SELECT name FROM users WHERE user_id = ?', [vendor_id]);
-      mongoMenu = {
-        vendor_id,
-        business_name: vendorUser[0]?.name || 'Chef Kitchen',
-        cuisine_types: [category],
-        categories: []
-      };
-    }
-
-    let catObj = mongoMenu.categories?.find(c => c.category_name.toLowerCase() === category.toLowerCase());
-    if (!catObj) {
-      catObj = { category_name: category, dishes: [] };
-      if (!mongoMenu.categories) mongoMenu.categories = [];
-      mongoMenu.categories.push(catObj);
-    }
-
-    catObj.dishes.push({
-      dish_id,
-      name,
-      description: description || 'Handcrafted fresh dish',
-      price: Number(base_price),
-      image_url: image_url || 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&w=600&q=80',
-      is_available: availVal === 1,
-      dietary_tags: Array.isArray(dietary_tags) ? dietary_tags : ['Fresh'],
-      customizations: []
-    });
-
-    await MongoAdapter.findOrSeedVendorMenus([mongoMenu]);
-
-    return res.json({ success: true, message: `Dish '${name}' added to menu successfully!`, dish_id });
+    return;
   } catch (err) {
     console.error('Add dish error:', err);
     return res.status(500).json({ success: false, message: 'Failed to add dish.' });
@@ -405,114 +417,122 @@ router.put('/dishes/:id', authenticateToken, requireRole('VENDOR'), async (req, 
 
     const vegVal = is_veg !== undefined && is_veg !== null ? ((is_veg === 0 || is_veg === false || is_veg === '0') ? 0 : 1) : null;
 
-    // 1. Update MySQL `dishes`
-    await query(`
-      UPDATE dishes 
-      SET name = COALESCE(?, name),
-          category = COALESCE(?, category),
-          base_price = COALESCE(?, base_price),
-          daily_stock = COALESCE(?, daily_stock),
-          is_available = ?,
-          is_veg = COALESCE(?, is_veg),
-          out_of_stock_reason = ?,
-          description = COALESCE(?, description),
-          image_url = COALESCE(?, image_url)
-      WHERE dish_id = ? AND vendor_id = ?
-    `, [
-      name || null,
-      category || null,
-      base_price !== undefined && base_price !== '' ? Number(base_price) : null,
-      stockVal,
-      availVal,
-      vegVal,
-      defaultReason,
-      description !== undefined ? description : null,
-      image_url !== undefined && image_url !== null ? image_url : null,
-      dish_id,
-      vendor_id
+    // 1. Parallelize primary MySQL update & outbox record
+    await Promise.all([
+      query(`
+        UPDATE dishes 
+        SET name = COALESCE(?, name),
+            category = COALESCE(?, category),
+            base_price = COALESCE(?, base_price),
+            daily_stock = COALESCE(?, daily_stock),
+            is_available = ?,
+            is_veg = COALESCE(?, is_veg),
+            out_of_stock_reason = ?,
+            description = COALESCE(?, description),
+            image_url = COALESCE(?, image_url)
+        WHERE dish_id = ? AND vendor_id = ?
+      `, [
+        name || null,
+        category || null,
+        base_price !== undefined && base_price !== '' ? Number(base_price) : null,
+        stockVal,
+        availVal,
+        vegVal,
+        defaultReason,
+        description !== undefined ? description : null,
+        image_url !== undefined && image_url !== null ? image_url : null,
+        dish_id,
+        vendor_id
+      ]),
+      outboxRelay.recordEvent(null, {
+        aggregate_type: 'DISH',
+        aggregate_id: dish_id,
+        event_type: 'DISH_UPDATED',
+        payload: { vendor_id, dish_id, daily_stock: stockVal, is_available: availVal }
+      })
     ]);
 
-    // Record Outbox Event for MongoDB menu synchronization
-    await outboxRelay.recordEvent(null, {
-      aggregate_type: 'DISH',
-      aggregate_id: dish_id,
-      event_type: 'DISH_UPDATED',
-      payload: { vendor_id, dish_id, daily_stock: stockVal, is_available: availVal }
-    });
-    outboxRelay.dispatchNow();
-
-    // 2. Update MongoDB `vendors_menus`
-    let mongoMenu = await MongoAdapter.findVendorMenu(vendor_id);
-    if (!mongoMenu) {
-      const vendorUser = await query('SELECT name FROM users WHERE user_id = ?', [vendor_id]);
-      mongoMenu = {
-        vendor_id,
-        business_name: vendorUser[0]?.name || 'Chef Kitchen',
-        cuisine_types: [category || 'Main Menu'],
-        categories: []
-      };
-    }
-
-    let targetDish = null;
-    let targetCatObj = null;
-
-    for (const cat of mongoMenu.categories || []) {
-      const found = (cat.dishes || []).find(d => Number(d.dish_id) === Number(dish_id) || (name && d.name.toLowerCase() === name.toLowerCase()));
-      if (found) {
-        targetDish = found;
-        targetCatObj = cat;
-        break;
-      }
-    }
-
-    if (!targetDish) {
-      const targetCatName = category || 'Main Menu';
-      targetCatObj = (mongoMenu.categories || []).find(c => c.category_name.toLowerCase() === targetCatName.toLowerCase());
-      if (!targetCatObj) {
-        targetCatObj = { category_name: targetCatName, dishes: [] };
-        if (!mongoMenu.categories) mongoMenu.categories = [];
-        mongoMenu.categories.push(targetCatObj);
-      }
-      targetDish = {
-        dish_id: Number(dish_id),
-        name: name || 'Dish',
-        price: Number(base_price || 0),
-        daily_stock: stockVal !== null ? stockVal : 20,
-        is_available: availVal === 1,
-        dietary_tags: Array.isArray(dietary_tags) ? dietary_tags : ['Fresh']
-      };
-      targetCatObj.dishes.push(targetDish);
-    }
-
-    if (name) targetDish.name = name;
-    if (description !== undefined) targetDish.description = description;
-    if (base_price !== undefined) targetDish.price = Number(base_price);
-    if (image_url !== undefined && image_url !== null) targetDish.image_url = image_url;
-    targetDish.is_available = availVal === 1;
-    if (stockVal !== null) targetDish.daily_stock = stockVal;
-    if (dietary_tags && Array.isArray(dietary_tags)) targetDish.dietary_tags = dietary_tags;
-    if (is_veg !== undefined) {
-      targetDish.is_veg = (is_veg === 1 || is_veg === true || is_veg === '1');
-      if (targetDish.is_veg) {
-        if (!targetDish.dietary_tags) targetDish.dietary_tags = [];
-        if (!targetDish.dietary_tags.includes('Vegetarian')) targetDish.dietary_tags.push('Vegetarian');
-        targetDish.dietary_tags = targetDish.dietary_tags.filter(t => t !== 'Non-Vegetarian');
-      } else {
-        if (!targetDish.dietary_tags) targetDish.dietary_tags = [];
-        if (!targetDish.dietary_tags.includes('Non-Vegetarian')) targetDish.dietary_tags.push('Non-Vegetarian');
-        targetDish.dietary_tags = targetDish.dietary_tags.filter(t => t !== 'Vegetarian');
-      }
-    }
-
-    await MongoAdapter.findOrSeedVendorMenus([mongoMenu]);
-
-    return res.json({ 
+    // 2. Immediately respond 200 OK so UI unlocks without waiting for MongoDB
+    res.json({ 
       success: true, 
       message: `Dish #${dish_id} updated successfully!`, 
       dish_id: Number(dish_id),
       daily_stock: stockVal,
       is_available: availVal === 1 
     });
+
+    // 3. Background Async Sync: Update MongoDB `vendors_menus` asynchronously
+    setImmediate(async () => {
+      try {
+        outboxRelay.dispatchNow();
+        let mongoMenu = await MongoAdapter.findVendorMenu(vendor_id);
+        if (!mongoMenu) {
+          const vendorUser = await query('SELECT name FROM users WHERE user_id = ?', [vendor_id]);
+          mongoMenu = {
+            vendor_id,
+            business_name: vendorUser[0]?.name || 'Chef Kitchen',
+            cuisine_types: [category || 'Main Menu'],
+            categories: []
+          };
+        }
+
+        let targetDish = null;
+        let targetCatObj = null;
+
+        for (const cat of mongoMenu.categories || []) {
+          const found = (cat.dishes || []).find(d => Number(d.dish_id) === Number(dish_id) || (name && d.name.toLowerCase() === name.toLowerCase()));
+          if (found) {
+            targetDish = found;
+            targetCatObj = cat;
+            break;
+          }
+        }
+
+        if (!targetDish) {
+          const targetCatName = category || 'Main Menu';
+          targetCatObj = (mongoMenu.categories || []).find(c => c.category_name.toLowerCase() === targetCatName.toLowerCase());
+          if (!targetCatObj) {
+            targetCatObj = { category_name: targetCatName, dishes: [] };
+            if (!mongoMenu.categories) mongoMenu.categories = [];
+            mongoMenu.categories.push(targetCatObj);
+          }
+          targetDish = {
+            dish_id: Number(dish_id),
+            name: name || 'Dish',
+            price: Number(base_price || 0),
+            daily_stock: stockVal !== null ? stockVal : 20,
+            is_available: availVal === 1,
+            dietary_tags: Array.isArray(dietary_tags) ? dietary_tags : ['Fresh']
+          };
+          targetCatObj.dishes.push(targetDish);
+        }
+
+        if (name) targetDish.name = name;
+        if (description !== undefined) targetDish.description = description;
+        if (base_price !== undefined) targetDish.price = Number(base_price);
+        if (image_url !== undefined && image_url !== null) targetDish.image_url = image_url;
+        targetDish.is_available = availVal === 1;
+        if (stockVal !== null) targetDish.daily_stock = stockVal;
+        if (dietary_tags && Array.isArray(dietary_tags)) targetDish.dietary_tags = dietary_tags;
+        if (is_veg !== undefined) {
+          targetDish.is_veg = (is_veg === 1 || is_veg === true || is_veg === '1');
+          if (targetDish.is_veg) {
+            if (!targetDish.dietary_tags) targetDish.dietary_tags = [];
+            if (!targetDish.dietary_tags.includes('Vegetarian')) targetDish.dietary_tags.push('Vegetarian');
+            targetDish.dietary_tags = targetDish.dietary_tags.filter(t => t !== 'Non-Vegetarian');
+          } else {
+            if (!targetDish.dietary_tags) targetDish.dietary_tags = [];
+            if (!targetDish.dietary_tags.includes('Non-Vegetarian')) targetDish.dietary_tags.push('Non-Vegetarian');
+            targetDish.dietary_tags = targetDish.dietary_tags.filter(t => t !== 'Vegetarian');
+          }
+        }
+
+        await MongoAdapter.findOrSeedVendorMenus([mongoMenu]);
+      } catch (bgErr) {
+        console.warn('[Background Mongo Menu Update Warning]', bgErr.message);
+      }
+    });
+    return;
   } catch (err) {
     console.error('Update dish error:', err);
     return res.status(500).json({ success: false, message: 'Failed to update dish.' });
@@ -541,31 +561,19 @@ router.patch('/dishes/:id/stock', authenticateToken, requireRole('VENDOR'), asyn
     const newAvail = newStock > 0 ? 1 : 0;
     const newReason = newAvail === 1 ? 'In Stock' : 'Daily portions fully exhausted (0 remaining)';
 
-    await query('UPDATE dishes SET is_available = ?, daily_stock = ?, out_of_stock_reason = ? WHERE dish_id = ? AND vendor_id = ?', [newAvail, newStock, newReason, dish_id, vendor_id]);
+    // 1. Parallelize primary MySQL update & outbox recording
+    await Promise.all([
+      query('UPDATE dishes SET is_available = ?, daily_stock = ?, out_of_stock_reason = ? WHERE dish_id = ? AND vendor_id = ?', [newAvail, newStock, newReason, dish_id, vendor_id]),
+      outboxRelay.recordEvent(null, {
+        aggregate_type: 'DISH',
+        aggregate_id: dish_id,
+        event_type: 'DISH_STOCK_UPDATED',
+        payload: { vendor_id, dish_id, daily_stock: newStock, is_available: newAvail }
+      })
+    ]);
 
-    await outboxRelay.recordEvent(null, {
-      aggregate_type: 'DISH',
-      aggregate_id: dish_id,
-      event_type: 'DISH_STOCK_UPDATED',
-      payload: { vendor_id, dish_id, daily_stock: newStock, is_available: newAvail }
-    });
-    outboxRelay.dispatchNow();
-
-    const mongoMenu = await MongoAdapter.findVendorMenu(vendor_id);
-    if (mongoMenu && mongoMenu.categories) {
-      for (const cat of mongoMenu.categories) {
-        if (cat.dishes) {
-          const targetDish = cat.dishes.find(d => Number(d.dish_id) === Number(dish_id));
-          if (targetDish) {
-            targetDish.is_available = newAvail === 1;
-            targetDish.daily_stock = newStock;
-          }
-        }
-      }
-      await MongoAdapter.findOrSeedVendorMenus([mongoMenu]);
-    }
-
-    return res.json({
+    // 2. Immediately respond with 200 OK to frontend (instant UI unlock)
+    res.json({
       success: true,
       dish_id: Number(dish_id),
       daily_stock: newStock,
@@ -573,6 +581,29 @@ router.patch('/dishes/:id/stock', authenticateToken, requireRole('VENDOR'), asyn
       out_of_stock_reason: newReason,
       message: `Stock updated to ${newStock} portions (${newAvail === 1 ? 'In Stock' : 'Out of Stock'}).`
     });
+
+    // 3. Asynchronously sync MongoDB & dispatch outbox relay in background
+    setImmediate(async () => {
+      try {
+        outboxRelay.dispatchNow();
+        const mongoMenu = await MongoAdapter.findVendorMenu(vendor_id);
+        if (mongoMenu && mongoMenu.categories) {
+          for (const cat of mongoMenu.categories) {
+            if (cat.dishes) {
+              const targetDish = cat.dishes.find(d => Number(d.dish_id) === Number(dish_id));
+              if (targetDish) {
+                targetDish.is_available = newAvail === 1;
+                targetDish.daily_stock = newStock;
+              }
+            }
+          }
+          await MongoAdapter.findOrSeedVendorMenus([mongoMenu]);
+        }
+      } catch (bgErr) {
+        console.warn('[Background Mongo Stock Sync Warning]', bgErr.message);
+      }
+    });
+    return;
   } catch (err) {
     console.error('Adjust stock error:', err);
     return res.status(500).json({ success: false, message: 'Failed to adjust stock.' });
@@ -599,30 +630,19 @@ router.patch('/dishes/:id/toggle-stock', authenticateToken, requireRole('VENDOR'
 
     const newReason = newAvail === 1 ? 'In Stock' : (out_of_stock_reason || 'Kitchen prep closed for today');
 
-    await query('UPDATE dishes SET is_available = ?, daily_stock = ?, out_of_stock_reason = ? WHERE dish_id = ? AND vendor_id = ?', [newAvail, newDailyStock, newReason, dish_id, vendor_id]);
+    // 1. Parallelize primary MySQL update & outbox recording
+    await Promise.all([
+      query('UPDATE dishes SET is_available = ?, daily_stock = ?, out_of_stock_reason = ? WHERE dish_id = ? AND vendor_id = ?', [newAvail, newDailyStock, newReason, dish_id, vendor_id]),
+      outboxRelay.recordEvent(null, {
+        aggregate_type: 'DISH',
+        aggregate_id: dish_id,
+        event_type: 'DISH_STOCK_UPDATED',
+        payload: { vendor_id, dish_id, daily_stock: newDailyStock, is_available: newAvail }
+      })
+    ]);
 
-    await outboxRelay.recordEvent(null, {
-      aggregate_type: 'DISH',
-      aggregate_id: dish_id,
-      event_type: 'DISH_STOCK_UPDATED',
-      payload: { vendor_id, dish_id, daily_stock: newDailyStock, is_available: newAvail }
-    });
-    outboxRelay.dispatchNow();
-
-    const mongoMenu = await MongoAdapter.findVendorMenu(vendor_id);
-    if (mongoMenu && mongoMenu.categories) {
-      for (const cat of mongoMenu.categories) {
-        if (cat.dishes) {
-          const targetDish = cat.dishes.find(d => Number(d.dish_id) === Number(dish_id));
-          if (targetDish) {
-            targetDish.is_available = newAvail === 1;
-          }
-        }
-      }
-      await MongoAdapter.findOrSeedVendorMenus([mongoMenu]);
-    }
-
-    return res.json({ 
+    // 2. Immediately return 200 OK to frontend (sub-10ms response)
+    res.json({ 
       success: true, 
       dish_id: Number(dish_id), 
       is_available: newAvail === 1, 
@@ -630,6 +650,28 @@ router.patch('/dishes/:id/toggle-stock', authenticateToken, requireRole('VENDOR'
       out_of_stock_reason: newReason, 
       message: `Stock status updated to ${newAvail === 1 ? 'In Stock' : 'Out of Stock'}.` 
     });
+
+    // 3. Asynchronously sync MongoDB & dispatch outbox in background
+    setImmediate(async () => {
+      try {
+        outboxRelay.dispatchNow();
+        const mongoMenu = await MongoAdapter.findVendorMenu(vendor_id);
+        if (mongoMenu && mongoMenu.categories) {
+          for (const cat of mongoMenu.categories) {
+            if (cat.dishes) {
+              const targetDish = cat.dishes.find(d => Number(d.dish_id) === Number(dish_id));
+              if (targetDish) {
+                targetDish.is_available = newAvail === 1;
+              }
+            }
+          }
+          await MongoAdapter.findOrSeedVendorMenus([mongoMenu]);
+        }
+      } catch (bgErr) {
+        console.warn('[Background Mongo Toggle Stock Warning]', bgErr.message);
+      }
+    });
+    return;
   } catch (err) {
     console.error('Toggle stock error:', err);
     return res.status(500).json({ success: false, message: 'Failed to toggle stock status.' });
@@ -642,17 +684,36 @@ router.delete('/dishes/:id', authenticateToken, requireRole('VENDOR'), async (re
     const dish_id = req.params.id;
     const vendor_id = req.user.user_id;
 
-    await query('DELETE FROM dishes WHERE dish_id = ? AND vendor_id = ?', [dish_id, vendor_id]);
+    // 1. Parallelize MySQL delete & outbox record
+    await Promise.all([
+      query('DELETE FROM dishes WHERE dish_id = ? AND vendor_id = ?', [dish_id, vendor_id]),
+      outboxRelay.recordEvent(null, {
+        aggregate_type: 'DISH',
+        aggregate_id: dish_id,
+        event_type: 'DISH_DELETED',
+        payload: { vendor_id, dish_id }
+      })
+    ]);
 
-    const mongoMenu = await MongoAdapter.findVendorMenu(vendor_id);
-    if (mongoMenu && mongoMenu.categories) {
-      for (const cat of mongoMenu.categories) {
-        cat.dishes = cat.dishes.filter(d => d.dish_id !== Number(dish_id));
+    // 2. Immediately respond 200 OK so UI unlocks without waiting
+    res.json({ success: true, message: `Dish #${dish_id} removed successfully.` });
+
+    // 3. Asynchronously sync MongoDB & dispatch outbox in background
+    setImmediate(async () => {
+      try {
+        outboxRelay.dispatchNow();
+        const mongoMenu = await MongoAdapter.findVendorMenu(vendor_id);
+        if (mongoMenu && mongoMenu.categories) {
+          for (const cat of mongoMenu.categories) {
+            cat.dishes = cat.dishes.filter(d => d.dish_id !== Number(dish_id));
+          }
+          await MongoAdapter.findOrSeedVendorMenus([mongoMenu]);
+        }
+      } catch (bgErr) {
+        console.warn('[Background Mongo Delete Dish Warning]', bgErr.message);
       }
-      await MongoAdapter.findOrSeedVendorMenus([mongoMenu]);
-    }
-
-    return res.json({ success: true, message: `Dish #${dish_id} removed successfully.` });
+    });
+    return;
   } catch (err) {
     console.error('Delete dish error:', err);
     return res.status(500).json({ success: false, message: 'Failed to delete dish.' });
@@ -960,7 +1021,7 @@ router.put('/profile', authenticateToken, requireRole('VENDOR'), async (req, res
     const lat = latitude !== undefined && latitude !== null && latitude !== '' ? Number(latitude) : null;
     const lng = longitude !== undefined && longitude !== null && longitude !== '' ? Number(longitude) : null;
 
-    // Update MySQL users table with all details
+    // 1. Update MySQL users table with all details
     await query(`
       UPDATE users 
       SET name = COALESCE(?, name),
@@ -990,23 +1051,7 @@ router.put('/profile', authenticateToken, requireRole('VENDOR'), async (req, res
       vendor_id
     ]);
 
-    // Update Mongo VendorMenu document
-    const mongoMenu = await MongoAdapter.findVendorMenu(vendor_id) || { vendor_id, categories: [] };
-    if (business_name) mongoMenu.business_name = business_name.trim();
-    else if (name) mongoMenu.business_name = name.trim();
-
-    if (chef_bio !== undefined) mongoMenu.chef_bio = chef_bio;
-    if (avatar_url) mongoMenu.hero_image_url = avatar_url.trim();
-    if (operating_hours) mongoMenu.operating_hours = operating_hours;
-    if (open_time) mongoMenu.open_time = open_time;
-    if (close_time) mongoMenu.close_time = close_time;
-    if (primary_address) mongoMenu.primary_address = primary_address;
-    if (lat) mongoMenu.latitude = lat;
-    if (lng) mongoMenu.longitude = lng;
-
-    await MongoAdapter.findOrSeedVendorMenus([mongoMenu]);
-
-    // Query refreshed user record
+    // 2. Query refreshed user record from MySQL
     const userRows = await query(`
       SELECT user_id, name, email, phone, role, primary_address, latitude, longitude, avatar_url, status,
              business_name, chef_bio, operating_hours, open_time, close_time, is_open, closed_reason
@@ -1014,7 +1059,7 @@ router.put('/profile', authenticateToken, requireRole('VENDOR'), async (req, res
     `, [vendor_id]);
     const updatedUser = userRows[0];
 
-    // Generate refreshed token
+    // 3. Generate refreshed token
     const tokenPayload = {
       user_id: updatedUser.user_id,
       name: updatedUser.name,
@@ -1031,17 +1076,18 @@ router.put('/profile', authenticateToken, requireRole('VENDOR'), async (req, res
       primary_address: updatedUser.primary_address,
       latitude: updatedUser.latitude ? Number(updatedUser.latitude) : 12.9716,
       longitude: updatedUser.longitude ? Number(updatedUser.longitude) : 77.5946,
-      avatar_url: updatedUser.avatar_url || mongoMenu?.hero_image_url,
-      business_name: updatedUser.business_name || mongoMenu?.business_name || updatedUser.name,
-      chef_bio: updatedUser.chef_bio || mongoMenu?.chef_bio,
-      operating_hours: updatedUser.operating_hours || mongoMenu?.operating_hours,
-      open_time: updatedUser.open_time || mongoMenu?.open_time,
-      close_time: updatedUser.close_time || mongoMenu?.close_time,
-      is_open: updatedUser.is_open !== undefined && updatedUser.is_open !== null ? Boolean(updatedUser.is_open) : (mongoMenu?.is_open !== undefined ? mongoMenu.is_open : true),
-      closed_reason: updatedUser.closed_reason || mongoMenu?.closed_reason || null
+      avatar_url: updatedUser.avatar_url || avatar_url || null,
+      business_name: updatedUser.business_name || business_name || updatedUser.name,
+      chef_bio: updatedUser.chef_bio || chef_bio,
+      operating_hours: updatedUser.operating_hours || operating_hours,
+      open_time: updatedUser.open_time || open_time,
+      close_time: updatedUser.close_time || close_time,
+      is_open: updatedUser.is_open !== undefined && updatedUser.is_open !== null ? Boolean(updatedUser.is_open) : true,
+      closed_reason: updatedUser.closed_reason || null
     };
 
-    return res.json({
+    // 4. Respond immediately to unlock frontend UI
+    res.json({
       success: true,
       message: 'Chef profile, location and avatar updated successfully!',
       user: {
@@ -1052,6 +1098,29 @@ router.put('/profile', authenticateToken, requireRole('VENDOR'), async (req, res
       token,
       profile: completeProfile
     });
+
+    // 5. Asynchronously sync Mongo VendorMenu document in background
+    setImmediate(async () => {
+      try {
+        const mongoMenu = await MongoAdapter.findVendorMenu(vendor_id) || { vendor_id, categories: [] };
+        if (business_name) mongoMenu.business_name = business_name.trim();
+        else if (name) mongoMenu.business_name = name.trim();
+
+        if (chef_bio !== undefined) mongoMenu.chef_bio = chef_bio;
+        if (avatar_url) mongoMenu.hero_image_url = avatar_url.trim();
+        if (operating_hours) mongoMenu.operating_hours = operating_hours;
+        if (open_time) mongoMenu.open_time = open_time;
+        if (close_time) mongoMenu.close_time = close_time;
+        if (primary_address) mongoMenu.primary_address = primary_address;
+        if (lat) mongoMenu.latitude = lat;
+        if (lng) mongoMenu.longitude = lng;
+
+        await MongoAdapter.findOrSeedVendorMenus([mongoMenu]);
+      } catch (bgErr) {
+        console.warn('[Background Mongo Profile Sync Warning]', bgErr.message);
+      }
+    });
+    return;
   } catch (err) {
     console.error('Update vendor profile error:', err);
     return res.status(500).json({ success: false, message: 'Failed to update chef profile.' });
@@ -1231,15 +1300,24 @@ router.post('/password/change', authenticateToken, requireRole('VENDOR'), async 
       WHERE user_id = ?
     `, [hashed, new_password, vendor_id]);
 
-    await MongoAdapter.addAuditLog(vendor_id, 'CHEF_PASSWORD_CHANGED', {
-      method,
-      updated_at: new Date()
-    });
-
-    return res.json({
+    // Respond immediately to unlock frontend UI
+    res.json({
       success: true,
       message: 'Password changed successfully! You can now use your new password.'
     });
+
+    // Record audit log asynchronously in background
+    setImmediate(async () => {
+      try {
+        await MongoAdapter.addAuditLog(vendor_id, 'CHEF_PASSWORD_CHANGED', {
+          method,
+          updated_at: new Date()
+        });
+      } catch (bgErr) {
+        console.warn('[Background Chef Password Audit Warning]', bgErr.message);
+      }
+    });
+    return;
   } catch (err) {
     console.error('Change password error:', err);
     return res.status(500).json({ success: false, message: 'Failed to update password.' });
