@@ -150,8 +150,8 @@ class OutboxRelayService {
         eventBroker.publish(`order_${orderId}`, 'ORDER_STATUS_CHANGED', { order_id: orderId, ...payload });
         eventBroker.publish('global', 'ORDER_STATUS_CHANGED', { order_id: orderId, ...payload });
 
-        // If meal is ready, alert delivery rider pool
-        if (payload.new_status === 'KITCHEN_READY' || payload.new_status === 'READY') {
+        // If meal is ready, alert delivery rider pool (ONLY for courier delivery orders, NOT takeaway)
+        if ((payload.new_status === 'KITCHEN_READY' || payload.new_status === 'READY') && payload.order_type !== 'TAKEAWAY') {
           eventBroker.publish('rider', 'JOB_AVAILABLE', { order_id: orderId, status: 'READY', ...payload });
         }
         break;

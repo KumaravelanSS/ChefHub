@@ -334,7 +334,7 @@ export default function RiderSite({ user, onLogin }) {
       });
       const data = await res.json();
       if (data.success) {
-        const fetchedJobs = data.jobs || [];
+        const fetchedJobs = (data.jobs || []).filter(j => j.order_type !== 'TAKEAWAY');
         setJobs(fetchedJobs);
 
         // Detect newly ready delivery jobs to pop up sideways toast if shift is ONLINE

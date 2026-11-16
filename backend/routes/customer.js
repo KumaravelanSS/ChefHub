@@ -445,8 +445,9 @@ router.post('/wallet/topup', authenticateToken, requireRole(['CUSTOMER', 'VENDOR
 // Create New Order
 router.post('/orders', checkoutLimiter, authenticateToken, requireRole(['CUSTOMER', 'VENDOR', 'RIDER', 'ADMIN']), async (req, res) => {
   try {
-    const { vendor_id, items, coupon_code, delivery_address, payment_method } = req.body;
+    const { vendor_id, items, coupon_code, delivery_address, payment_method, order_type } = req.body;
     const customer_id = req.user.user_id;
+    const cleanOrderType = (String(order_type || '').toUpperCase() === 'TAKEAWAY' || String(order_type || '').toUpperCase() === 'PICKUP') ? 'TAKEAWAY' : 'DELIVERY';
 
     if (!vendor_id || !items || !Array.isArray(items) || items.length === 0) {
       return res.status(400).json({ success: false, message: 'Vendor ID and non-empty items array are required.' });
@@ -455,8 +456,12 @@ router.post('/orders', checkoutLimiter, authenticateToken, requireRole(['CUSTOME
     // Retrieve user profile primary address if none provided in payload
     let resolvedAddress = delivery_address;
     if (!resolvedAddress) {
-      const userProfile = await query('SELECT primary_address FROM users WHERE user_id = ?', [customer_id]);
-      resolvedAddress = userProfile[0]?.primary_address || '124 Gourmet Boulevard, Suite 4B, Foodie City';
+      if (cleanOrderType === 'TAKEAWAY') {
+        resolvedAddress = 'Chef Kitchen Counter (Self-Pickup)';
+      } else {
+        const userProfile = await query('SELECT primary_address FROM users WHERE user_id = ?', [customer_id]);
+        resolvedAddress = userProfile[0]?.primary_address || '124 Gourmet Boulevard, Suite 4B, Foodie City';
+      }
     }
 
     // Check store open status before placing order
@@ -617,11 +622,11 @@ router.post('/orders', checkoutLimiter, authenticateToken, requireRole(['CUSTOME
         }
       }
 
-      // 3. Insert Master Order record into `orders` (with delivery_address, coupon_code, discount_amount, payment_method)
+      // 3. Insert Master Order record into `orders` (with delivery_address, coupon_code, discount_amount, payment_method, order_type)
       const orderRes = await txQuery(
-        `INSERT INTO orders (customer_id, vendor_id, total_amount, escrow_status, payment_status, status, delivery_address, coupon_code, discount_amount, payment_method)
-         VALUES (?, ?, ?, 'HOLDING', 'PAID', 'PLACED', ?, ?, ?, ?)`,
-        [customer_id, vendor_id, totalAmount, resolvedAddress, appliedCouponCode, discountAmount, methodLabel]
+        `INSERT INTO orders (customer_id, vendor_id, total_amount, escrow_status, payment_status, status, delivery_address, coupon_code, discount_amount, payment_method, order_type)
+         VALUES (?, ?, ?, 'HOLDING', 'PAID', 'PLACED', ?, ?, ?, ?, ?)`,
+        [customer_id, vendor_id, totalAmount, resolvedAddress, appliedCouponCode, discountAmount, methodLabel, cleanOrderType]
       );
       const order_id = orderRes.insertId;
 
@@ -669,7 +674,7 @@ router.post('/orders', checkoutLimiter, authenticateToken, requireRole(['CUSTOME
       }
 
       // 6. Create Escrow Payout ledger entry inside the same atomic transaction
-      const payout = await PayoutService.createOrderPayout(order_id, vendor_id, null, totalAmount, txQuery);
+      const payout = await PayoutService.createOrderPayout(order_id, vendor_id, null, totalAmount, txQuery, cleanOrderType);
 
       // 7. Record Outbox Event in SQL inside the exact same atomic transaction
       // Guarantees that the event is durably recorded in SQL if and only if the order commits
@@ -682,8 +687,11 @@ router.post('/orders', checkoutLimiter, authenticateToken, requireRole(['CUSTOME
           customer_id,
           vendor_id,
           total_amount: totalAmount,
+          order_type: cleanOrderType,
           timestamp: new Date().toISOString(),
-          location_note: 'Order submitted and escrow payment secured'
+          location_note: cleanOrderType === 'TAKEAWAY'
+            ? 'Takeaway order submitted - customer will self-pickup from kitchen counter'
+            : 'Order submitted and escrow payment secured'
         }
       });
 
@@ -700,13 +708,16 @@ router.post('/orders', checkoutLimiter, authenticateToken, requireRole(['CUSTOME
     // 1. Immediately return 200 OK to frontend to unlock UI instantly
     res.json({
       success: true,
-      message: 'Order placed successfully! Inventory updated and escrow secured.',
+      message: cleanOrderType === 'TAKEAWAY' 
+        ? 'Takeaway order placed successfully! Chef has received your order for preparation.'
+        : 'Order placed successfully! Inventory updated and escrow secured.',
       order: {
         order_id,
         customer_id,
         vendor_id,
         total_amount: totalAmount,
         status: 'PLACED',
+        order_type: cleanOrderType,
         payout,
         stock_deductions: stockDeductions
       }
@@ -902,26 +913,39 @@ router.get('/my-orders', authenticateToken, requireRole(['CUSTOMER', 'VENDOR', '
         if (['READY', 'OUT_FOR_DELIVERY', 'DELIVERED'].includes(o.status) && !hasEv(['KITCHEN_READY', 'READY', 'READY_FOR_PICKUP'])) {
           timeline.push({ 
             event: 'KITCHEN_READY', 
-            location_note: 'Meal packed & waiting for delivery pickup', 
+            location_note: o.order_type === 'TAKEAWAY'
+              ? 'Meal packed & ready for takeaway pickup at the chef kitchen counter'
+              : 'Meal packed & waiting for delivery pickup', 
             timestamp: o.ready_at || o.prepared_at || o.timestamp || new Date(), 
             actor_role: 'VENDOR' 
           });
         }
-        if (['OUT_FOR_DELIVERY', 'DELIVERED'].includes(o.status) && !hasEv(['RIDER_ACCEPTED', 'OUT_FOR_DELIVERY'])) {
-          timeline.push({ 
-            event: 'RIDER_ACCEPTED', 
-            location_note: 'Courier picked up order and is en route', 
-            timestamp: o.dispatched_at || o.ready_at || o.timestamp || new Date(), 
-            actor_role: 'RIDER' 
-          });
-        }
-        if (o.status === 'DELIVERED' && !hasEv(['DELIVERED'])) {
-          timeline.push({ 
-            event: 'DELIVERED', 
-            location_note: 'Order delivered successfully to your doorstep', 
-            timestamp: o.delivered_at || o.dispatched_at || o.timestamp || new Date(), 
-            actor_role: 'RIDER' 
-          });
+        if (o.order_type !== 'TAKEAWAY') {
+          if (['OUT_FOR_DELIVERY', 'DELIVERED'].includes(o.status) && !hasEv(['RIDER_ACCEPTED', 'OUT_FOR_DELIVERY'])) {
+            timeline.push({ 
+              event: 'RIDER_ACCEPTED', 
+              location_note: 'Courier picked up order and is en route', 
+              timestamp: o.dispatched_at || o.ready_at || o.timestamp || new Date(), 
+              actor_role: 'RIDER' 
+            });
+          }
+          if (o.status === 'DELIVERED' && !hasEv(['DELIVERED'])) {
+            timeline.push({ 
+              event: 'DELIVERED', 
+              location_note: 'Order delivered successfully to your doorstep', 
+              timestamp: o.delivered_at || o.dispatched_at || o.timestamp || new Date(), 
+              actor_role: 'RIDER' 
+            });
+          }
+        } else {
+          if (o.status === 'DELIVERED' && !hasEv(['DELIVERED'])) {
+            timeline.push({ 
+              event: 'DELIVERED', 
+              location_note: 'Takeaway collected successfully by customer from kitchen counter', 
+              timestamp: o.delivered_at || o.ready_at || o.timestamp || new Date(), 
+              actor_role: 'CUSTOMER' 
+            });
+          }
         }
       }
 

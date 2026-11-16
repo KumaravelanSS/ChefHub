@@ -67,17 +67,24 @@ router.get('/orders', authenticateToken, requireRole('VENDOR'), async (req, res)
   }
 });
 
-// Update Order Status (PREPARING, READY, CANCELLED)
+// Update Order Status (PREPARING, READY, DELIVERED, CANCELLED)
 router.patch('/orders/:id/status', authenticateToken, requireRole('VENDOR'), async (req, res) => {
   try {
     const order_id = req.params.id;
     const { status, cancel_reason } = req.body;
     const vendor_id = req.user.user_id;
 
-    const validStatuses = ['PREPARING', 'READY', 'CANCELLED'];
+    const validStatuses = ['PREPARING', 'READY', 'DELIVERED', 'CANCELLED'];
     if (!validStatuses.includes(status)) {
       return res.status(400).json({ success: false, message: `Invalid vendor status. Allowed: ${validStatuses.join(', ')}` });
     }
+
+    const orderRows = await query('SELECT order_id, order_type FROM orders WHERE order_id = ? AND vendor_id = ?', [order_id, vendor_id]);
+    if (!orderRows || orderRows.length === 0) {
+      return res.status(404).json({ success: false, message: 'Order not found.' });
+    }
+    const currentOrder = orderRows[0];
+    const isTakeaway = currentOrder.order_type === 'TAKEAWAY';
 
     if (status === 'CANCELLED') {
       const reasonText = cancel_reason || 'Chef could not fulfill order at this time.';
@@ -160,10 +167,22 @@ router.patch('/orders/:id/status', authenticateToken, requireRole('VENDOR'), asy
       timeColUpdate = ', prepared_at = COALESCE(prepared_at, CURRENT_TIMESTAMP)';
     } else if (status === 'READY') {
       timeColUpdate = ', ready_at = COALESCE(ready_at, CURRENT_TIMESTAMP), prepared_at = COALESCE(prepared_at, CURRENT_TIMESTAMP)';
+    } else if (status === 'DELIVERED') {
+      timeColUpdate = ', delivered_at = COALESCE(delivered_at, CURRENT_TIMESTAMP), ready_at = COALESCE(ready_at, CURRENT_TIMESTAMP), prepared_at = COALESCE(prepared_at, CURRENT_TIMESTAMP)';
     }
 
-    // 1. Parallelize primary database update and outbox record
-    await Promise.all([
+    let statusNote = '';
+    if (isTakeaway) {
+      if (status === 'PREPARING') statusNote = 'Chef started preparing your takeaway meal';
+      else if (status === 'READY') statusNote = 'Takeaway meal packed & ready for customer pickup at kitchen counter';
+      else if (status === 'DELIVERED') statusNote = 'Takeaway collected by customer from kitchen counter. Escrow disbursed!';
+    } else {
+      if (status === 'PREPARING') statusNote = 'Chef started preparing your meal';
+      else if (status === 'READY') statusNote = 'Meal is packed & ready for driver pickup';
+      else if (status === 'DELIVERED') statusNote = 'Meal delivered safely. Escrow disbursed!';
+    }
+
+    const parallelWrites = [
       query(`
         UPDATE orders SET status = ? ${timeColUpdate}, updated_at = CURRENT_TIMESTAMP 
         WHERE order_id = ? AND vendor_id = ?
@@ -173,12 +192,26 @@ router.patch('/orders/:id/status', authenticateToken, requireRole('VENDOR'), asy
         aggregate_id: order_id,
         event_type: 'ORDER_STATUS_CHANGED',
         payload: {
-          new_status: `KITCHEN_${status}`,
+          new_status: status === 'DELIVERED' ? 'DELIVERED' : `KITCHEN_${status}`,
+          order_type: currentOrder.order_type,
           actor_role: 'VENDOR',
-          note: status === 'PREPARING' ? 'Chef started preparing your meal' : 'Meal is packed & ready for pickup'
+          note: statusNote
         }
       })
-    ]);
+    ];
+
+    if (status === 'DELIVERED') {
+      parallelWrites.push(
+        query(`
+          UPDATE payouts 
+          SET payout_status = 'PROCESSED', executed_at = CURRENT_TIMESTAMP
+          WHERE order_id = ?
+        `, [order_id])
+      );
+    }
+
+    // 1. Parallelize primary database update, payout update & outbox record
+    await Promise.all(parallelWrites);
 
     // 2. Immediately respond 200 OK to frontend (sub-30ms response time)
     res.json({ success: true, message: `Order #${order_id} marked as ${status}.` });
@@ -188,9 +221,9 @@ router.patch('/orders/:id/status', authenticateToken, requireRole('VENDOR'), asy
       try {
         outboxRelay.dispatchNow();
         await MongoAdapter.pushTrackingLog(order_id, {
-          event: `KITCHEN_${status}`,
+          event: status === 'DELIVERED' ? 'DELIVERED' : `KITCHEN_${status}`,
           timestamp: new Date(),
-          location_note: status === 'PREPARING' ? 'Chef started preparing your meal' : 'Meal is packed & ready for pickup',
+          location_note: statusNote,
           actor_role: 'VENDOR'
         });
       } catch (bgErr) {

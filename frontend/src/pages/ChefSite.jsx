@@ -3163,6 +3163,11 @@ export default function ChefSite({ user, onLogin, onLogout }) {
                       <div className="flex items-center gap-2">
                         <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
                         <span className="font-black font-display text-slate-900 dark:text-white text-base">Order #{o.order_id}</span>
+                        {o.order_type === 'TAKEAWAY' && (
+                          <span className="px-2 py-0.5 rounded-full bg-orange-500/10 text-orange-500 border border-orange-500/30 text-[10px] font-black uppercase tracking-wider flex items-center gap-1">
+                            <ShoppingBag className="w-3 h-3" /> Takeaway
+                          </span>
+                        )}
                       </div>
                       <span className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider border shadow-sm ${
                         o.status === 'READY' ? 'bg-emerald-50 text-emerald-800 border-emerald-300 dark:bg-emerald-500/20 dark:text-emerald-300 dark:border-emerald-500/40' :
@@ -3226,9 +3231,19 @@ export default function ChefSite({ user, onLogin, onLogout }) {
                           <div className="space-y-2">
                             <button
                               onClick={() => updateOrderStatus(o.order_id, 'READY')}
-                              className="w-full py-3 rounded-2xl bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white font-black text-xs shadow-lg shadow-emerald-500/25 active:scale-95 transition-all cursor-pointer"
+                              className="w-full py-3 rounded-2xl bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white font-black text-xs shadow-lg shadow-emerald-500/25 active:scale-95 transition-all cursor-pointer flex items-center justify-center gap-1.5"
                             >
-                              Mark Ready for Driver Pickup
+                              {o.order_type === 'TAKEAWAY' ? (
+                                <>
+                                  <ShoppingBag className="w-4 h-4" />
+                                  <span>Mark Ready for Takeaway Pickup</span>
+                                </>
+                              ) : (
+                                <>
+                                  <Truck className="w-4 h-4" />
+                                  <span>Mark Ready for Driver Pickup</span>
+                                </>
+                              )}
                             </button>
                             <button
                               onClick={() => {
@@ -3244,10 +3259,26 @@ export default function ChefSite({ user, onLogin, onLogout }) {
                           </div>
                         )}
                         {o.status === 'READY' && (
-                          <div className="p-2.5 rounded-xl bg-teal-500/10 border border-teal-500/20 text-center flex items-center justify-center gap-1.5 text-xs font-bold text-teal-400">
-                            <Clock className="w-3.5 h-3.5 text-teal-400" />
-                            <span>Meal packed • Waiting for courier dispatch</span>
-                          </div>
+                          o.order_type === 'TAKEAWAY' ? (
+                            <div className="space-y-2">
+                              <div className="p-3 rounded-2xl bg-orange-500/10 border border-orange-500/20 text-center flex items-center justify-center gap-2 text-xs font-bold text-orange-600 dark:text-orange-400">
+                                <ShoppingBag className="w-4 h-4 text-orange-500 animate-bounce" />
+                                <span>Takeaway: Packed & Waiting for Customer Counter Pickup</span>
+                              </div>
+                              <button
+                                onClick={() => updateOrderStatus(o.order_id, 'DELIVERED')}
+                                className="w-full py-3 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white font-black text-xs shadow-lg shadow-emerald-500/20 active:scale-95 transition-all cursor-pointer flex items-center justify-center gap-2"
+                              >
+                                <CheckCircle2 className="w-4 h-4" />
+                                <span>Confirm Customer Picked Up (Disburse Escrow)</span>
+                              </button>
+                            </div>
+                          ) : (
+                            <div className="p-2.5 rounded-xl bg-teal-500/10 border border-teal-500/20 text-center flex items-center justify-center gap-1.5 text-xs font-bold text-teal-400">
+                              <Clock className="w-3.5 h-3.5 text-teal-400" />
+                              <span>Meal packed • Waiting for courier dispatch</span>
+                            </div>
+                          )
                         )}
                         {o.status === 'OUT_FOR_DELIVERY' && (
                           <div className="p-2.5 rounded-xl bg-sky-500/10 border border-sky-500/20 text-center text-xs font-bold text-sky-400">

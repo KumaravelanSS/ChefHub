@@ -17,8 +17,11 @@ router.get('/jobs', authenticateToken, requireRole('RIDER'), async (req, res) =>
       FROM orders o
       JOIN users uv ON o.vendor_id = uv.user_id
       JOIN users uc ON o.customer_id = uc.user_id
-      WHERE (o.status = 'READY' AND (o.rider_id IS NULL OR o.rider_id = ?))
-         OR (o.rider_id = ? AND o.status IN ('OUT_FOR_DELIVERY'))
+      WHERE (o.order_type != 'TAKEAWAY' OR o.order_type IS NULL)
+        AND (
+          (o.status = 'READY' AND (o.rider_id IS NULL OR o.rider_id = ?))
+          OR (o.rider_id = ? AND o.status IN ('OUT_FOR_DELIVERY'))
+        )
       ORDER BY o.timestamp DESC
     `, [rider_id, rider_id]);
 
@@ -60,7 +63,7 @@ router.patch('/orders/:id/accept', authenticateToken, requireRole('RIDER'), asyn
     }
 
     const targetOrderRows = await query(`
-      SELECT o.order_id, o.vendor_id, o.status, o.rider_id, uv.name AS vendor_name 
+      SELECT o.order_id, o.vendor_id, o.status, o.rider_id, o.order_type, uv.name AS vendor_name 
       FROM orders o
       JOIN users uv ON o.vendor_id = uv.user_id
       WHERE o.order_id = ?
@@ -70,6 +73,14 @@ router.patch('/orders/:id/accept', authenticateToken, requireRole('RIDER'), asyn
       return res.status(404).json({ success: false, message: 'Order not found.' });
     }
     const targetOrder = targetOrderRows[0];
+
+    // Check if order is Takeaway
+    if (targetOrder.order_type === 'TAKEAWAY') {
+      return res.status(400).json({
+        success: false,
+        message: 'This is a Takeaway / Self-Pickup order. The customer will collect it directly from the chef kitchen; no courier delivery needed.'
+      });
+    }
 
     // Concurrency Check: If already claimed by another rider
     if (targetOrder.rider_id && Number(targetOrder.rider_id) !== Number(rider_id)) {

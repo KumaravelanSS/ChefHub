@@ -1651,8 +1651,11 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
           vendor_id: (cart[0] && cart[0].vendor_id) || vendorToOrder.vendor_id,
           items: cart.map((c) => ({ dish_id: c.dish_id, quantity: c.quantity })),
           coupon_code: appliedCoupon ? appliedCoupon.code : null,
-          delivery_address: (primaryAddress && primaryAddress.trim().length >= 5) ? primaryAddress : (currentCoords.locality ? `${currentCoords.locality}, Bengaluru` : 'Indiranagar 100ft Road, Bengaluru, Karnataka'),
-          payment_method: methodLabel
+          delivery_address: serviceType === 'PICKUP'
+            ? `${vendorToOrder.name || vendorToOrder.business_name || 'Chef Kitchen'} - Counter Pickup (${vendorToOrder.primary_address || vendorToOrder.locality || 'Artisanal Kitchen, Bengaluru'})`
+            : ((primaryAddress && primaryAddress.trim().length >= 5) ? primaryAddress : (currentCoords.locality ? `${currentCoords.locality}, Bengaluru` : 'Indiranagar 100ft Road, Bengaluru, Karnataka')),
+          payment_method: methodLabel,
+          order_type: serviceType === 'PICKUP' ? 'TAKEAWAY' : 'DELIVERY'
         })
       });
 
@@ -1679,6 +1682,7 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
 
         const orderReceipt = {
           order_id: newOrderId,
+          order_type: serviceType === 'PICKUP' ? 'TAKEAWAY' : 'DELIVERY',
           vendor_name: vendorToOrder.name || vendorToOrder.business_name || 'Chef Kitchen',
           vendor_id: vendorToOrder.vendor_id,
           total_amount: grandTotal.toFixed(2),
@@ -1689,7 +1693,7 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
           discount_amount: couponDiscountAmount.toFixed(2),
           payment_method: methodLabel,
           payment_ref: txnId,
-          delivery_address: primaryAddress,
+          delivery_address: serviceType === 'PICKUP' ? 'Kitchen Counter Pickup' : primaryAddress,
           status: 'CONFIRMED',
           escrow_status: 'HELD_IN_ESCROW',
           created_at: new Date().toISOString()
@@ -1842,6 +1846,65 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
           isError: true
         }
       ];
+    }
+
+    const isTakeaway = order.order_type === 'TAKEAWAY';
+
+    if (isTakeaway) {
+      const takeawayStageMap = {
+        PLACED: 0,
+        ORDER_PLACED: 0,
+        CONFIRMED: 0,
+        PREPARING: 1,
+        KITCHEN_PREPARING: 1,
+        READY: 2,
+        KITCHEN_READY: 2,
+        READY_FOR_PICKUP: 2,
+        DELIVERED: 3
+      };
+      const curTakeawayIdx = takeawayStageMap[status] !== undefined ? takeawayStageMap[status] : 0;
+      const tPlaced = getEventTimestamp(['ORDER_PLACED']) || (order.timestamp ? new Date(order.timestamp) : (order.created_at ? new Date(order.created_at) : validBaseTime));
+      const tPrep = getEventTimestamp(['KITCHEN_PREPARING', 'PREPARING']) || (order.prepared_at ? new Date(order.prepared_at) : (curTakeawayIdx >= 1 ? (order.updated_at ? new Date(order.updated_at) : validBaseTime) : null));
+      const tReady = getEventTimestamp(['KITCHEN_READY', 'READY', 'READY_FOR_PICKUP']) || (order.ready_at ? new Date(order.ready_at) : (curTakeawayIdx >= 2 ? (order.updated_at ? new Date(order.updated_at) : null) : null));
+      const tDelivered = getEventTimestamp(['DELIVERED']) || (order.delivered_at ? new Date(order.delivered_at) : (curTakeawayIdx >= 3 ? (order.updated_at ? new Date(order.updated_at) : null) : null));
+
+      const takeawayStages = [
+        {
+          key: 'ORDER_PLACED',
+          title: 'ORDER_PLACED',
+          desc: 'Takeaway order submitted & escrow payment secured',
+          time: tPlaced
+        },
+        {
+          key: 'KITCHEN_PREPARING',
+          title: 'KITCHEN_PREPARING',
+          desc: `${order.vendor_name || 'Chef'} started cooking your takeaway order`,
+          time: tPrep,
+          pendingLabel: 'Waiting for chef to accept & begin cooking'
+        },
+        {
+          key: 'KITCHEN_READY',
+          title: 'READY_FOR_PICKUP',
+          desc: `Packed & waiting for you at ${order.vendor_name || 'Chef'}'s counter`,
+          time: tReady,
+          pendingLabel: 'Chef actively cooking & packaging your meal'
+        },
+        {
+          key: 'DELIVERED',
+          title: 'COLLECTED',
+          desc: 'Takeaway collected successfully from kitchen counter',
+          time: tDelivered,
+          pendingLabel: 'Visit kitchen counter to collect your order'
+        }
+      ];
+
+      return takeawayStages.map((s, idx) => ({
+        ...s,
+        isDone: idx <= curTakeawayIdx,
+        isActive: idx === curTakeawayIdx,
+        isPending: idx > curTakeawayIdx,
+        index: idx
+      }));
     }
 
     const stageMap = {
@@ -2663,7 +2726,7 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
                   <div className="grid grid-cols-2 gap-2 bg-slate-100 dark:bg-slate-950 p-1 rounded-xl">
                     <button
                       onClick={() => setServiceType('DELIVERY')}
-                      className={`py-2 rounded-lg text-xs font-black transition-all flex items-center justify-center gap-1 ${
+                      className={`py-2 rounded-lg text-xs font-black transition-all flex items-center justify-center gap-1 cursor-pointer ${
                         serviceType === 'DELIVERY'
                           ? 'bg-orange-500 text-white shadow-md'
                           : 'text-slate-600 dark:text-slate-400 hover:text-white'
@@ -2674,7 +2737,7 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
                     </button>
                     <button
                       onClick={() => setServiceType('PICKUP')}
-                      className={`py-2 rounded-lg text-xs font-black transition-all flex items-center justify-center gap-1 ${
+                      className={`py-2 rounded-lg text-xs font-black transition-all flex items-center justify-center gap-1 cursor-pointer ${
                         serviceType === 'PICKUP'
                           ? 'bg-orange-500 text-white shadow-md'
                           : 'text-slate-600 dark:text-slate-400 hover:text-white'
@@ -2684,6 +2747,28 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
                       <span>Takeaway</span>
                     </button>
                   </div>
+
+                  {/* Dynamic Takeaway Order Picture Card */}
+                  {serviceType === 'PICKUP' && (
+                    <div className="p-3 rounded-2xl bg-gradient-to-br from-orange-500/15 via-amber-500/10 to-transparent border border-orange-500/30 space-y-2 animate-in fade-in slide-in-from-top-1 duration-200">
+                      <div className="flex items-center gap-3">
+                        <img
+                          src="https://images.unsplash.com/photo-1526367790999-0150786686a2?auto=format&fit=crop&w=300&q=80"
+                          alt="Takeaway Packaging"
+                          className="w-14 h-14 rounded-xl object-cover shadow-md border border-orange-500/30 shrink-0"
+                        />
+                        <div className="space-y-0.5">
+                          <div className="flex items-center gap-1.5 text-xs font-black text-orange-600 dark:text-orange-400">
+                            <ShoppingBag className="w-3.5 h-3.5" />
+                            <span>Takeaway Mode Active</span>
+                          </div>
+                          <p className="text-[11px] text-slate-600 dark:text-slate-300 font-semibold leading-tight">
+                            Self-pickup at chef counter. Zero delivery fee (₹0) • No rider assigned.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {/* Pure Veg Toggle */}
@@ -2888,12 +2973,19 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
 
                           {/* Chef Kitchen Tag */}
                           <div className="absolute bottom-2.5 left-8 right-3 flex items-center justify-between text-[11px] text-white z-20 font-bold">
-                            <span className="truncate max-w-[145px] bg-slate-950/80 px-2 py-0.5 rounded-md border border-white/10">
+                            <span className="truncate max-w-[135px] bg-slate-950/80 px-2 py-0.5 rounded-md border border-white/10">
                               👨‍🍳 {dish.vendor_name}
                             </span>
-                            <span className="bg-orange-500/90 text-white px-2 py-0.5 rounded-md font-mono text-[10px]">
-                              {dish.vendor_distance_km} km
-                            </span>
+                            <div className="flex items-center gap-1">
+                              {serviceType === 'PICKUP' && (
+                                <span className="bg-amber-500 text-slate-950 px-1.5 py-0.5 rounded-md text-[9px] font-black uppercase flex items-center gap-0.5 shadow-sm">
+                                  🛍️ Takeaway
+                                </span>
+                              )}
+                              <span className="bg-orange-500/90 text-white px-2 py-0.5 rounded-md font-mono text-[10px]">
+                                {dish.vendor_distance_km} km
+                              </span>
+                            </div>
                           </div>
                         </div>
 
@@ -3085,7 +3177,14 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
                             {o.vendor_name ? o.vendor_name[0] : 'C'}
                           </div>
                           <div>
-                            <span className="font-black text-slate-900 dark:text-white text-base">Order #{o.order_id}</span>
+                            <div className="flex items-center gap-2">
+                              <span className="font-black text-slate-900 dark:text-white text-base">Order #{o.order_id}</span>
+                              {o.order_type === 'TAKEAWAY' && (
+                                <span className="px-2 py-0.5 rounded-full bg-orange-500/15 text-orange-600 dark:text-orange-400 border border-orange-500/30 text-[10px] font-black uppercase flex items-center gap-1">
+                                  <ShoppingBag className="w-3 h-3" /> Takeaway
+                                </span>
+                              )}
+                            </div>
                             <p className="text-xs text-slate-500">Chef: <strong className="text-slate-900 dark:text-slate-200">{o.vendor_name}</strong></p>
                           </div>
                         </div>
@@ -3157,8 +3256,17 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
                         onClick={() => handleOpenTracking(o)}
                         className="flex-1 min-w-[130px] py-2.5 rounded-xl bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white font-black text-xs transition-all shadow-md flex items-center justify-center gap-1.5 cursor-pointer"
                       >
-                        <Truck className="w-3.5 h-3.5" />
-                        <span>Track Order</span>
+                        {o.order_type === 'TAKEAWAY' ? (
+                          <>
+                            <ShoppingBag className="w-3.5 h-3.5" />
+                            <span>Pickup Status</span>
+                          </>
+                        ) : (
+                          <>
+                            <Truck className="w-3.5 h-3.5" />
+                            <span>Track Order</span>
+                          </>
+                        )}
                       </button>
 
                       <button
@@ -4148,47 +4256,116 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
             {(paymentStage === 'IDLE' || paymentStage === 'PROCESSING') && (
               <div className="space-y-4">
                 
-                {/* 1. Saved Primary Delivery Address Card (NO EDITABLE INPUT) */}
-                <div className="p-4 rounded-2xl bg-slate-100 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2 text-xs font-black text-slate-900 dark:text-white">
-                      <MapPin className="w-4 h-4 text-orange-500" />
-                      <span>Delivery Address (Saved in Profile)</span>
-                    </div>
+                {/* Service Type Selection: Delivery vs Takeaway */}
+                <div className="flex items-center justify-between p-2.5 rounded-2xl bg-slate-100 dark:bg-slate-950 border border-slate-200 dark:border-slate-800">
+                  <span className="text-xs font-bold text-slate-500 uppercase tracking-wider pl-2">Service Mode</span>
+                  <div className="grid grid-cols-2 gap-1.5 p-1 bg-slate-200/80 dark:bg-slate-900 rounded-xl">
                     <button
                       type="button"
-                      onClick={() => setShowAddressModal(true)}
-                      className="text-xs font-bold text-orange-500 hover:text-orange-400 underline cursor-pointer"
+                      onClick={() => setServiceType('DELIVERY')}
+                      className={`py-1.5 px-3 rounded-lg text-xs font-black transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                        serviceType === 'DELIVERY'
+                          ? 'bg-orange-500 text-white shadow-md'
+                          : 'text-slate-600 dark:text-slate-400 hover:text-white'
+                      }`}
                     >
-                      Change Address
+                      <Truck className="w-3.5 h-3.5" />
+                      <span>Delivery</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setServiceType('PICKUP')}
+                      className={`py-1.5 px-3 rounded-lg text-xs font-black transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                        serviceType === 'PICKUP'
+                          ? 'bg-orange-500 text-white shadow-md'
+                          : 'text-slate-600 dark:text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      <ShoppingBag className="w-3.5 h-3.5" />
+                      <span>Takeaway</span>
                     </button>
                   </div>
-                  <p className="text-xs text-slate-700 dark:text-slate-300 font-semibold pl-6">
-                    {primaryAddress}
-                  </p>
-                  <div className="flex items-center gap-2 pl-6 text-[10px] text-slate-500">
-                    <span className="bg-emerald-500/10 text-emerald-500 font-mono font-bold px-2 py-0.5 rounded">
-                      GPS: {currentCoords.lat.toFixed(4)}, {currentCoords.lng.toFixed(4)}
-                    </span>
-                    <span>• Hub: {currentCoords.locality}</span>
-                  </div>
+                </div>
 
-                  {!isCurrentAreaServiced && (
-                    <div className="p-3 mt-2 rounded-xl bg-rose-500/15 border border-rose-500/35 text-rose-500 text-xs font-bold flex items-center justify-between gap-2">
-                      <div className="flex items-center gap-2">
-                        <MapPinOff className="w-4 h-4 shrink-0 text-rose-500" />
-                        <span>Area currently outside our 20km chef delivery radius.</span>
+                {/* 1. If TAKEAWAY: Prominent Takeaway Packaging Picture & Kitchen Pickup Counter Card */}
+                {serviceType === 'PICKUP' ? (
+                  <div className="p-4 rounded-2xl bg-gradient-to-br from-orange-500/15 via-amber-500/10 to-transparent border-2 border-orange-500/40 space-y-3 shadow-md animate-in fade-in">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2 text-xs font-black text-orange-600 dark:text-orange-400">
+                        <ShoppingBag className="w-4 h-4 text-orange-500" />
+                        <span>Takeaway / Self-Pickup Order</span>
+                      </div>
+                      <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 text-[10px] font-black uppercase">
+                        ⚡ Zero Delivery Fee (₹0)
+                      </span>
+                    </div>
+
+                    <div className="flex flex-col sm:flex-row items-center gap-3.5 bg-white dark:bg-slate-900/90 p-3.5 rounded-2xl border border-orange-500/25 shadow-inner">
+                      <img
+                        src="https://images.unsplash.com/photo-1526367790999-0150786686a2?auto=format&fit=crop&w=400&q=80"
+                        alt="Takeaway Packaging"
+                        className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl object-cover shadow-md border border-orange-500/30 shrink-0"
+                      />
+                      <div className="space-y-1 text-center sm:text-left flex-1">
+                        <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-orange-500/10 text-orange-600 dark:text-orange-400 text-[10px] font-black uppercase">
+                          <span>👨‍🍳 Collect at Kitchen Counter</span>
+                        </div>
+                        <h4 className="text-sm font-black text-slate-900 dark:text-white">
+                          {vendorToOrder.name || vendorToOrder.business_name || 'Chef Kitchen'}
+                        </h4>
+                        <p className="text-xs text-slate-600 dark:text-slate-300 font-medium leading-tight">
+                          {vendorToOrder.primary_address || vendorToOrder.locality || 'Artisanal Cloud Kitchen, Bengaluru'}
+                        </p>
+                        <p className="text-[11px] text-emerald-600 dark:text-emerald-400 font-bold pt-1 flex items-center justify-center sm:justify-start gap-1">
+                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
+                          <span>No courier assigned • Pick up fresh at counter</span>
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  /* 1. Saved Primary Delivery Address Card (Delivery Mode) */
+                  <div className="p-4 rounded-2xl bg-slate-100 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2 text-xs font-black text-slate-900 dark:text-white">
+                        <MapPin className="w-4 h-4 text-orange-500" />
+                        <span>Delivery Address (Saved in Profile)</span>
                       </div>
                       <button
                         type="button"
                         onClick={() => setShowAddressModal(true)}
-                        className="px-2.5 py-1 rounded-lg bg-rose-500 text-white text-[11px] font-black cursor-pointer hover:bg-rose-600 transition-colors"
+                        className="text-xs font-bold text-orange-500 hover:text-orange-400 underline cursor-pointer"
                       >
                         Change Address
                       </button>
                     </div>
-                  )}
-                </div>
+                    <p className="text-xs text-slate-700 dark:text-slate-300 font-semibold pl-6">
+                      {primaryAddress}
+                    </p>
+                    <div className="flex items-center gap-2 pl-6 text-[10px] text-slate-500">
+                      <span className="bg-emerald-500/10 text-emerald-500 font-mono font-bold px-2 py-0.5 rounded">
+                        GPS: {currentCoords.lat.toFixed(4)}, {currentCoords.lng.toFixed(4)}
+                      </span>
+                      <span>• Hub: {currentCoords.locality}</span>
+                    </div>
+
+                    {!isCurrentAreaServiced && (
+                      <div className="p-3 mt-2 rounded-xl bg-rose-500/15 border border-rose-500/35 text-rose-500 text-xs font-bold flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2">
+                          <MapPinOff className="w-4 h-4 shrink-0 text-rose-500" />
+                          <span>Area currently outside our 20km chef delivery radius.</span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setShowAddressModal(true)}
+                          className="px-2.5 py-1 rounded-lg bg-rose-500 text-white text-[11px] font-black cursor-pointer hover:bg-rose-600 transition-colors"
+                        >
+                          Change Address
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 {/* 2. Strict Promo Coupon Code Section */}
                 <div className="p-4 rounded-2xl bg-slate-100 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 space-y-3">
@@ -4738,15 +4915,28 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
             {/* Header */}
             <div className="flex justify-between items-center border-b border-slate-200 dark:border-slate-800 pb-4">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-orange-500 to-amber-500 text-white flex items-center justify-center shadow-lg">
-                  <Truck className="w-5 h-5 text-white" />
+                <div className={`w-10 h-10 rounded-2xl ${activeTrackingOrder.order_type === 'TAKEAWAY' ? 'bg-gradient-to-tr from-amber-500 to-orange-500' : 'bg-gradient-to-tr from-orange-500 to-amber-500'} text-white flex items-center justify-center shadow-lg`}>
+                  {activeTrackingOrder.order_type === 'TAKEAWAY' ? (
+                    <ShoppingBag className="w-5 h-5 text-white" />
+                  ) : (
+                    <Truck className="w-5 h-5 text-white" />
+                  )}
                 </div>
                 <div>
-                  <h3 className="font-black text-base sm:text-lg">Order #{activeTrackingOrder.order_id} Live Delivery</h3>
+                  <h3 className="font-black text-base sm:text-lg flex items-center gap-2">
+                    <span>Order #{activeTrackingOrder.order_id} {activeTrackingOrder.order_type === 'TAKEAWAY' ? 'Takeaway Pickup' : 'Live Delivery'}</span>
+                    {activeTrackingOrder.order_type === 'TAKEAWAY' && (
+                      <span className="px-2 py-0.5 rounded-full bg-orange-500/20 text-orange-600 dark:text-orange-400 border border-orange-500/30 text-[10px] font-black uppercase">
+                        Self-Pickup
+                      </span>
+                    )}
+                  </h3>
                   <p className="text-xs text-slate-500">
-                    {['OUT_FOR_DELIVERY', 'RIDER_ACCEPTED', 'DELIVERED'].includes(String(activeTrackingOrder.status || '').toUpperCase())
-                      ? `Courier navigation from ${activeTrackingOrder.vendor_name} to your address`
-                      : `Order preparation & dispatch tracking • ${activeTrackingOrder.vendor_name}`}
+                    {activeTrackingOrder.order_type === 'TAKEAWAY'
+                      ? `Self-pickup directly from ${activeTrackingOrder.vendor_name}'s Kitchen counter`
+                      : (['OUT_FOR_DELIVERY', 'RIDER_ACCEPTED', 'DELIVERED'].includes(String(activeTrackingOrder.status || '').toUpperCase())
+                        ? `Courier navigation from ${activeTrackingOrder.vendor_name} to your address`
+                        : `Order preparation & dispatch tracking • ${activeTrackingOrder.vendor_name}`)}
                   </p>
                 </div>
               </div>
@@ -4758,16 +4948,17 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
                     <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
                     <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
                   </span>
-                  <span className="tracking-wide uppercase text-[10px] font-black">Live Telemetry</span>
+                  <span className="tracking-wide uppercase text-[10px] font-black">Live Status</span>
                   <span className="text-slate-400 hidden sm:inline">•</span>
                   <span className="text-slate-700 dark:text-slate-200 text-[11px] font-extrabold hidden sm:inline">
                     {(() => {
                       const s = String(activeTrackingOrder.status || '').toUpperCase();
+                      const isTk = activeTrackingOrder.order_type === 'TAKEAWAY';
                       if (['PLACED', 'CONFIRMED', 'ORDER_PLACED'].includes(s)) return 'Stage 1: Placed (Waiting for Chef)';
                       if (['PREPARING', 'KITCHEN_PREPARING'].includes(s)) return 'Stage 2: Cooking in Kitchen';
-                      if (['READY', 'KITCHEN_READY', 'READY_FOR_PICKUP'].includes(s)) return 'Stage 3: Food Ready & Packed';
+                      if (['READY', 'KITCHEN_READY', 'READY_FOR_PICKUP'].includes(s)) return isTk ? 'Stage 3: Ready for Counter Pickup' : 'Stage 3: Food Ready & Packed';
                       if (['OUT_FOR_DELIVERY', 'RIDER_ACCEPTED'].includes(s)) return 'Stage 4: Courier En Route';
-                      if (s === 'DELIVERED') return 'Stage 5: Delivered';
+                      if (s === 'DELIVERED') return isTk ? 'Stage 4: Collected from Counter' : 'Stage 5: Delivered';
                       if (s === 'CANCELLED') return 'Cancelled (Refunded)';
                       return 'Stage 1: Order Placed';
                     })()}
@@ -4787,9 +4978,59 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
             {/* Split Grid: Live Leaflet Map + Flowing Timeline */}
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
               
-              {/* Left 7 cols: Interactive Leaflet Live Map OR Delivered State */}
+              {/* Left 7 cols: Interactive Leaflet Live Map OR Takeaway Card OR Delivered State */}
               <div className="lg:col-span-7 space-y-3">
-                {String(activeTrackingOrder.status || '').toUpperCase() === 'DELIVERED' ? (
+                {activeTrackingOrder.order_type === 'TAKEAWAY' ? (
+                  <div className="glass-card rounded-3xl p-6 border-2 border-orange-500/30 bg-orange-500/5 space-y-4 min-h-[350px] flex flex-col justify-between shadow-lg">
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <span className="px-3 py-1 rounded-full bg-orange-500/20 text-orange-600 dark:text-orange-400 border border-orange-500/40 text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5">
+                          <ShoppingBag className="w-3.5 h-3.5" /> Self-Pickup Order
+                        </span>
+                        <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 text-[10px] font-black uppercase">
+                          ⚡ Zero Delivery Fee (₹0)
+                        </span>
+                      </div>
+
+                      <div className="relative rounded-2xl overflow-hidden border border-orange-500/30 shadow-md">
+                        <img
+                          src="https://images.unsplash.com/photo-1526367790999-0150786686a2?auto=format&fit=crop&w=700&q=80"
+                          alt="Takeaway Packaging"
+                          className="w-full h-44 object-cover"
+                        />
+                        <div className="absolute inset-0 bg-gradient-to-t from-slate-950/90 via-slate-950/30 to-transparent flex items-end p-4">
+                          <div className="text-white">
+                            <span className="text-[10px] font-black uppercase tracking-wider text-amber-400 block">Chef Pickup Counter</span>
+                            <h4 className="text-base font-extrabold">{activeTrackingOrder.vendor_name || 'Chef Kitchen'}</h4>
+                            <p className="text-xs text-slate-300 font-medium">
+                              {activeTrackingOrder.chef_location?.locality || activeTrackingOrder.delivery_address || 'Artisanal Cloud Kitchen, Bengaluru'}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="p-3.5 rounded-2xl bg-white/80 dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 space-y-1 text-xs">
+                        <div className="font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                          <MapPin className="w-4 h-4 text-orange-500" />
+                          <span>Counter Pickup Instructions:</span>
+                        </div>
+                        <p className="text-slate-600 dark:text-slate-400 text-[11px] leading-relaxed">
+                          Please show your Order <strong>#{activeTrackingOrder.order_id}</strong> confirmation receipt at the chef counter. No delivery rider is assigned.
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="p-3 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-center">
+                      <span className="text-xs font-bold text-amber-600 dark:text-amber-400">
+                        {String(activeTrackingOrder.status || '').toUpperCase() === 'READY'
+                          ? '🎉 Meal is packed & waiting at the kitchen counter!'
+                          : String(activeTrackingOrder.status || '').toUpperCase() === 'DELIVERED'
+                          ? '✓ Collected by customer. Thank you for ordering!'
+                          : '👨‍🍳 Chef is currently preparing your meal fresh.'}
+                      </span>
+                    </div>
+                  </div>
+                ) : String(activeTrackingOrder.status || '').toUpperCase() === 'DELIVERED' ? (
                   <div className="glass-card rounded-3xl p-8 border-2 border-emerald-500/30 bg-emerald-500/5 text-center space-y-4 my-auto min-h-[350px] flex flex-col items-center justify-center">
                     <div className="w-16 h-16 rounded-3xl bg-emerald-500/20 text-emerald-500 mx-auto flex items-center justify-center animate-bounce">
                       <CheckCircle2 className="w-10 h-10" />

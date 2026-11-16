@@ -516,6 +516,7 @@ async function initRelationalDb() {
     await query(`ALTER TABLE orders ADD COLUMN payment_method VARCHAR(100) DEFAULT 'Card'`);
   } catch (err) {}
 
+  try { await query(`ALTER TABLE orders ADD COLUMN order_type VARCHAR(20) DEFAULT 'DELIVERY'`); } catch (err) {}
   try { await query('ALTER TABLE orders ADD COLUMN prepared_at DATETIME'); } catch (err) {}
   try { await query('ALTER TABLE orders ADD COLUMN ready_at DATETIME'); } catch (err) {}
   try { await query('ALTER TABLE orders ADD COLUMN dispatched_at DATETIME'); } catch (err) {}
@@ -547,6 +548,7 @@ async function initRelationalDb() {
     'CREATE INDEX IF NOT EXISTS idx_users_role ON users(role)',
     'CREATE INDEX IF NOT EXISTS idx_users_id_role ON users(user_id, role)',
     'CREATE INDEX IF NOT EXISTS idx_customer_wallets_user ON customer_wallets(customer_id)',
+    'CREATE INDEX IF NOT EXISTS idx_orders_type ON orders(order_type)',
     'CREATE INDEX IF NOT EXISTS idx_coupons_code ON coupons(code)'
   ];
 
