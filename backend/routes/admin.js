@@ -466,6 +466,77 @@ router.get('/payouts', authenticateToken, requireRole('ADMIN'), async (req, res)
   }
 });
 
+// Manual Dispute Resolution Override (Disburse to Chef or Refund Buyer)
+router.post('/orders/:id/dispute-resolve', authenticateToken, requireRole('ADMIN'), async (req, res) => {
+  try {
+    const orderId = req.params.id;
+    const { action, resolution_notes } = req.body;
+
+    const orderRows = await query('SELECT * FROM orders WHERE order_id = ?', [orderId]);
+    if (orderRows.length === 0) {
+      return res.status(404).json({ success: false, message: 'Order not found.' });
+    }
+
+    const order = orderRows[0];
+    const isRefund = action === 'FORCE_REFUND_CUSTOMER';
+    const newPayoutStatus = isRefund ? 'REFUNDED' : 'PROCESSED';
+    const newEscrowStatus = isRefund ? 'REFUNDED' : 'RELEASED';
+    const newOrderStatus = isRefund ? 'CANCELLED' : order.status;
+
+    // 1. Update orders table
+    await query(
+      'UPDATE orders SET escrow_status = ?, status = ? WHERE order_id = ?',
+      [newEscrowStatus, newOrderStatus, orderId]
+    );
+
+    // 2. Update payouts table if entry exists
+    await query(
+      'UPDATE payouts SET payout_status = ?, executed_at = CURRENT_TIMESTAMP WHERE order_id = ?',
+      [newPayoutStatus, orderId]
+    );
+
+    // 3. If refund, credit customer wallet
+    if (isRefund) {
+      try {
+        const refundAmt = Number(order.total_amount) || 0;
+        await query(
+          'UPDATE customer_wallets SET balance = balance + ? WHERE user_id = ?',
+          [refundAmt, order.customer_id]
+        );
+      } catch (wErr) {
+        console.warn('[Dispute Wallet Credit Notice]', wErr.message);
+      }
+    }
+
+    // 4. Return success immediately
+    res.json({
+      success: true,
+      message: isRefund
+        ? `Order #${orderId} refunded to buyer. Escrow status marked REFUNDED.`
+        : `Order #${orderId} payout disbursed to chef. Escrow marked PROCESSED.`,
+      payout_status: newPayoutStatus,
+      escrow_status: newEscrowStatus
+    });
+
+    // 5. Background Async Sync: Audit log
+    setImmediate(async () => {
+      try {
+        await MongoAdapter.addAuditLog(req.user.user_id, 'DISPUTE_RESOLVED', {
+          order_id: orderId,
+          action,
+          resolution_notes,
+          payout_status: newPayoutStatus
+        });
+      } catch (bgErr) {
+        console.warn('[Background Dispute Audit Warning]', bgErr.message);
+      }
+    });
+  } catch (err) {
+    console.error('Resolve dispute error:', err);
+    return res.status(500).json({ success: false, message: 'Failed to resolve dispute.' });
+  }
+});
+
 // ==========================================
 // ADMIN COUPONS & OFFERS MANAGEMENT (CRUD)
 // ==========================================
@@ -543,7 +614,7 @@ router.patch('/coupons/:id/toggle', authenticateToken, requireRole('ADMIN'), asy
       return res.status(404).json({ success: false, message: 'Coupon not found.' });
     }
 
-    const newStatus = existing[0].is_active === 1 ? 0 : 1;
+    const newStatus = Number(existing[0].is_active) === 1 ? 0 : 1;
     await query('UPDATE coupons SET is_active = ? WHERE coupon_id = ?', [newStatus, couponId]);
 
     // 1. Immediately return 200 OK

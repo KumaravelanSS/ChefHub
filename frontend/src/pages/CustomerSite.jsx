@@ -2880,8 +2880,6 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
                 <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar w-full sm:w-auto">
                   {[
                     { id: 'ALL', label: 'All' },
-                    { id: 'VEGAN', label: '🌿 Vegetarian' },
-                    { id: 'SPICY', label: '🌶️ Spicy' },
                     { id: 'FAVORITES', label: `❤️ Favorites (${favorites.size})` }
                   ].map((chip) => (
                     <button

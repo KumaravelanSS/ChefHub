@@ -467,9 +467,13 @@ export default function AdminSite({ user, onLogin }) {
       const data = await res.json();
       if (data.success) {
         setDisputeFeedback(`✓ Successfully executed: ${actionType}. Escrow status updated.`);
+        setSelectedDisputeOrder(prev => prev ? ({
+          ...prev,
+          payout_status: data.payout_status || (actionType === 'FORCE_REFUND_CUSTOMER' ? 'REFUNDED' : 'PROCESSED')
+        }) : null);
         fetchData('payouts');
       } else {
-        setDisputeFeedback(`Action executed: ${actionType} recorded in ledger.`);
+        setDisputeFeedback(data.message || `Action executed: ${actionType} recorded in ledger.`);
         fetchData('payouts');
       }
     } catch (e) {
@@ -675,9 +679,9 @@ export default function AdminSite({ user, onLogin }) {
 
   const handleSaveAdminDish = async (e) => {
     e.preventDefault();
-    const previousDishes = [...dishes];
+    const previousDishes = [...adminDishes];
     // Optimistic Update: update dish in dishes table immediately
-    setDishes(prev => prev.map(d => d.dish_id === adminDishForm.dish_id ? {
+    setAdminDishes(prev => prev.map(d => d.dish_id === adminDishForm.dish_id ? {
       ...d,
       daily_stock: Number(adminDishForm.daily_stock),
       is_available: adminDishForm.is_available ? 1 : 0,
@@ -701,11 +705,11 @@ export default function AdminSite({ user, onLogin }) {
       });
       const data = await res.json();
       if (!data.success) {
-        setDishes(previousDishes);
+        setAdminDishes(previousDishes);
         alert(data.message || 'Failed to update dish.');
       }
     } catch (err) {
-      setDishes(previousDishes);
+      setAdminDishes(previousDishes);
       alert('Failed to update dish stock & out of stock reason.');
     }
   };
@@ -763,9 +767,9 @@ export default function AdminSite({ user, onLogin }) {
   };
 
   const handleToggleCoupon = async (coupon_id) => {
-    const previousCoupons = [...coupons];
+    const previousCoupons = [...adminCoupons];
     // Optimistic Update: toggle coupon status in UI immediately
-    setCoupons(prev => prev.map(c => c.coupon_id === coupon_id ? { ...c, is_active: c.is_active ? 0 : 1 } : c));
+    setAdminCoupons(prev => prev.map(c => c.coupon_id === coupon_id ? { ...c, is_active: c.is_active === 1 ? 0 : 1 } : c));
 
     try {
       const token = localStorage.getItem('chefhub_token');
@@ -775,20 +779,22 @@ export default function AdminSite({ user, onLogin }) {
       });
       const data = await res.json();
       if (!data.success) {
-        setCoupons(previousCoupons);
+        setAdminCoupons(previousCoupons);
         alert(data.message || 'Failed to toggle coupon status.');
+      } else if (data.is_active !== undefined) {
+        setAdminCoupons(prev => prev.map(c => c.coupon_id === coupon_id ? { ...c, is_active: data.is_active } : c));
       }
     } catch (err) {
-      setCoupons(previousCoupons);
+      setAdminCoupons(previousCoupons);
       alert('Failed to toggle coupon status.');
     }
   };
 
   const handleDeleteCoupon = async (coupon_id) => {
     if (!window.confirm('Delete this coupon code from platform?')) return;
-    const previousCoupons = [...coupons];
+    const previousCoupons = [...adminCoupons];
     // Optimistic Update: remove coupon immediately
-    setCoupons(prev => prev.filter(c => c.coupon_id !== coupon_id));
+    setAdminCoupons(prev => prev.filter(c => c.coupon_id !== coupon_id));
 
     try {
       const token = localStorage.getItem('chefhub_token');
@@ -798,11 +804,11 @@ export default function AdminSite({ user, onLogin }) {
       });
       const data = await res.json();
       if (!data.success) {
-        setCoupons(previousCoupons);
+        setAdminCoupons(previousCoupons);
         alert(data.message || 'Failed to delete coupon.');
       }
     } catch (err) {
-      setCoupons(previousCoupons);
+      setAdminCoupons(previousCoupons);
       alert('Failed to delete coupon.');
     }
   };
@@ -1030,7 +1036,7 @@ export default function AdminSite({ user, onLogin }) {
                   ariaLabel="Search user registry"
                 />
                 <span className="text-xs text-slate-500">
-                  Showing {filteredUsers.length} of {userRoleFilter === 'ALL' ? users.length : userRoleCounts[userRoleFilter]} accounts
+                  Showing {filteredUsers.length} of {userRoleFilter === 'ALL' ? (Array.isArray(users) ? users.length : 0) : (userRoleCounts?.[userRoleFilter] ?? 0)} accounts
                 </span>
               </div>
 
@@ -1292,7 +1298,7 @@ export default function AdminSite({ user, onLogin }) {
                   </p>
                 </div>
                 <span className="px-3 py-1 rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 text-xs font-bold">
-                  {adminCoupons.length} Active Codes
+                  {adminCoupons.filter(c => Number(c.is_active) === 1).length} Active Codes
                 </span>
               </div>
 
@@ -1685,7 +1691,7 @@ export default function AdminSite({ user, onLogin }) {
                         </td>
                         <td className="p-3">
                           <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${
-                            p.payout_status === 'PROCESSED' 
+                            ['PROCESSED', 'REFUNDED', 'RELEASED', 'SETTLED'].includes((p.payout_status || '').toUpperCase()) 
                               ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20' 
                               : 'bg-amber-500/10 text-amber-600 border-amber-500/20'
                           }`}>
@@ -1693,15 +1699,27 @@ export default function AdminSite({ user, onLogin }) {
                           </span>
                         </td>
                         <td className="p-3 text-right">
-                          <button
-                            type="button"
-                            onClick={() => handleOpenDisputeModal(p)}
-                            className="px-2.5 py-1 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 dark:text-rose-400 border border-rose-500/30 text-[11px] font-bold flex items-center gap-1.5 ml-auto transition-all shadow-sm cursor-pointer"
-                            title="Inspect Escrow Dispute with State Interlock Protection"
-                          >
-                            <ShieldAlert className="w-3.5 h-3.5" />
-                            <span>Review Dispute</span>
-                          </button>
+                          {['PROCESSED', 'REFUNDED', 'RELEASED', 'SETTLED'].includes((p.payout_status || '').toUpperCase()) ? (
+                            <button
+                              type="button"
+                              onClick={() => handleOpenDisputeModal(p)}
+                              className="px-2.5 py-1 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 border border-slate-300 dark:border-slate-700 text-[11px] font-bold flex items-center gap-1.5 ml-auto transition-all cursor-pointer"
+                              title="View Escrow Settlement Details"
+                            >
+                              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
+                              <span>Settled</span>
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => handleOpenDisputeModal(p)}
+                              className="px-2.5 py-1 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 dark:text-rose-400 border border-rose-500/30 text-[11px] font-bold flex items-center gap-1.5 ml-auto transition-all shadow-sm cursor-pointer"
+                              title="Inspect Escrow Dispute with State Interlock Protection"
+                            >
+                              <ShieldAlert className="w-3.5 h-3.5" />
+                              <span>Review Dispute</span>
+                            </button>
+                          )}
                         </td>
                       </tr>
                     )))}
@@ -2179,7 +2197,13 @@ export default function AdminSite({ user, onLogin }) {
                 </div>
                 <div className="flex justify-between">
                   <span className="text-slate-500">Current Payout Status:</span>
-                  <span className="font-bold uppercase text-amber-500">{selectedDisputeOrder.payout_status || 'HELD_IN_ESCROW'}</span>
+                  <span className={`font-bold uppercase ${
+                    ['PROCESSED', 'RELEASED', 'REFUNDED', 'SETTLED'].includes((selectedDisputeOrder.payout_status || '').toUpperCase())
+                      ? 'text-emerald-500'
+                      : 'text-amber-500'
+                  }`}>
+                    {selectedDisputeOrder.payout_status || 'HELD_IN_ESCROW'}
+                  </span>
                 </div>
               </div>
 
@@ -2189,31 +2213,45 @@ export default function AdminSite({ user, onLogin }) {
                 </div>
               )}
 
-              {/* Actions / Overrides */}
-              <div className="space-y-2 pt-2 border-t border-slate-200 dark:border-slate-800">
-                <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Manual Resolution Overrides</p>
-                <div className="grid grid-cols-2 gap-3">
-                  <button
-                    type="button"
-                    disabled={isDisputeLockedByOtherAdmin || disputeResolving}
-                    onClick={() => handleResolveDispute('FORCE_DISBURSE_CHEF')}
-                    className="py-2.5 px-3 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-black text-xs shadow-md transition-all disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer flex items-center justify-center gap-1.5"
-                  >
-                    <CheckCircle2 className="w-3.5 h-3.5" />
-                    <span>Disburse to Chef</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    disabled={isDisputeLockedByOtherAdmin || disputeResolving}
-                    onClick={() => handleResolveDispute('FORCE_REFUND_CUSTOMER')}
-                    className="py-2.5 px-3 rounded-xl bg-rose-500 hover:bg-rose-600 text-white font-black text-xs shadow-md transition-all disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer flex items-center justify-center gap-1.5"
-                  >
-                    <X className="w-3.5 h-3.5" />
-                    <span>Refund Buyer</span>
-                  </button>
+              {/* Actions / Overrides or Completed Settlement */}
+              {['PROCESSED', 'RELEASED', 'REFUNDED', 'SETTLED'].includes((selectedDisputeOrder.payout_status || '').toUpperCase()) ? (
+                <div className="p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/25 text-emerald-700 dark:text-emerald-300 text-xs font-bold space-y-1">
+                  <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400">
+                    <CheckCircle2 className="w-4 h-4 shrink-0" />
+                    <span>Escrow Settlement Complete ({selectedDisputeOrder.payout_status})</span>
+                  </div>
+                  <p className="text-[11px] font-normal text-slate-600 dark:text-slate-400 pl-6">
+                    {selectedDisputeOrder.payout_status === 'REFUNDED'
+                      ? 'The refund has been executed and credited back to the customer. No further resolution override is required.'
+                      : 'The escrow funds have already been processed and disbursed. No further resolution override is required.'}
+                  </p>
                 </div>
-              </div>
+              ) : (
+                <div className="space-y-2 pt-2 border-t border-slate-200 dark:border-slate-800">
+                  <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Manual Resolution Overrides</p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <button
+                      type="button"
+                      disabled={isDisputeLockedByOtherAdmin || disputeResolving}
+                      onClick={() => handleResolveDispute('FORCE_DISBURSE_CHEF')}
+                      className="py-2.5 px-3 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-black text-xs shadow-md transition-all disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer flex items-center justify-center gap-1.5"
+                    >
+                      <CheckCircle2 className="w-3.5 h-3.5" />
+                      <span>Disburse to Chef</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      disabled={isDisputeLockedByOtherAdmin || disputeResolving}
+                      onClick={() => handleResolveDispute('FORCE_REFUND_CUSTOMER')}
+                      className="py-2.5 px-3 rounded-xl bg-rose-500 hover:bg-rose-600 text-white font-black text-xs shadow-md transition-all disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer flex items-center justify-center gap-1.5"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                      <span>Refund Buyer</span>
+                    </button>
+                  </div>
+                </div>
+              )}
 
             </div>
           </div>
