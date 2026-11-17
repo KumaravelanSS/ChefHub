@@ -2159,7 +2159,7 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
 
         // 3. Fallback: match any significant word in selectedCuisine
         if (!matchesCuisine) {
-          const words = sel.split(/[\s&,/]+/).filter(w => w.length > 2);
+          const words = sel.replace(/[&,/]/g, ' ').split(/\s+/).filter(w => w.length > 2);
           matchesCuisine = words.some(w => dishCat.includes(w) || dishName.includes(w) || dishDesc.includes(w));
         }
 
