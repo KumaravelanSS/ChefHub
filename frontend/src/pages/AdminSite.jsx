@@ -767,7 +767,7 @@ export default function AdminSite({ user, onLogin }) {
   };
 
   const handleToggleCoupon = async (coupon_id) => {
-    const previousCoupons = [...adminCoupons];
+    const prevCouponsToggle = [...adminCoupons];
     // Optimistic Update: toggle coupon status in UI immediately
     setAdminCoupons(prev => prev.map(c => c.coupon_id === coupon_id ? { ...c, is_active: c.is_active === 1 ? 0 : 1 } : c));
 
@@ -779,20 +779,20 @@ export default function AdminSite({ user, onLogin }) {
       });
       const data = await res.json();
       if (!data.success) {
-        setAdminCoupons(previousCoupons);
+        setAdminCoupons(prevCouponsToggle);
         alert(data.message || 'Failed to toggle coupon status.');
       } else if (data.is_active !== undefined) {
         setAdminCoupons(prev => prev.map(c => c.coupon_id === coupon_id ? { ...c, is_active: data.is_active } : c));
       }
     } catch (err) {
-      setAdminCoupons(previousCoupons);
+      setAdminCoupons(prevCouponsToggle);
       alert('Failed to toggle coupon status.');
     }
   };
 
   const handleDeleteCoupon = async (coupon_id) => {
     if (!window.confirm('Delete this coupon code from platform?')) return;
-    const previousCoupons = [...adminCoupons];
+    const prevCouponsDelete = [...adminCoupons];
     // Optimistic Update: remove coupon immediately
     setAdminCoupons(prev => prev.filter(c => c.coupon_id !== coupon_id));
 
@@ -804,11 +804,11 @@ export default function AdminSite({ user, onLogin }) {
       });
       const data = await res.json();
       if (!data.success) {
-        setAdminCoupons(previousCoupons);
+        setAdminCoupons(prevCouponsDelete);
         alert(data.message || 'Failed to delete coupon.');
       }
     } catch (err) {
-      setAdminCoupons(previousCoupons);
+      setAdminCoupons(prevCouponsDelete);
       alert('Failed to delete coupon.');
     }
   };

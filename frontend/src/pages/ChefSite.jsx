@@ -3,7 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import {
   ChefHat, Package, Utensils, DollarSign, AlertTriangle, CheckCircle2, Clock, Plus, Trash2,
   AlertCircle, Edit3, Image as ImageIcon, X, Sparkles, Ban, Eye, EyeOff, Tag, RefreshCw, Star,
-  User, MapPin, Lock, Shield, KeyRound, Smartphone, Mail, Compass, Check, Copy, Send, Save, ArrowRight, Loader2, ShoppingBag, Volume2, VolumeX, BellRing
+  User, MapPin, Lock, Shield, KeyRound, Smartphone, Mail, Compass, Check, Copy, Send, Save, ArrowRight, Loader2, ShoppingBag, Volume2, VolumeX, BellRing,
+  Truck
 } from 'lucide-react';
 import { KitchenLoadingScreen, KitchenDataLoader, KitchenSkeletonRows } from '../components/KitchenLoading';
 import ChefAuthPage from './ChefAuthPage';

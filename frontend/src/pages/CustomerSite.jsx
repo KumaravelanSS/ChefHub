@@ -2144,31 +2144,31 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
         const dishDesc = (dish.description || '').toLowerCase();
 
         // 1. Direct equality or inclusion
-        let matches = dishCat === sel ||
+        let matchesCuisine = dishCat === sel ||
           dishCat.includes(sel) ||
           sel.includes(dishCat) ||
           dishName.includes(sel);
 
         // 2. Keyword & synonym matching
-        if (!matches) {
+        if (!matchesCuisine) {
           const keywords = CUISINE_KEYWORD_MAP[selectedCuisine] || CUISINE_KEYWORD_MAP[dish.category] || [];
-          matches = keywords.some(kw => 
+          matchesCuisine = keywords.some(kw => 
             dishCat.includes(kw) || dishName.includes(kw) || dishDesc.includes(kw)
           );
         }
 
         // 3. Fallback: match any significant word in selectedCuisine
-        if (!matches) {
+        if (!matchesCuisine) {
           const words = sel.split(/[\s&,/]+/).filter(w => w.length > 2);
-          matches = words.some(w => dishCat.includes(w) || dishName.includes(w) || dishDesc.includes(w));
+          matchesCuisine = words.some(w => dishCat.includes(w) || dishName.includes(w) || dishDesc.includes(w));
         }
 
         // 4. Legacy single-word ID compatibility (e.g. 'Curry', 'Biryani', 'Pasta')
-        if (!matches) {
-          matches = dishCat.includes(sel) || dishName.includes(sel) || dishDesc.includes(sel);
+        if (!matchesCuisine) {
+          matchesCuisine = dishCat.includes(sel) || dishName.includes(sel) || dishDesc.includes(sel);
         }
 
-        if (!matches) return false;
+        if (!matchesCuisine) return false;
       }
 
       // Veg only toggle
