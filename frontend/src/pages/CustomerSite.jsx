@@ -2023,16 +2023,32 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
   })), [myOrders]);
 
   // Dynamic Cuisines / Categories derived from active kitchen dishes + base presets
+  const CUISINE_KEYWORD_MAP = {
+    'Butter Chicken & Tikka': ['butter chicken', 'tikka', 'curry', 'curries', 'royal curries', 'paneer tikka', 'masala', 'makhani', 'shahi paneer'],
+    'Biryani & Rice': ['biryani', 'rice', 'dum biryani', 'biryanis & breads', 'naan', 'bread', 'roti', 'paratha', 'pulao'],
+    'Artisan Pasta': ['pasta', 'pastas', 'fresh pastas', 'tagliatelle', 'ravioli', 'gnocchi', 'spaghetti', 'lasagna', 'fettuccine', 'penne', 'macaroni'],
+    'Tokyo Ramen': ['ramen', 'ramen & bowls', 'tonkotsu', 'noodle', 'noodles', 'japanese', 'miso', 'shoyu', 'udon', 'soba'],
+    'Chettinad & Dosa': ['chettinad', 'dosa', 'dosas', 'idli', 'south indian', 'sambar', 'chutney', 'vada', 'uttapam'],
+    'Burrata Flatbread': ['flatbread', 'burrata', 'pizza', 'pizzas', 'pizzas & starters', 'focaccia', 'garlic herb focaccia', 'crust'],
+    'Tiramisu & Sweets': ['tiramisu', 'sweet', 'sweets', 'dessert', 'desserts', 'desserts & drinks', 'cake', 'pastry', 'pudding', 'halwa', 'momoo'],
+    'Sides & Appetizers': ['side', 'sides', 'appetizer', 'appetizers', 'starter', 'starters', 'gyoza', 'dim sum', 'dumpling', 'roll', 'rolls', 'wings', 'pizzas & starters'],
+    'Ramen & Bowls': ['ramen', 'bowl', 'bowls', 'katsu', 'donburi', 'ramen & bowls', 'curry bowl'],
+    'Desserts & Drinks': ['dessert', 'desserts', 'drink', 'drinks', 'smoothie', 'lassi', 'shake', 'beverage', 'beverages', 'tiramisu', 'sweets', 'desserts & drinks']
+  };
+
   const dynamicCuisineList = React.useMemo(() => {
     const baseCuisines = [
       { id: 'ALL', name: 'All Dishes', icon: '🍽️', img: 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&w=240&q=80' },
-      { id: 'Biryani', name: 'Biryani & Rice', icon: '🍛', img: 'https://images.unsplash.com/photo-1563379091339-03b21ab4a4f8?auto=format&fit=crop&w=240&q=80' },
-      { id: 'Pasta', name: 'Artisan Pasta', icon: '🍝', img: 'https://images.unsplash.com/photo-1551183053-bf91a1d81141?auto=format&fit=crop&w=240&q=80' },
-      { id: 'Ramen', name: 'Tokyo Ramen', icon: '🍜', img: 'https://images.unsplash.com/photo-1569718212165-3a8278d5f624?auto=format&fit=crop&w=240&q=80' },
-      { id: 'Chettinad', name: 'Chettinad & Dosa', icon: '🥘', img: 'https://images.unsplash.com/photo-1601050690597-df0568f70950?auto=format&fit=crop&w=240&q=80' },
-      { id: 'Flatbread', name: 'Burrata Flatbread', icon: '🍕', img: 'https://images.unsplash.com/photo-1513104890138-7c749659a591?auto=format&fit=crop&w=240&q=80' },
-      { id: 'Curry', name: 'Butter Chicken & Tikka', icon: '🍲', img: 'https://images.unsplash.com/photo-1603894584373-5ac82b2ae398?auto=format&fit=crop&w=240&q=80' },
-      { id: 'Desserts', name: 'Tiramisu & Sweets', icon: '🍰', img: 'https://images.unsplash.com/photo-1571877227200-a0d98ea607e9?auto=format&fit=crop&w=240&q=80' }
+      { id: 'Biryani & Rice', name: 'Biryani & Rice', icon: '🍛', img: 'https://images.unsplash.com/photo-1563379091339-03b21ab4a4f8?auto=format&fit=crop&w=240&q=80' },
+      { id: 'Artisan Pasta', name: 'Artisan Pasta', icon: '🍝', img: 'https://images.unsplash.com/photo-1551183053-bf91a1d81141?auto=format&fit=crop&w=240&q=80' },
+      { id: 'Tokyo Ramen', name: 'Tokyo Ramen', icon: '🍜', img: 'https://images.unsplash.com/photo-1569718212165-3a8278d5f624?auto=format&fit=crop&w=240&q=80' },
+      { id: 'Chettinad & Dosa', name: 'Chettinad & Dosa', icon: '🥘', img: 'https://images.unsplash.com/photo-1601050690597-df0568f70950?auto=format&fit=crop&w=240&q=80' },
+      { id: 'Burrata Flatbread', name: 'Burrata Flatbread', icon: '🍕', img: 'https://images.unsplash.com/photo-1513104890138-7c749659a591?auto=format&fit=crop&w=240&q=80' },
+      { id: 'Butter Chicken & Tikka', name: 'Butter Chicken & Tikka', icon: '🍲', img: 'https://images.unsplash.com/photo-1603894584373-5ac82b2ae398?auto=format&fit=crop&w=240&q=80' },
+      { id: 'Tiramisu & Sweets', name: 'Tiramisu & Sweets', icon: '🍰', img: 'https://images.unsplash.com/photo-1571877227200-a0d98ea607e9?auto=format&fit=crop&w=240&q=80' },
+      { id: 'Sides & Appetizers', name: 'Sides & Appetizers', icon: '🥟', img: 'https://images.unsplash.com/photo-1496116218417-1a781b1c416c?auto=format&fit=crop&w=240&q=80' },
+      { id: 'Ramen & Bowls', name: 'Ramen & Bowls', icon: '🍜', img: 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=240&q=80' },
+      { id: 'Desserts & Drinks', name: 'Desserts & Drinks', icon: '🥤', img: 'https://images.unsplash.com/photo-1551024709-8f23befc6f87?auto=format&fit=crop&w=240&q=80' }
     ];
 
     const categoryIcons = {
@@ -2060,7 +2076,12 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
       burger: 'https://images.unsplash.com/photo-1568901346375-23c9450c58cd?auto=format&fit=crop&w=240&q=80'
     };
 
-    const seenCategories = new Set(baseCuisines.map((c) => c.name.toLowerCase()));
+    const baseNames = baseCuisines.map((c) => c.name.toLowerCase());
+    const seenCategories = new Set([
+      ...baseNames,
+      'curry', 'biryani', 'pasta', 'ramen', 'flatbread', 'desserts', 'royal curries',
+      'biryanis & breads', 'fresh pastas', 'pizzas & starters', 'sweet'
+    ]);
     const dynamicList = [...baseCuisines];
 
     allDishesMarketplace.forEach((dish) => {
@@ -2117,11 +2138,36 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
 
       // Cuisine category
       if (selectedCuisine !== 'ALL') {
-        const c = selectedCuisine.toLowerCase();
-        const matches = dish.name.toLowerCase().includes(c) ||
-          dish.category_name.toLowerCase().includes(c) ||
-          (dish.category && dish.category.toLowerCase().includes(c)) ||
-          (dish.description && dish.description.toLowerCase().includes(c));
+        const sel = selectedCuisine.toLowerCase();
+        const dishCat = (dish.category || dish.category_name || '').toLowerCase();
+        const dishName = (dish.name || '').toLowerCase();
+        const dishDesc = (dish.description || '').toLowerCase();
+
+        // 1. Direct equality or inclusion
+        let matches = dishCat === sel ||
+          dishCat.includes(sel) ||
+          sel.includes(dishCat) ||
+          dishName.includes(sel);
+
+        // 2. Keyword & synonym matching
+        if (!matches) {
+          const keywords = CUISINE_KEYWORD_MAP[selectedCuisine] || CUISINE_KEYWORD_MAP[dish.category] || [];
+          matches = keywords.some(kw => 
+            dishCat.includes(kw) || dishName.includes(kw) || dishDesc.includes(kw)
+          );
+        }
+
+        // 3. Fallback: match any significant word in selectedCuisine
+        if (!matches) {
+          const words = sel.split(/[\s&,/]+/).filter(w => w.length > 2);
+          matches = words.some(w => dishCat.includes(w) || dishName.includes(w) || dishDesc.includes(w));
+        }
+
+        // 4. Legacy single-word ID compatibility (e.g. 'Curry', 'Biryani', 'Pasta')
+        if (!matches) {
+          matches = dishCat.includes(sel) || dishName.includes(sel) || dishDesc.includes(sel);
+        }
+
         if (!matches) return false;
       }
 

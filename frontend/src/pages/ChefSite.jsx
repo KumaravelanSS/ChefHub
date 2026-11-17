@@ -39,6 +39,23 @@ const KITCHEN_HUBS = [
   { id: 'whitefield', name: 'Whitefield Main Road', lat: 12.9698, lng: 77.7499, locality: 'Whitefield Main Road, Bengaluru' }
 ];
 
+const STANDARD_CUISINE_CATEGORIES = [
+  'Biryani & Rice',
+  'Artisan Pasta',
+  'Tokyo Ramen',
+  'Chettinad & Dosa',
+  'Burrata Flatbread',
+  'Butter Chicken & Tikka',
+  'Tiramisu & Sweets',
+  'Sides & Appetizers',
+  'Ramen & Bowls',
+  'Desserts & Drinks',
+  'Pizzas & Starters',
+  'Royal Curries',
+  'Biryanis & Breads',
+  'Fresh Pastas'
+];
+
 export default function ChefSite({ user, onLogin, onLogout }) {
   const navigate = useNavigate();
   const [loginEmail, setLoginEmail] = useState('');
@@ -88,7 +105,7 @@ export default function ChefSite({ user, onLogin, onLogout }) {
   }, [orders, orderSearchQuery]);
 
   // Add Dish Form
-  const [newDish, setNewDish] = useState({ name: '', category: 'Pasta', base_price: '', daily_stock: '20', description: '', image_url: '', is_available: true, is_veg: true });
+  const [newDish, setNewDish] = useState({ name: '', category: 'Biryani & Rice', base_price: '', daily_stock: '20', description: '', image_url: '', is_available: true, is_veg: true });
   
   // Edit Dish Modal State
   const [editingDish, setEditingDish] = useState(null);
@@ -773,7 +790,7 @@ export default function ChefSite({ user, onLogin, onLogout }) {
       });
       const data = await res.json();
       if (data.success) {
-        setNewDish({ name: '', category: 'Pasta', base_price: '', daily_stock: '20', description: '', image_url: '', is_available: true, is_veg: true });
+        setNewDish({ name: '', category: 'Biryani & Rice', base_price: '', daily_stock: '20', description: '', image_url: '', is_available: true, is_veg: true });
         fetchData();
       }
     } catch (err) {
@@ -931,7 +948,7 @@ export default function ChefSite({ user, onLogin, onLogout }) {
     setEditForm({
       dish_id: dish.dish_id,
       name: dish.name || '',
-      category: dish.category || 'Pasta',
+      category: dish.category || 'Biryani & Rice',
       base_price: dish.base_price || '',
       daily_stock: dish.daily_stock !== undefined ? dish.daily_stock : 20,
       description: dish.description || '',
@@ -2461,25 +2478,21 @@ export default function ChefSite({ user, onLogin, onLogout }) {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="font-extrabold text-slate-700 dark:text-slate-300 block mb-1">Cuisine / Category</label>
-                  <input
-                    type="text"
-                    list="new-dish-category-suggestions"
+                  <select
                     value={newDish.category}
                     onChange={(e) => setNewDish({ ...newDish, category: e.target.value })}
-                    placeholder="e.g. Noodles, Pasta, Biryani..."
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700/80 text-slate-900 dark:text-white placeholder-slate-400 font-medium outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 shadow-sm transition-all"
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700/80 text-slate-900 dark:text-white font-medium outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 shadow-sm transition-all cursor-pointer"
                     required
-                  />
-                  <datalist id="new-dish-category-suggestions">
-                    <option value="Noodles" />
-                    <option value="Pasta" />
-                    <option value="Biryani" />
-                    <option value="Curry" />
-                    <option value="Pizza" />
-                    <option value="Desserts" />
-                    <option value="Starters" />
-                    <option value="Beverages" />
-                  </datalist>
+                  >
+                    {STANDARD_CUISINE_CATEGORIES.map((cat) => (
+                      <option key={cat} value={cat}>
+                        {cat}
+                      </option>
+                    ))}
+                    {newDish.category && !STANDARD_CUISINE_CATEGORIES.includes(newDish.category) && (
+                      <option value={newDish.category}>{newDish.category}</option>
+                    )}
+                  </select>
                 </div>
                 <div>
                   <label className="font-extrabold text-slate-700 dark:text-slate-300 block mb-1">Price (₹)</label>
@@ -2492,27 +2505,6 @@ export default function ChefSite({ user, onLogin, onLogout }) {
                     className="w-full px-3.5 py-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700/80 text-slate-900 dark:text-white placeholder-slate-400 font-black font-display outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 shadow-sm transition-all"
                     required
                   />
-                </div>
-              </div>
-
-              {/* Dynamic Quick Category Pills */}
-              <div className="space-y-1">
-                <span className="text-[10px] text-slate-500 dark:text-slate-400 font-bold">Popular Categories:</span>
-                <div className="flex flex-wrap gap-1.5">
-                  {['Noodles', 'Pasta', 'Biryani', 'Curry', 'Pizza', 'Desserts', 'Starters'].map((cat) => (
-                    <button
-                      key={cat}
-                      type="button"
-                      onClick={() => setNewDish({ ...newDish, category: cat })}
-                      className={`px-2.5 py-1 rounded-lg text-[10px] font-bold border transition-all cursor-pointer ${
-                        newDish.category?.toLowerCase() === cat.toLowerCase()
-                          ? 'bg-emerald-500 text-white border-emerald-500 shadow-sm'
-                          : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-emerald-500'
-                      }`}
-                    >
-                      {cat}
-                    </button>
-                  ))}
                 </div>
               </div>
 
@@ -2759,25 +2751,22 @@ export default function ChefSite({ user, onLogin, onLogout }) {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="font-extrabold text-slate-700 dark:text-slate-300">Cuisine / Category</label>
-                  <input
-                    type="text"
-                    list="edit-dish-category-suggestions"
+                  <select
                     value={editForm.category}
                     onChange={(e) => setEditForm({ ...editForm, category: e.target.value })}
-                    placeholder="e.g. Noodles, Pasta, Biryani..."
-                    className="w-full mt-1.5 px-3.5 py-2.5 rounded-xl bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700/80 text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 font-medium shadow-sm transition-all"
+                    className="w-full mt-1.5 px-3.5 py-2.5 rounded-xl bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700/80 text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 font-semibold shadow-sm transition-all cursor-pointer"
                     required
-                  />
-                  <datalist id="edit-dish-category-suggestions">
-                    <option value="Noodles" />
-                    <option value="Pasta" />
-                    <option value="Biryani" />
-                    <option value="Curry" />
-                    <option value="Pizza" />
-                    <option value="Desserts" />
-                    <option value="Starters" />
-                    <option value="Beverages" />
-                  </datalist>
+                  >
+                    <option value="" disabled>Select Cuisine / Category</option>
+                    {STANDARD_CUISINE_CATEGORIES.map((cat) => (
+                      <option key={cat} value={cat}>
+                        {cat}
+                      </option>
+                    ))}
+                    {editForm.category && !STANDARD_CUISINE_CATEGORIES.includes(editForm.category) && (
+                      <option value={editForm.category}>{editForm.category}</option>
+                    )}
+                  </select>
                 </div>
                 <div>
                   <label className="font-extrabold text-slate-700 dark:text-slate-300">Price (₹)</label>
@@ -2789,27 +2778,6 @@ export default function ChefSite({ user, onLogin, onLogout }) {
                     className="w-full mt-1.5 px-3.5 py-2.5 rounded-xl bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700/80 text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 font-black shadow-sm transition-all"
                     required
                   />
-                </div>
-              </div>
-
-              {/* Dynamic Quick Category Pills */}
-              <div className="space-y-1">
-                <span className="text-[10px] text-slate-500 dark:text-slate-400 font-bold">Popular Categories:</span>
-                <div className="flex flex-wrap gap-1.5">
-                  {['Noodles', 'Pasta', 'Biryani', 'Curry', 'Pizza', 'Desserts', 'Starters'].map((cat) => (
-                    <button
-                      key={cat}
-                      type="button"
-                      onClick={() => setEditForm({ ...editForm, category: cat })}
-                      className={`px-2.5 py-1 rounded-lg text-[10px] font-bold border transition-all cursor-pointer ${
-                        editForm.category?.toLowerCase() === cat.toLowerCase()
-                          ? 'bg-amber-500 text-slate-950 font-black border-amber-500 shadow-sm'
-                          : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-amber-500'
-                      }`}
-                    >
-                      {cat}
-                    </button>
-                  ))}
                 </div>
               </div>
 
