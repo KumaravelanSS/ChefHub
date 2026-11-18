@@ -897,16 +897,50 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
             if (parsed && parsed.order_id) {
               const oId = Number(parsed.order_id);
               const newStat = parsed.new_status;
+              const cleanStat = String(newStat || '').toUpperCase();
+
+              // Takeaway pickup notification trigger & sound alert
+              const isReady = ['READY', 'KITCHEN_READY', 'READY_FOR_PICKUP'].includes(cleanStat);
+              const isPrep = ['PREPARING', 'KITCHEN_PREPARING'].includes(cleanStat);
+
+              setMyOrders(prevOrders => {
+                const target = prevOrders.find(o => Number(o.order_id) === oId);
+                const isTakeaway = (parsed.order_type === 'TAKEAWAY') || (target && target.order_type === 'TAKEAWAY');
+                if (isTakeaway && isReady) {
+                  playTakeawayNotificationSound();
+                  setTakeawayNotification({
+                    order_id: oId,
+                    vendor_name: target?.vendor_name || parsed.vendor_name || 'Chef Kitchen',
+                    address: target?.delivery_address || 'Kitchen Counter',
+                    status: 'READY'
+                  });
+                } else if (isTakeaway && isPrep) {
+                  setTakeawayNotification({
+                    order_id: oId,
+                    vendor_name: target?.vendor_name || parsed.vendor_name || 'Chef Kitchen',
+                    address: target?.delivery_address || 'Kitchen Counter',
+                    status: 'PREPARING'
+                  });
+                }
+
+                return prevOrders.map(o => {
+                  if (Number(o.order_id) !== oId) return o;
+                  const prevStage = STAGE_HIERARCHY[String(o.status || '').toUpperCase()] || 0;
+                  const newStage = STAGE_HIERARCHY[cleanStat] || 0;
+                  if (newStat !== 'ORDER_CANCELLED' && newStage < prevStage) return o;
+                  return { ...o, status: newStat || o.status };
+                });
+              });
 
               // Immediately update active tracking order with non-regressive guard
               setActiveTrackingOrder(prev => {
                 if (!prev || Number(prev.order_id) !== oId) return prev;
                 const prevStage = STAGE_HIERARCHY[String(prev.status || '').toUpperCase()] || 0;
-                const newStage = STAGE_HIERARCHY[String(newStat || '').toUpperCase()] || 0;
+                const newStage = STAGE_HIERARCHY[cleanStat] || 0;
                 if (newStat !== 'ORDER_CANCELLED' && newStage < prevStage) return prev;
 
                 const trackingList = Array.isArray(prev.tracking) ? [...prev.tracking] : [];
-                if (newStat && !trackingList.some(t => String(t.event || '').toUpperCase() === String(newStat).toUpperCase())) {
+                if (newStat && !trackingList.some(t => String(t.event || '').toUpperCase() === cleanStat)) {
                   trackingList.push({
                     event: newStat,
                     location_note: parsed.note || `Status updated to ${newStat}`,
@@ -921,15 +955,6 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
                   tracking: trackingList
                 };
               });
-
-              // Immediately update myOrders list
-              setMyOrders(prevOrders => prevOrders.map(o => {
-                if (Number(o.order_id) !== oId) return o;
-                const prevStage = STAGE_HIERARCHY[String(o.status || '').toUpperCase()] || 0;
-                const newStage = STAGE_HIERARCHY[String(newStat || '').toUpperCase()] || 0;
-                if (newStat !== 'ORDER_CANCELLED' && newStage < prevStage) return o;
-                return { ...o, status: newStat || o.status };
-              }));
             }
           }
         } catch (e) {}
@@ -1529,6 +1554,43 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
   const effectiveDeliveryFee = appliedCoupon?.code === 'FREESHIP' ? 0.00 : (serviceType === 'PICKUP' ? 0.00 : DELIVERY_FEE);
   const grandTotal = Math.max(0, cartTotal - couponDiscountAmount + effectiveDeliveryFee);
 
+  // Safe memoized active vendor for checkout and takeaway self-pickup drawer
+  const vendorToOrder = React.useMemo(() => {
+    return (cart[0] && vendors.find(v => v.vendor_id === cart[0].vendor_id)) || selectedVendor || vendors[0] || {};
+  }, [cart, vendors, selectedVendor]);
+
+  // Real-time Takeaway Pickup Notification State
+  const [takeawayNotification, setTakeawayNotification] = useState(null);
+
+  // Synthesizes a clean, pleasant notification chime for ready takeaway meals
+  const playTakeawayNotificationSound = () => {
+    try {
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      if (!AudioCtx) return;
+      const ctx = new AudioCtx();
+      if (ctx.state === 'suspended') {
+        ctx.resume();
+      }
+      const now = ctx.currentTime;
+      // Cheerful 4-tone ascending bell chime (C5 -> E5 -> G5 -> C6)
+      const frequencies = [523.25, 659.25, 783.99, 1046.50];
+      frequencies.forEach((freq, idx) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(freq, now + idx * 0.12);
+        gain.gain.setValueAtTime(0.2, now + idx * 0.12);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.12 + 0.35);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(now + idx * 0.12);
+        osc.stop(now + idx * 0.12 + 0.35);
+      });
+    } catch (e) {
+      console.warn('Takeaway audio chime warning:', e);
+    }
+  };
+
   const handleOpenPaymentGateway = () => {
     const token = localStorage.getItem('chefhub_token');
     if (!user || !token || token === 'undefined') {
@@ -1537,16 +1599,18 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
     }
     if (cart.length === 0) return;
 
-    if (!isCurrentAreaServiced) {
-      alert('📍 Selected delivery address is outside our 20km chef delivery coverage area. Please choose a serviced delivery address to proceed.');
-      setShowAddressModal(true);
-      return;
-    }
+    if (serviceType !== 'PICKUP') {
+      if (!isCurrentAreaServiced) {
+        alert('📍 Selected delivery address is outside our 20km chef delivery coverage area. Please choose a serviced delivery address to proceed.');
+        setShowAddressModal(true);
+        return;
+      }
 
-    if (!primaryAddress || primaryAddress.trim().length < 5) {
-      setShowAddressModal(true);
-      alert('Please set and save your primary delivery address first.');
-      return;
+      if (!primaryAddress || primaryAddress.trim().length < 5) {
+        setShowAddressModal(true);
+        alert('Please set and save your primary delivery address first.');
+        return;
+      }
     }
 
     setShowPaymentGatewayModal(true);
@@ -1554,8 +1618,10 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
 
   const handleExecutePaymentAndOrder = async (e, shouldFail = false) => {
     if (e && e.preventDefault) e.preventDefault();
-    const vendorToOrder = (cart[0] && vendors.find(v => v.vendor_id === cart[0].vendor_id)) || selectedVendor || vendors[0];
-    if (!vendorToOrder) return;
+    if (!vendorToOrder || (!vendorToOrder.vendor_id && !cart[0]?.vendor_id)) {
+      alert('Kitchen details could not be found for cart items.');
+      return;
+    }
 
     const token = localStorage.getItem('chefhub_token');
     if (!user || !token || token === 'undefined') {
@@ -1567,7 +1633,7 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
       return;
     }
 
-    if (!isCurrentAreaServiced) {
+    if (serviceType !== 'PICKUP' && !isCurrentAreaServiced) {
       alert('📍 Cannot place order: Selected address is outside our 20km chef delivery coverage area. Please switch to a serviced delivery address.');
       setIsProcessingPayment(false);
       setPaymentStage('IDLE');
@@ -1708,6 +1774,9 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
           setPaymentStage('IDLE');
           setConfirmedOrder(orderReceipt);
           setMerchantTransactionView(orderReceipt);
+          if (serviceType === 'PICKUP') {
+            setActiveTrackingOrder(orderReceipt);
+          }
           setOrderStatusMsg('✅ Payment Successful & Order Confirmed!');
           fetchMyOrders();
           fetchVendors(currentCoords, true);
@@ -5066,7 +5135,7 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
 
                     <div className="p-3 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-center">
                       <span className="text-xs font-bold text-amber-600 dark:text-amber-400">
-                        {String(activeTrackingOrder.status || '').toUpperCase() === 'READY'
+                        {['READY', 'KITCHEN_READY', 'READY_FOR_PICKUP'].includes(String(activeTrackingOrder.status || '').toUpperCase())
                           ? '🎉 Meal is packed & waiting at the kitchen counter!'
                           : String(activeTrackingOrder.status || '').toUpperCase() === 'DELIVERED'
                           ? '✓ Collected by customer. Thank you for ordering!'
@@ -5778,6 +5847,80 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
                 )}
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Real-Time Takeaway Ready for Pickup Floating Toast Banner */}
+      {takeawayNotification && (
+        <div className="fixed top-5 left-1/2 -translate-x-1/2 z-50 w-[95%] max-w-lg animate-in slide-in-from-top-6 duration-300">
+          <div className="p-4 rounded-3xl bg-slate-950/95 dark:bg-slate-900/95 text-white border-2 border-orange-500/60 shadow-2xl backdrop-blur-xl flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3 min-w-0">
+              <div className={`w-11 h-11 rounded-2xl flex items-center justify-center shrink-0 shadow-lg ${
+                takeawayNotification.status === 'READY'
+                  ? 'bg-gradient-to-tr from-emerald-500 to-teal-500 text-white animate-bounce'
+                  : 'bg-gradient-to-tr from-amber-500 to-orange-500 text-white animate-pulse'
+              }`}>
+                {takeawayNotification.status === 'READY' ? (
+                  <ShoppingBag className="w-5 h-5 text-white" />
+                ) : (
+                  <Clock className="w-5 h-5 text-white" />
+                )}
+              </div>
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${
+                    takeawayNotification.status === 'READY'
+                      ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                      : 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
+                  }`}>
+                    {takeawayNotification.status === 'READY' ? '🎉 Ready For Pickup' : '👨‍🍳 Kitchen Cooking'}
+                  </span>
+                  <span className="text-[11px] font-mono text-slate-400">Order #{takeawayNotification.order_id}</span>
+                </div>
+                <h4 className="text-sm font-extrabold text-white mt-0.5 truncate">
+                  {takeawayNotification.status === 'READY'
+                    ? 'Your Takeaway is Ready!'
+                    : 'Takeaway Cooking in Progress'}
+                </h4>
+                <p className="text-xs text-slate-300 font-medium truncate">
+                  {takeawayNotification.status === 'READY'
+                    ? `Freshly packed at ${takeawayNotification.vendor_name}'s counter`
+                    : `${takeawayNotification.vendor_name} is preparing your fresh meal`}
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-1.5 shrink-0">
+              <button
+                type="button"
+                onClick={() => {
+                  const target = myOrders.find(o => Number(o.order_id) === Number(takeawayNotification.order_id));
+                  if (target) {
+                    setActiveTrackingOrder(target);
+                  } else {
+                    setActiveTrackingOrder({
+                      order_id: takeawayNotification.order_id,
+                      order_type: 'TAKEAWAY',
+                      status: takeawayNotification.status,
+                      vendor_name: takeawayNotification.vendor_name,
+                      delivery_address: takeawayNotification.address
+                    });
+                  }
+                  setTakeawayNotification(null);
+                }}
+                className="px-3.5 py-2 rounded-xl bg-orange-500 hover:bg-orange-600 text-white font-extrabold text-xs shadow-md shadow-orange-500/25 transition cursor-pointer whitespace-nowrap"
+              >
+                View Counter
+              </button>
+              <button
+                type="button"
+                onClick={() => setTakeawayNotification(null)}
+                className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition cursor-pointer"
+                title="Dismiss"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
           </div>
         </div>
       )}
