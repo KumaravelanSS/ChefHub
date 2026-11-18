@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import { Bike, Navigation, MapPin, Clock, Gauge, ShieldCheck, Info, Play, Pause, RotateCcw, ExternalLink, Phone } from 'lucide-react';
+import { Bike, Navigation, MapPin, Clock, Gauge, ShieldCheck, Info, Play, Pause, RotateCcw, ExternalLink, Phone, X } from 'lucide-react';
 
 // Clean OpenStreetMap tiles - Free, public & NO "API KEY REQUIRED" watermark
 const TILE_LIGHT = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
