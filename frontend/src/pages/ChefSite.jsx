@@ -47,13 +47,7 @@ const STANDARD_CUISINE_CATEGORIES = [
   'Burrata Flatbread',
   'Butter Chicken & Tikka',
   'Tiramisu & Sweets',
-  'Sides & Appetizers',
-  'Ramen & Bowls',
-  'Desserts & Drinks',
-  'Pizzas & Starters',
-  'Royal Curries',
-  'Biryanis & Breads',
-  'Fresh Pastas'
+  'Sides & Appetizers'
 ];
 
 export default function ChefSite({ user, onLogin, onLogout }) {

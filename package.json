@@ -8,6 +8,6 @@
     "frontend": "cd frontend && npm run dev",
     "test": "cd backend && npm test",
     "seed": "cd backend && npm run seed",
-    "build": "cd frontend && npm install && npm run build && cd ../backend && npm install"
+    "build": "cd frontend && npm install && npm run build && cd .. && node -e \"const fs=require('fs'); fs.cpSync('frontend/dist', 'backend/public', {recursive: true, force: true});\" && cd backend && npm install"
   }
 }

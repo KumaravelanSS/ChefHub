@@ -1480,7 +1480,7 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
       return;
     }
 
-    if (enforceRadius && v?.is_within_20km === false) {
+    if (serviceType !== 'PICKUP' && enforceRadius && v?.is_within_20km === false) {
       alert(`Cannot order: Kitchen is ${v?.distance_km} km away, which exceeds our 20 km delivery radius.`);
       return;
     }
@@ -1556,7 +1556,19 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
 
   // Safe memoized active vendor for checkout and takeaway self-pickup drawer
   const vendorToOrder = React.useMemo(() => {
-    return (cart[0] && vendors.find(v => v.vendor_id === cart[0].vendor_id)) || selectedVendor || vendors[0] || {};
+    const fromCart = cart[0] && vendors.find(v => Number(v.vendor_id) === Number(cart[0].vendor_id));
+    if (fromCart) return fromCart;
+    if (selectedVendor) return selectedVendor;
+    if (cart[0] && (cart[0].vendor_name || cart[0].vendor_id)) {
+      return {
+        vendor_id: cart[0].vendor_id,
+        name: cart[0].vendor_name || 'Chef Kitchen',
+        business_name: cart[0].vendor_name || 'Chef Kitchen',
+        primary_address: 'Artisanal Cloud Kitchen, Bengaluru',
+        locality: 'Bengaluru'
+      };
+    }
+    return vendors[0] || {};
   }, [cart, vendors, selectedVendor]);
 
   // Real-time Takeaway Pickup Notification State
@@ -2094,15 +2106,13 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
   // Dynamic Cuisines / Categories derived from active kitchen dishes + base presets
   const CUISINE_KEYWORD_MAP = {
     'Butter Chicken & Tikka': ['butter chicken', 'tikka', 'curry', 'curries', 'royal curries', 'paneer tikka', 'masala', 'makhani', 'shahi paneer'],
-    'Biryani & Rice': ['biryani', 'rice', 'dum biryani', 'biryanis & breads', 'naan', 'bread', 'roti', 'paratha', 'pulao'],
+    'Biryani & Rice': ['biryani', 'rice', 'dum biryani', 'biryanis & breads', 'naan', 'roti', 'paratha', 'pulao'],
     'Artisan Pasta': ['pasta', 'pastas', 'fresh pastas', 'tagliatelle', 'ravioli', 'gnocchi', 'spaghetti', 'lasagna', 'fettuccine', 'penne', 'macaroni'],
-    'Tokyo Ramen': ['ramen', 'ramen & bowls', 'tonkotsu', 'noodle', 'noodles', 'japanese', 'miso', 'shoyu', 'udon', 'soba'],
+    'Tokyo Ramen': ['ramen', 'ramen & bowls', 'tonkotsu', 'noodle', 'noodles', 'japanese', 'miso', 'shoyu', 'udon', 'soba', 'katsu', 'donburi', 'bowl', 'bowls'],
     'Chettinad & Dosa': ['chettinad', 'dosa', 'dosas', 'idli', 'south indian', 'sambar', 'chutney', 'vada', 'uttapam'],
     'Burrata Flatbread': ['flatbread', 'burrata', 'pizza', 'pizzas', 'pizzas & starters', 'focaccia', 'garlic herb focaccia', 'crust'],
-    'Tiramisu & Sweets': ['tiramisu', 'sweet', 'sweets', 'dessert', 'desserts', 'desserts & drinks', 'cake', 'pastry', 'pudding', 'halwa', 'momoo'],
-    'Sides & Appetizers': ['side', 'sides', 'appetizer', 'appetizers', 'starter', 'starters', 'gyoza', 'dim sum', 'dumpling', 'roll', 'rolls', 'wings', 'pizzas & starters'],
-    'Ramen & Bowls': ['ramen', 'bowl', 'bowls', 'katsu', 'donburi', 'ramen & bowls', 'curry bowl'],
-    'Desserts & Drinks': ['dessert', 'desserts', 'drink', 'drinks', 'smoothie', 'lassi', 'shake', 'beverage', 'beverages', 'tiramisu', 'sweets', 'desserts & drinks']
+    'Tiramisu & Sweets': ['tiramisu', 'sweet', 'sweets', 'dessert', 'desserts', 'desserts & drinks', 'cake', 'pastry', 'pudding', 'halwa', 'momoo', 'drink', 'drinks', 'smoothie', 'lassi', 'shake', 'beverage', 'beverages'],
+    'Sides & Appetizers': ['side', 'sides', 'appetizer', 'appetizers', 'starter', 'starters', 'gyoza', 'dim sum', 'dumpling', 'roll', 'rolls', 'wings']
   };
 
   const dynamicCuisineList = React.useMemo(() => {
@@ -2115,9 +2125,7 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
       { id: 'Burrata Flatbread', name: 'Burrata Flatbread', icon: '🍕', img: 'https://images.unsplash.com/photo-1513104890138-7c749659a591?auto=format&fit=crop&w=240&q=80' },
       { id: 'Butter Chicken & Tikka', name: 'Butter Chicken & Tikka', icon: '🍲', img: 'https://images.unsplash.com/photo-1603894584373-5ac82b2ae398?auto=format&fit=crop&w=240&q=80' },
       { id: 'Tiramisu & Sweets', name: 'Tiramisu & Sweets', icon: '🍰', img: 'https://images.unsplash.com/photo-1571877227200-a0d98ea607e9?auto=format&fit=crop&w=240&q=80' },
-      { id: 'Sides & Appetizers', name: 'Sides & Appetizers', icon: '🥟', img: 'https://images.unsplash.com/photo-1496116218417-1a781b1c416c?auto=format&fit=crop&w=240&q=80' },
-      { id: 'Ramen & Bowls', name: 'Ramen & Bowls', icon: '🍜', img: 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=240&q=80' },
-      { id: 'Desserts & Drinks', name: 'Desserts & Drinks', icon: '🥤', img: 'https://images.unsplash.com/photo-1551024709-8f23befc6f87?auto=format&fit=crop&w=240&q=80' }
+      { id: 'Sides & Appetizers', name: 'Sides & Appetizers', icon: '🥟', img: 'https://images.unsplash.com/photo-1496116218417-1a781b1c416c?auto=format&fit=crop&w=240&q=80' }
     ];
 
     const categoryIcons = {
@@ -2149,7 +2157,8 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
     const seenCategories = new Set([
       ...baseNames,
       'curry', 'biryani', 'pasta', 'ramen', 'flatbread', 'desserts', 'royal curries',
-      'biryanis & breads', 'fresh pastas', 'pizzas & starters', 'sweet'
+      'biryanis & breads', 'fresh pastas', 'pizzas & starters', 'sweet', 'sweets',
+      'desserts & drinks', 'ramen & bowls', 'noodles', 'bowl', 'bowls'
     ]);
     const dynamicList = [...baseCuisines];
 
@@ -2191,8 +2200,8 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
         return false;
       }
 
-      // Radius enforcement
-      if (enforceRadius && !dish.vendor_is_within_radius) {
+      // Radius enforcement (applies only to delivery mode, not takeaway)
+      if (serviceType !== 'PICKUP' && enforceRadius && !dish.vendor_is_within_radius) {
         return false;
       }
 
@@ -3435,7 +3444,7 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
       {cart.length > 0 && customerTab === 'MARKETPLACE' && (
         <div className="fixed bottom-4 left-4 right-4 z-40 max-w-md mx-auto md:hidden">
           <button
-            onClick={() => setMobileCartOpen(true)}
+            onClick={handleOpenPaymentGateway}
             className="w-full py-3.5 px-4 rounded-2xl bg-gradient-to-r from-orange-500 via-amber-500 to-orange-600 text-white font-extrabold text-xs shadow-2xl flex items-center justify-between cursor-pointer"
           >
             <div className="flex items-center gap-2">
@@ -4991,10 +5000,10 @@ export default function CustomerSite({ user, onLogin, onLogout }) {
                   <button
                     type="button"
                     onClick={(e) => handleExecutePaymentAndOrder(e, false)}
-                    disabled={isProcessingPayment || !isCurrentAreaServiced}
+                    disabled={isProcessingPayment || (serviceType !== 'PICKUP' && !isCurrentAreaServiced)}
                     className="w-full py-4 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white font-extrabold text-sm shadow-lg shadow-emerald-500/25 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
                   >
-                    {!isCurrentAreaServiced ? (
+                    {serviceType !== 'PICKUP' && !isCurrentAreaServiced ? (
                       <>
                         <MapPinOff className="w-4 h-4" />
                         <span>Area Outside 20km Radius</span>
